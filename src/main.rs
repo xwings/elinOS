@@ -10,6 +10,8 @@ mod memory;
 mod sbi;
 mod virtio_blk;
 mod filesystem;
+mod syscall;
+mod commands;
 
 // Memory layout constants (fallback values)
 const UART0: usize = 0x10000000;
@@ -96,78 +98,8 @@ pub extern "C" fn _start() -> ! {
 }
 
 fn process_command(command: &str) {
-    let parts: heapless::Vec<&str, 8> = command.split_whitespace().collect();
-    
-    if parts.is_empty() {
-        return;
-    }
-
-    match parts[0] {
-        "help" => {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "Available commands:");
-            let _ = writeln!(uart, "  help     - Show this help");
-            let _ = writeln!(uart, "  memory   - Show memory information");
-            let _ = writeln!(uart, "  devices  - Probe for VirtIO devices");
-            let _ = writeln!(uart, "  ls       - List files");
-            let _ = writeln!(uart, "  cat <file> - Show file contents");
-            let _ = writeln!(uart, "  touch <file> - Create empty file");
-            let _ = writeln!(uart, "  rm <file> - Delete file");
-            let _ = writeln!(uart, "  clear    - Clear screen");
-        },
-        "memory" => {
-            let mem_mgr = memory::MEMORY_MANAGER.lock();
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "Memory regions:");
-            for (i, region) in mem_mgr.get_memory_info().iter().enumerate() {
-                let _ = writeln!(uart, "  Region {}: 0x{:x} - 0x{:x} ({} MB) {}",
-                    i,
-                    region.start,
-                    region.start + region.size,
-                    region.size / (1024 * 1024),
-                    if region.is_ram { "RAM" } else { "MMIO" }
-                );
-            }
-        },
-        "devices" => {
-            virtio_blk::probe_virtio_devices();
-        },
-        "ls" => {
-            filesystem::cmd_ls();
-        },
-        "cat" => {
-            if parts.len() > 1 {
-                filesystem::cmd_cat(parts[1]);
-            } else {
-                let mut uart = UART.lock();
-                let _ = writeln!(uart, "Usage: cat <filename>");
-            }
-        },
-        "touch" => {
-            if parts.len() > 1 {
-                filesystem::cmd_touch(parts[1]);
-            } else {
-                let mut uart = UART.lock();
-                let _ = writeln!(uart, "Usage: touch <filename>");
-            }
-        },
-        "rm" => {
-            if parts.len() > 1 {
-                filesystem::cmd_rm(parts[1]);
-            } else {
-                let mut uart = UART.lock();
-                let _ = writeln!(uart, "Usage: rm <filename>");
-            }
-        },
-        "clear" => {
-            let mut uart = UART.lock();
-            let _ = write!(uart, "\x1b[2J\x1b[H"); // ANSI escape codes to clear screen
-        },
-        _ => {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "Unknown command: {}. Type 'help' for available commands.", parts[0]);
-        }
-    }
+    // Delegate all command processing to the commands module
+    commands::process_command(command);
 }
 
 #[no_mangle]
@@ -187,7 +119,6 @@ pub extern "C" fn main() -> ! {
         
         // Display detected memory regions
         let mut uart = UART.lock();
-        let _ = write!(uart, "\nDetected Memory Regions:\n");
         for (i, region) in mem_mgr.get_memory_info().iter().enumerate() {
             let _ = write!(uart, "Region {}: 0x{:x} - 0x{:x} ({} MB) {}\n",
                 i,
@@ -209,7 +140,7 @@ pub extern "C" fn main() -> ! {
     {
         let mut uart = UART.lock();
         let _ = write!(uart, "\n\nWelcome to ElinOS\n");
-        let _ = write!(uart, "Starting shell... Type 'help' for commands.\n\n");
+        let _ = write!(uart, "Type 'help' for commands or 'syscall' for system call info.\n\n");
         drop(uart);
     }
     
