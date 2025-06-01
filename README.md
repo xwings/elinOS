@@ -28,7 +28,6 @@ A minimal operating system written in Rust for RISC-V 64-bit architecture, featu
 - **Pre-loaded test files** for demonstration
 
 ### System Call Architecture
-- **Categorized organization** inspired by Qiling framework
 - **Range-based syscall numbers** for scalability
 - **9 distinct categories** covering all OS functionality
 - **Professional structure** ready for production-scale development
