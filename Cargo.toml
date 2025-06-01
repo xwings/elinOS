@@ -7,6 +7,8 @@ edition = "2021"
 riscv = "0.10.1"
 spin = "0.9.8"
 embedded-hal = "0.2.7"
+# For better error handling and collections
+heapless = { version = "0.8.0", default-features = false }
 
 [profile.dev]
 panic = "abort"

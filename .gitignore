@@ -9,8 +9,9 @@ kernel.bin
 *.elf
 *.bin
 
-# QEMU logs
+# QEMU
 qemu.log
+disk.qcow2
 
 # IDE files
 .vscode/
