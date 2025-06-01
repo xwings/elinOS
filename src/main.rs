@@ -6,47 +6,12 @@ use core::fmt::Write;
 use core::arch::asm;
 use spin::Mutex;
 
-// Memory layout constants
+mod memory;
+mod sbi;
+
+// Memory layout constants (fallback values)
 const UART0: usize = 0x10000000;
 const KERNEL_START: usize = 0x80200000;
-const KERNEL_SIZE: usize = 2 * 1024 * 1024;  // 2MB
-const HEAP_START: usize = 0x80400000;
-const HEAP_SIZE: usize = 64 * 1024 * 1024;   // 64MB
-const STACK_SIZE: usize = 2 * 1024 * 1024;   // 2MB per hart
-const MAX_HARTS: usize = 4;
-
-// Memory management structure
-#[allow(dead_code)]
-struct MemoryManager {
-    heap_start: usize,
-    heap_end: usize,
-    current_heap: usize,
-}
-
-#[allow(dead_code)]
-impl MemoryManager {
-    const fn new() -> Self {
-        MemoryManager {
-            heap_start: HEAP_START,
-            heap_end: HEAP_START + HEAP_SIZE,
-            current_heap: HEAP_START,
-        }
-    }
-
-    fn allocate(&mut self, size: usize) -> Option<usize> {
-        let aligned_size = (size + 7) & !7;  // 8-byte alignment
-        if self.current_heap + aligned_size > self.heap_end {
-            None
-        } else {
-            let ptr = self.current_heap;
-            self.current_heap += aligned_size;
-            Some(ptr)
-        }
-    }
-}
-
-#[allow(dead_code)]
-static MEMORY_MANAGER: Mutex<MemoryManager> = Mutex::new(MemoryManager::new());
 
 struct Uart {
     base_addr: usize,
@@ -105,7 +70,7 @@ impl Write for Uart {
     }
 }
 
-static UART: Mutex<Uart> = Mutex::new(Uart::new());
+pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
@@ -135,35 +100,62 @@ pub extern "C" fn main() -> ! {
     uart.init();
     
     // Send test message
-    let _ = write!(uart, "\n\nWelcome to ElinOS\n");
-    let _ = write!(uart, "Memory Layout:\n");
-    let _ = write!(uart, "Kernel: 0x{:x} - 0x{:x}\n", KERNEL_START, KERNEL_START + KERNEL_SIZE);
-    let _ = write!(uart, "Heap: 0x{:x} - 0x{:x}\n", HEAP_START, HEAP_START + HEAP_SIZE);
-    let _ = write!(uart, "Stack: 0x{:x} - 0x{:x}\n", HEAP_START + HEAP_SIZE, HEAP_START + HEAP_SIZE + (STACK_SIZE * MAX_HARTS));
-    let _ = write!(uart, "Starting shell...\n\n");
+    let _ = write!(uart, "\n\n");
+    drop(uart);
+    
+    // Initialize dynamic memory detection
+    {
+        let mut mem_mgr = memory::MEMORY_MANAGER.lock();
+        mem_mgr.init();
+        
+        // Display detected memory regions
+        let mut uart = UART.lock();
+        let _ = write!(uart, "\nDetected Memory Regions:\n");
+        for (i, region) in mem_mgr.get_memory_info().iter().enumerate() {
+            let _ = write!(uart, "Region {}: 0x{:x} - 0x{:x} ({} MB) {}\n",
+                i,
+                region.start,
+                region.start + region.size,
+                region.size / (1024 * 1024),
+                if region.is_ram { "RAM" } else { "MMIO" }
+            );
+        }
+        let _ = write!(uart, "\n\nWelcome to ElinOS\n");
+        let _ = write!(uart, "\nStarting shell...\n\n");
+        drop(uart);
+    }
     
     // Initialize command buffer
     let mut buffer = [0u8; 256];
     
     loop {
         // Simple shell loop
+        let mut uart = UART.lock();
         let _ = write!(uart, "> ");
+        drop(uart);
+        
         let mut i = 0;
         
         while i < buffer.len() {
+            let mut uart = UART.lock();
             if let Some(c) = uart.getchar() {
                 if c == b'\r' || c == b'\n' {
                     uart.putchar(b'\n');
+                    drop(uart);
                     break;
                 }
                 uart.putchar(c);
                 buffer[i] = c;
                 i += 1;
+                drop(uart);
+            } else {
+                drop(uart);
             }
         }
         
         // Echo back the command
         if i > 0 {
+            let mut uart = UART.lock();
             let _ = write!(uart, "You typed: ");
             for j in 0..i {
                 uart.putchar(buffer[j]);

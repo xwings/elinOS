@@ -13,10 +13,14 @@ echo "Kernel information:"
 file kernel.bin
 ls -l kernel.bin
 
-# Run with QEMU
+# Run with QEMU - specify memory size (128MB default, can be overridden with MEMORY env var)
+MEMORY_SIZE=${MEMORY:-128M}
+echo "Starting QEMU with ${MEMORY_SIZE} of memory..."
+
 qemu-system-riscv64 \
     -machine virt \
     -nographic \
+    -m ${MEMORY_SIZE} \
     -bios /usr/share/qemu/opensbi-riscv64-generic-fw_dynamic.bin \
     -kernel kernel.bin \
     -serial mon:stdio \

@@ -2,8 +2,9 @@
 MEMORY {
     /* 2MB for kernel code and data */
     KERNEL (rwx) : ORIGIN = 0x80200000, LENGTH = 2M
-    /* 126MB for heap and stack */
-    RAM (rwx) : ORIGIN = 0x80400000, LENGTH = 126M
+    /* Flexible RAM region - will be detected at runtime */
+    /* This is a safe default, actual RAM detection happens in software */
+    RAM (rwx) : ORIGIN = 0x80400000, LENGTH = 60M
 }
 
 /* Define output sections */
@@ -15,13 +16,13 @@ PHDRS {
     ram PT_LOAD FLAGS(6);  /* RW- */
 }
 
-/* Stack configuration */
+/* Stack configuration - these can be overridden by memory detection */
 PROVIDE(_stack_size = 2M);  /* 2MB per hart stack */
 PROVIDE(_max_hart_id = 4);  /* Support up to 4 harts */
 PROVIDE(_hart_stack_size = _stack_size);
 
-/* Heap configuration */
-PROVIDE(_heap_size = 64M);  /* 64MB for heap */
+/* Heap configuration - will be dynamically determined */
+PROVIDE(_heap_size = 32M);  /* Default 32MB for heap, can be adjusted */
 
 OUTPUT_ARCH(riscv)
 OUTPUT_FORMAT("elf64-littleriscv")
@@ -51,7 +52,7 @@ SECTIONS {
     /* Move to RAM region for heap and stack */
     . = 0x80400000;
 
-    /* Heap starts at beginning of RAM */
+    /* Heap starts at beginning of RAM - size determined at runtime */
     _heap_start = .;
     .heap : {
         . = . + _heap_size;
@@ -79,4 +80,9 @@ SECTIONS {
 /* Define symbols for memory management */
 PROVIDE(_kernel_end = end);
 PROVIDE(_heap_end = _heap_start + _heap_size);
-PROVIDE(_stack_top = _stack_end); 
+PROVIDE(_stack_top = _stack_end);
+
+/* Runtime memory detection will override these defaults */
+PROVIDE(_runtime_heap_start = 0);
+PROVIDE(_runtime_heap_end = 0);
+PROVIDE(_runtime_total_memory = 0); 
