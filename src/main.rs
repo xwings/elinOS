@@ -6,7 +6,47 @@ use core::fmt::Write;
 use core::arch::asm;
 use spin::Mutex;
 
+// Memory layout constants
 const UART0: usize = 0x10000000;
+const KERNEL_START: usize = 0x80200000;
+const KERNEL_SIZE: usize = 2 * 1024 * 1024;  // 2MB
+const HEAP_START: usize = 0x80400000;
+const HEAP_SIZE: usize = 64 * 1024 * 1024;   // 64MB
+const STACK_SIZE: usize = 2 * 1024 * 1024;   // 2MB per hart
+const MAX_HARTS: usize = 4;
+
+// Memory management structure
+#[allow(dead_code)]
+struct MemoryManager {
+    heap_start: usize,
+    heap_end: usize,
+    current_heap: usize,
+}
+
+#[allow(dead_code)]
+impl MemoryManager {
+    const fn new() -> Self {
+        MemoryManager {
+            heap_start: HEAP_START,
+            heap_end: HEAP_START + HEAP_SIZE,
+            current_heap: HEAP_START,
+        }
+    }
+
+    fn allocate(&mut self, size: usize) -> Option<usize> {
+        let aligned_size = (size + 7) & !7;  // 8-byte alignment
+        if self.current_heap + aligned_size > self.heap_end {
+            None
+        } else {
+            let ptr = self.current_heap;
+            self.current_heap += aligned_size;
+            Some(ptr)
+        }
+    }
+}
+
+#[allow(dead_code)]
+static MEMORY_MANAGER: Mutex<MemoryManager> = Mutex::new(MemoryManager::new());
 
 struct Uart {
     base_addr: usize,
@@ -72,10 +112,6 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
-// Stack top symbol
-#[link_section = ".bss"]
-static mut _stack_top: [u8; 4096 * 4] = [0; 4096 * 4];
-
 #[link_section = ".text.boot"]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
@@ -85,7 +121,7 @@ pub extern "C" fn _start() -> ! {
             "li t0, 0x80200000",
             "mv sp, t0",
             "j {main}",
-            stack_top = sym _stack_top,
+            stack_top = sym _STACK_TOP,
             main = sym main,
             options(noreturn)
         );
@@ -100,7 +136,10 @@ pub extern "C" fn main() -> ! {
     
     // Send test message
     let _ = write!(uart, "\n\nWelcome to ElinOS\n");
-    let _ = write!(uart, "Work In Progress, kernel for RISC-V 64-bit\n");
+    let _ = write!(uart, "Memory Layout:\n");
+    let _ = write!(uart, "Kernel: 0x{:x} - 0x{:x}\n", KERNEL_START, KERNEL_START + KERNEL_SIZE);
+    let _ = write!(uart, "Heap: 0x{:x} - 0x{:x}\n", HEAP_START, HEAP_START + HEAP_SIZE);
+    let _ = write!(uart, "Stack: 0x{:x} - 0x{:x}\n", HEAP_START + HEAP_SIZE, HEAP_START + HEAP_SIZE + (STACK_SIZE * MAX_HARTS));
     let _ = write!(uart, "Starting shell...\n\n");
     
     // Initialize command buffer
@@ -149,3 +188,7 @@ macro_rules! println {
     ($fmt:expr) => ($crate::print!(concat!($fmt, "\r\n")));
     ($fmt:expr, $($arg:tt)*) => ($crate::print!(concat!($fmt, "\r\n"), $($arg)*));
 }
+
+// Stack top symbol
+#[link_section = ".bss"]
+static mut _STACK_TOP: [u8; 4096 * 4] = [0; 4096 * 4];

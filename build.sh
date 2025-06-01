@@ -6,7 +6,7 @@ cargo clean
 rm -rf kernel.bin
 
 # Build the kernel with release profile for better optimization
-RUSTFLAGS="-C target-cpu=generic-rv64 -C target-feature=+m,+a,+c,+d,+f -C link-arg=-Tsrc/linker.ld" cargo build --release --target riscv64gc-unknown-none-elf
+RUSTFLAGS="-C target-cpu=generic-rv64 -C target-feature=+m,+a,+c -C link-arg=-Tsrc/linker.ld" cargo build --release --target riscv64gc-unknown-none-elf
 
 # Check if the ELF file exists
 if [ ! -f "target/riscv64gc-unknown-none-elf/release/kernel" ]; then

@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 riscv = "0.10.1"
 spin = "0.9.8"
+embedded-hal = "0.2.7"
 
 [profile.dev]
 panic = "abort"
@@ -16,17 +17,11 @@ lto = true     # Enable link-time optimization
 panic = "abort"
 opt-level = 3
 lto = true
+codegen-units = 1
 
 [target.riscv64gc-unknown-none-elf]
 rustflags = [
     "-C", "link-arg=-Tsrc/linker.ld",
-    "-C", "link-arg=-z", "-C", "link-arg=notext",
-    "-C", "link-arg=-z", "-C", "link-arg=stack-size=65536",
-    "-C", "link-arg=-z", "-C", "link-arg=relro",
-    "-C", "link-arg=-z", "-C", "link-arg=now",
-    "-C", "target-cpu=generic-rv64",
-    "-C", "target-feature=+m,+a,+c,+d,+f",
-    "-C", "link-arg=-m", "-C", "link-arg=elf64lriscv",
 ]
 
 [[bin]]
