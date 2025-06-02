@@ -1,4 +1,4 @@
-// ELF Loader for elinKernel
+// ELF Loader for elinOS
 // Supports loading and parsing ELF64 binaries for RISC-V
 
 use crate::UART;

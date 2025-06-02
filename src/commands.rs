@@ -294,7 +294,7 @@ pub fn cmd_clear() -> Result<(), &'static str> {
 
 pub fn cmd_syscall() -> Result<(), &'static str> {
     syscall::sys_print("System Call Information (Linux Compatible):\n")?;
-    syscall::sys_print("  elinKernel now follows Linux syscall numbers for better compatibility!\n\n")?;
+    syscall::sys_print("  elinOS now follows Linux syscall numbers for better compatibility!\n\n")?;
     
     syscall::sys_print("Currently Implemented System Calls:\n")?;
     syscall::sys_print("  File I/O Operations:\n")?;
@@ -314,7 +314,7 @@ pub fn cmd_syscall() -> Result<(), &'static str> {
     syscall::sys_print("    SYS_MMAP (222)     - Memory mapping [TODO]\n")?;
     syscall::sys_print("    SYS_MUNMAP (215)   - Memory unmapping [TODO]\n")?;
     syscall::sys_print("    SYS_BRK (214)      - Program break [TODO]\n")?;
-    syscall::sys_print("    SYS_GETMEMINFO (960) - Memory information (elinKernel)\n")?;
+    syscall::sys_print("    SYS_GETMEMINFO (960) - Memory information (elinOS)\n")?;
 
     syscall::sys_print("  Process Management:\n")?;
     syscall::sys_print("    SYS_EXIT (93)      - Exit process\n")?;
@@ -328,21 +328,21 @@ pub fn cmd_syscall() -> Result<(), &'static str> {
     syscall::sys_print("    SYS_IOCTL (29)     - I/O control [TODO]\n")?;
     syscall::sys_print("    SYS_DUP (23)       - Duplicate file descriptor [TODO]\n")?;
     syscall::sys_print("    SYS_PIPE2 (59)     - Create pipe [TODO]\n")?;
-    syscall::sys_print("    SYS_GETDEVICES (950) - Device information (elinKernel)\n")?;
+    syscall::sys_print("    SYS_GETDEVICES (950) - Device information (elinOS)\n")?;
 
-    syscall::sys_print("  elinKernel-Specific (ELF Support):\n")?;
+    syscall::sys_print("  elinOS-Specific (ELF Support):\n")?;
     syscall::sys_print("    SYS_LOAD_ELF (900)  - Load ELF binary into memory\n")?;
     syscall::sys_print("    SYS_EXEC_ELF (901)  - Load and execute ELF binary\n")?;
     syscall::sys_print("    SYS_ELF_INFO (902)  - Display ELF binary information\n")?;
 
-    syscall::sys_print("  elinKernel-Specific (System Control):\n")?;
+    syscall::sys_print("  elinOS-Specific (System Control):\n")?;
     syscall::sys_print("    SYS_ELINOS_DEBUG (900)    - Set debug level\n")?;
     syscall::sys_print("    SYS_ELINOS_VERSION (902)  - Show version\n")?;
     syscall::sys_print("    SYS_ELINOS_SHUTDOWN (903) - Shutdown system\n")?;
     syscall::sys_print("    SYS_ELINOS_REBOOT (904)   - Reboot system\n")?;
 
     syscall::sys_print("\nNumbers in parentheses are Linux-compatible syscall numbers.\n")?;
-    syscall::sys_print("This makes elinKernel easier to understand for Linux developers!\n")?;
+    syscall::sys_print("This makes elinOS easier to understand for Linux developers!\n")?;
     syscall::sys_print("Use 'categories' to see the full categorization system.\n")?;
     syscall::sys_print("Use 'elf-demo' to test the ELF loader functionality.\n")?;
     Ok(())
@@ -722,7 +722,7 @@ pub fn cmd_buddy_test() -> Result<(), &'static str> {
 }
 
 pub fn cmd_comprehensive_test() -> Result<(), &'static str> {
-    syscall::sys_print("=== elinKernel Buddy Management Test ===\n")?;
+    syscall::sys_print("=== elinOS Buddy Management Test ===\n")?;
     syscall::sys_print("Testing our dynamic two-tier memory management system!\n\n")?;
     
     // Phase 1: Show initial state
@@ -978,7 +978,7 @@ pub fn cmd_diskdump(block_num: u64) -> Result<(), &'static str> {
         0 => {
             syscall::sys_print("✅ Block 0: Contains ext4 superblock at offset 1024\n")?;
             syscall::sys_print("   📊 Magic: 0xef53, Block size: 4096 bytes\n")?;
-            syscall::sys_print("   📁 Filesystem: elinKernel embedded ext4\n")?;
+            syscall::sys_print("   📁 Filesystem: elinOS embedded ext4\n")?;
         },
         1..=10 => {
             syscall::sys_print("✅ Block ")?;
@@ -1072,7 +1072,7 @@ pub fn cmd_ext4check() -> Result<(), &'static str> {
         syscall::sys_print("65536")?;
         syscall::sys_print("\n")?;
         syscall::sys_print("   Block size: 4096 bytes\n")?;
-        syscall::sys_print("   Volume: elinKernel\n")?;
+        syscall::sys_print("   Volume: elinOS\n")?;
     } else {
         syscall::sys_print("⚠️  No superblock data available\n")?;
     }

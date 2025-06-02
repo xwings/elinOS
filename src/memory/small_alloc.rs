@@ -1,4 +1,4 @@
-// Small Object Allocator for elinKernel
+// Small Object Allocator for elinOS
 // dlmalloc-style allocator for small objects < 4KB
 // Implements size classes and bins for efficient allocation
 

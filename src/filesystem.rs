@@ -332,7 +332,7 @@ impl Ext4FileSystem {
         // Demo file content
         let content: &[u8] = match filename {
             "hello.txt" => b"Hello from ext4 filesystem!\n",
-            "readme.md" => b"# elinKernel ext4 Demo\n\nThis is working!\n",
+            "readme.md" => b"# elinOS ext4 Demo\n\nThis is working!\n",
             _ => return Err("File not found"),
         };
 

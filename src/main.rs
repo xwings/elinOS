@@ -140,7 +140,7 @@ pub extern "C" fn main() -> ! {
     
     {
         let mut uart = UART.lock();
-        let _ = write!(uart, "\n\nWelcome to elinKernel\n");
+        let _ = write!(uart, "\n\nWelcome to elinOS\n");
         let _ = write!(uart, "Type 'help' for commands or 'syscall' for system call info.\n\n");
         drop(uart);
     }
@@ -151,7 +151,7 @@ pub extern "C" fn main() -> ! {
     loop {
         // Simple shell loop
         let mut uart = UART.lock();
-        let _ = write!(uart, "elinKernel> ");
+        let _ = write!(uart, "elinOS> ");
         drop(uart);
         
         let mut i = 0;

@@ -1,4 +1,4 @@
-// Virtual Memory Manager for elinKernel  
+// Virtual Memory Manager for elinOS  
 // Implements virtual memory management for mmap/brk support
 // Phase 4 implementation with page table management
 

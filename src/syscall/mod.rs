@@ -1,4 +1,4 @@
-// elinKernel System Call Module
+// elinOS System Call Module
 
 use crate::UART;
 use core::fmt::Write;
@@ -143,8 +143,8 @@ pub fn get_syscall_category(syscall_num: usize) -> &'static str {
         // Memory management (Linux numbers)
         214..=239 => "Memory Management",
         
-        // elinKernel-specific operations
-        900..=999 => "elinKernel-Specific Operations",
+        // elinOS-specific operations
+        900..=999 => "elinOS-Specific Operations",
         
         _ => "Unknown Category",
     }
@@ -164,7 +164,7 @@ pub fn syscall_handler(
         // === DEVICE AND I/O MANAGEMENT (Linux numbers) ===
         23..=33 |      // dup, dup3, fcntl, ioctl, etc.
         59 |           // pipe2
-        950            // elinKernel: getdevices
+        950            // elinOS: getdevices
         => device::handle_device_syscall(&args),
         
         // === DIRECTORY OPERATIONS (Linux numbers) ===
@@ -197,7 +197,7 @@ pub fn syscall_handler(
         
         // === MEMORY MANAGEMENT (Linux numbers) ===
         214..=239 |    // brk, munmap, mremap, mmap, mprotect, msync, mlock, etc.
-        960            // elinKernel: getmeminfo
+        960            // elinOS: getmeminfo
         => memory::handle_memory_syscall(&args),
         
         // === PROCESS MANAGEMENT (Linux numbers - third range) ===
@@ -262,14 +262,14 @@ pub fn sys_show_categories() -> Result<(), &'static str> {
     sys_print("    34: mkdirat, 49-55: chdir/fchdir/chroot/fchmod/etc\n")?;
     sys_print("  Memory Management:\n")?;
     sys_print("    214-239: brk/munmap/mremap/mmap/mprotect/mlock/etc\n")?;
-    sys_print("    960: getmeminfo (elinKernel-specific)\n")?;
+    sys_print("    960: getmeminfo (elinOS-specific)\n")?;
     sys_print("  Process Management:\n")?;
     sys_print("    93-100: exit/waitid/futex/getpid/getppid/kill/etc\n")?;
     sys_print("    129-178: kill/getpid/getppid/etc\n")?;
     sys_print("    220-221: clone/execve\n")?;
     sys_print("  Device and I/O Management:\n")?;
     sys_print("    23-33: dup/dup3/fcntl/ioctl/flock/mknodat/etc\n")?;
-    sys_print("    59: pipe2, 950: getdevices (elinKernel-specific)\n")?;
+    sys_print("    59: pipe2, 950: getdevices (elinOS-specific)\n")?;
     sys_print("  Network Operations:\n")?;
     sys_print("    198-213: socket/bind/listen/accept/connect/etc\n")?;
     sys_print("  Time and Timer Operations:\n")?;
@@ -278,7 +278,7 @@ pub fn sys_show_categories() -> Result<(), &'static str> {
     sys_print("    160-168: uname/sethostname/getrlimit/setrlimit/etc\n")?;
     sys_print("    169-171: gettimeofday/settimeofday/adjtimex\n")?;
     sys_print("    179: sysinfo\n")?;
-    sys_print("  elinKernel-Specific Operations:\n")?;
+    sys_print("  elinOS-Specific Operations:\n")?;
     sys_print("    900-999: debug/version/shutdown/load_elf/exec_elf/etc\n")?;
     Ok(())
 } 

@@ -1,10 +1,10 @@
-# elinKernel Shell Commands
+# elinOS Shell Commands
 
-This guide covers all available commands in the elinKernel interactive shell.
+This guide covers all available commands in the elinOS interactive shell.
 
 ## Overview
 
-Once elinKernel boots, you'll have access to an interactive shell with comprehensive commands organized into several categories:
+Once elinOS boots, you'll have access to an interactive shell with comprehensive commands organized into several categories:
 
 - **System Information** - Inspect system state and configuration
 - **Embedded Filesystem Operations** - Manage files and test ext4 implementation
@@ -18,7 +18,7 @@ Shows available commands with descriptions.
 
 **Usage:**
 ```
-elinKernel> help
+elinOS> help
 ```
 
 **Output:**
@@ -38,7 +38,7 @@ Display detected memory regions via `SYS_GETMEMINFO`.
 
 **Usage:**
 ```
-elinKernel> memory
+elinOS> memory
 ```
 
 **Example Output:**
@@ -52,7 +52,7 @@ Check the embedded ext4 filesystem status and superblock information.
 
 **Usage:**
 ```
-elinKernel> ext4check
+elinOS> ext4check
 ```
 
 **Example Output:**
@@ -67,7 +67,7 @@ EXT4 Filesystem Check
    Inodes: 65536
    Blocks: 65536
    Block size: 4096 bytes
-   Volume: elinKernel
+   Volume: elinOS
 ```
 
 ### `disktest`
@@ -75,7 +75,7 @@ Test filesystem operations including initialization, file listing, and reading.
 
 **Usage:**
 ```
-elinKernel> disktest
+elinOS> disktest
 ```
 
 **Example Output:**
@@ -97,8 +97,8 @@ Display information about filesystem blocks (educational purposes).
 
 **Usage:**
 ```
-elinKernel> diskdump 0
-elinKernel> diskdump 5
+elinOS> diskdump 0
+elinOS> diskdump 5
 ```
 
 **Example Output:**
@@ -109,7 +109,7 @@ Filesystem Block Dump
 📖 Reading block 0 from embedded filesystem...
 ✅ Block 0: Contains ext4 superblock at offset 1024
    📊 Magic: 0xef53, Block size: 4096 bytes
-   📁 Filesystem: elinKernel embedded ext4
+   📁 Filesystem: elinOS embedded ext4
 ```
 
 ### `syscall`
@@ -117,7 +117,7 @@ Show system call information and architecture.
 
 **Usage:**
 ```
-elinKernel> syscall
+elinOS> syscall
 ```
 
 **Output:**
@@ -138,7 +138,7 @@ Show syscall categorization system.
 
 **Usage:**
 ```
-elinKernel> categories
+elinOS> categories
 ```
 
 **Output:**
@@ -152,16 +152,16 @@ System Call Categories:
 ```
 
 ### `version`
-Show elinKernel version via `SYS_ELINOS_VERSION`.
+Show elinOS version via `SYS_ELINOS_VERSION`.
 
 **Usage:**
 ```
-elinKernel> version
+elinOS> version
 ```
 
 **Output:**
 ```
-elinKernel v0.1.0 - RISC-V kernel
+elinOS v0.1.0 - RISC-V kernel
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 ```
@@ -173,7 +173,7 @@ List all files with sizes using `SYS_GETDENTS`.
 
 **Usage:**
 ```
-elinKernel> ls
+elinOS> ls
 ```
 
 **Example Output:**
@@ -189,13 +189,13 @@ Display file contents using `SYS_OPEN`.
 
 **Usage:**
 ```
-elinKernel> cat hello.txt
+elinOS> cat hello.txt
 ```
 
 **Example Output:**
 ```
 Contents of hello.txt:
-Hello from elinKernel filesystem!
+Hello from elinOS filesystem!
 --- End of file ---
 ```
 
@@ -204,7 +204,7 @@ Create a new empty file using filesystem + `SYS_OPEN`.
 
 **Usage:**
 ```
-elinKernel> touch newfile.txt
+elinOS> touch newfile.txt
 ```
 
 **Output:**
@@ -217,7 +217,7 @@ Delete a file using `SYS_UNLINK`.
 
 **Usage:**
 ```
-elinKernel> rm oldfile.txt
+elinOS> rm oldfile.txt
 ```
 
 **Output:**
@@ -232,7 +232,7 @@ Analyze ELF binary structure and display detailed information.
 
 **Usage:**
 ```
-elinKernel> elf-info hello.elf
+elinOS> elf-info hello.elf
 ```
 
 **Example Output:**
@@ -254,7 +254,7 @@ Load ELF binary into memory and show entry point/segments.
 
 **Usage:**
 ```
-elinKernel> elf-load hello.elf
+elinOS> elf-load hello.elf
 ```
 
 **Example Output:**
@@ -275,7 +275,7 @@ Load ELF binary and prepare for execution (simulated).
 
 **Usage:**
 ```
-elinKernel> elf-exec hello.elf
+elinOS> elf-exec hello.elf
 ```
 
 **Example Output:**
@@ -297,7 +297,7 @@ Built-in demonstration with sample ELF header.
 
 **Usage:**
 ```
-elinKernel> elf-demo
+elinOS> elf-demo
 ```
 
 **Example Output:**
@@ -325,16 +325,16 @@ Note: This is just a header demo - no actual code segments.
 ## System Control
 
 ### `shutdown`
-Gracefully shutdown elinKernel and exit QEMU using `SYS_ELINOS_SHUTDOWN`.
+Gracefully shutdown elinOS and exit QEMU using `SYS_ELINOS_SHUTDOWN`.
 
 **Usage:**
 ```
-elinKernel> shutdown
+elinOS> shutdown
 ```
 
 **Output:**
 ```
-elinKernel shutting down...
+elinOS shutting down...
 Goodbye!
 # Returns to host shell automatically
 ```
@@ -344,12 +344,12 @@ Restart the system using `SYS_ELINOS_REBOOT`.
 
 **Usage:**
 ```
-elinKernel> reboot
+elinOS> reboot
 ```
 
 **Output:**
 ```
-elinKernel rebooting...
+elinOS rebooting...
 # System restarts
 ```
 
@@ -358,7 +358,7 @@ Clear the screen using `SYS_WRITE`.
 
 **Usage:**
 ```
-elinKernel> clear
+elinOS> clear
 ```
 
 **Effect:**
@@ -369,10 +369,10 @@ Clears the terminal screen and positions cursor at top.
 Here's a complete example session showing various commands:
 
 ```
-elinKernel v0.1.0 - RISC-V kernel
+elinOS v0.1.0 - RISC-V kernel
 Starting interactive shell...
 
-elinKernel> help
+elinOS> help
 Available commands:
   help       - Show this help
   memory     - Show memory information
@@ -385,7 +385,7 @@ Available commands:
   clear      - Clear screen
   syscall    - Show system call info
   categories - Show syscall categories
-  version    - Show elinKernel version
+  version    - Show elinOS version
   elf-info <file>  - Show ELF binary information
   elf-load <file>  - Load ELF binary into memory
   elf-exec <file>  - Execute ELF binary (simulated)
@@ -393,27 +393,27 @@ Available commands:
   shutdown   - Shutdown the system
   reboot     - Reboot the system
 
-elinKernel> version
-elinKernel v0.1.0 - RISC-V kernel
+elinOS> version
+elinOS v0.1.0 - RISC-V kernel
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 
-elinKernel> memory
+elinOS> memory
 Memory regions:
   Region 0: 0x80000000 - 0x88000000 (128 MB) RAM
 
-elinKernel> ls
+elinOS> ls
 Files:
   hello.txt (28 bytes)
   readme.md (45 bytes)
   lost+found (0 bytes)
 
-elinKernel> cat hello.txt
+elinOS> cat hello.txt
 Contents of hello.txt:
-Hello from elinKernel filesystem!
+Hello from elinOS filesystem!
 --- End of file ---
 
-elinKernel> elf-info hello.elf
+elinOS> elf-info hello.elf
 ELF Binary Information:
   Class: ELF64
   Data: Little-endian
@@ -425,7 +425,7 @@ ELF Binary Information:
   Section header offset: 0x0
   Section header count: 0
 
-elinKernel> ext4check
+elinOS> ext4check
 EXT4 Filesystem Check
 ====================
 
@@ -436,9 +436,9 @@ EXT4 Filesystem Check
    Inodes: 65536
    Blocks: 65536
    Block size: 4096 bytes
-   Volume: elinKernel
+   Volume: elinOS
 
-elinKernel> disktest
+elinOS> disktest
 Filesystem Test
 ==============
 
@@ -450,16 +450,16 @@ Filesystem Test
 
 🎉 Filesystem test complete!
 
-elinKernel> diskdump 0
+elinOS> diskdump 0
 Filesystem Block Dump
 ====================
 
 📖 Reading block 0 from embedded filesystem...
 ✅ Block 0: Contains ext4 superblock at offset 1024
    📊 Magic: 0xef53, Block size: 4096 bytes
-   📁 Filesystem: elinKernel embedded ext4
+   📁 Filesystem: elinOS embedded ext4
 
-elinKernel> syscall
+elinOS> syscall
 System Call Information:
   This shell uses categorized system calls for all kernel operations!
 
@@ -470,8 +470,8 @@ Currently Implemented System Calls:
     SYS_OPEN (3)      - Open file
     ...
 
-elinKernel> shutdown
-elinKernel shutting down...
+elinOS> shutdown
+elinOS shutting down...
 Goodbye!
 ```
 

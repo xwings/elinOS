@@ -1,4 +1,4 @@
-// Buddy Allocator Implementation for elinKernel
+// Buddy Allocator Implementation for elinOS
 // Based on MIT-licensed references and public domain algorithms
 // Inspired by evanw/buddy-malloc and jjyr/buddy-alloc designs
 

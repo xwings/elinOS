@@ -24,8 +24,8 @@ pub const SYS_PIPE2: usize = 59;       // Linux: pipe2
 pub const SYS_PIPE: usize = SYS_PIPE2; // Map pipe to pipe2
 pub const SYS_DUP2: usize = SYS_DUP3;  // Map dup2 to dup3
 
-// elinKernel-specific device syscalls (keeping high numbers to avoid conflicts)
-pub const SYS_GETDEVICES: usize = 950; // elinKernel: get device info
+// elinOS-specific device syscalls (keeping high numbers to avoid conflicts)
+pub const SYS_GETDEVICES: usize = 950; // elinOS: get device info
 
 // Linux compatible device management syscall handler
 pub fn handle_device_syscall(args: &SyscallArgs) -> SysCallResult {

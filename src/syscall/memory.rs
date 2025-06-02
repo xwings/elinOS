@@ -37,10 +37,10 @@ pub const SYS_MOVE_PAGES: usize = 239;    // Linux: move_pages
 // Legacy syscall aliases for backwards compatibility
 pub const SYS_SBRK: usize = SYS_BRK;      // Map sbrk to brk
 
-// elinKernel-specific memory syscalls (keeping high numbers to avoid conflicts)
-pub const SYS_GETMEMINFO: usize = 960;   // elinKernel: get memory info
-pub const SYS_ALLOC_TEST: usize = 961;   // elinKernel: test allocator
-pub const SYS_BUDDY_STATS: usize = 962;  // elinKernel: buddy allocator stats
+// elinOS-specific memory syscalls (keeping high numbers to avoid conflicts)
+pub const SYS_GETMEMINFO: usize = 960;   // elinOS: get memory info
+pub const SYS_ALLOC_TEST: usize = 961;   // elinOS: test allocator
+pub const SYS_BUDDY_STATS: usize = 962;  // elinOS: buddy allocator stats
 
 // Memory protection flags
 pub const PROT_READ: usize = 1;

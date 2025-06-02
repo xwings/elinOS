@@ -1,8 +1,8 @@
-# 为 elinKernel 创建用户程序
+# 为 elinOS 创建用户程序
 
 > **🚧 翻译进行中** - 本文档正在翻译中，详细内容请参考 [英文完整版](../en/development.md)。
 
-由于 elinKernel 具有内置的 ELF 加载器，您可以创建和编译 C 程序在其上运行！本指南展示如何创建 elinKernel 可以加载和执行的 RISC-V 二进制文件。
+由于 elinOS 具有内置的 ELF 加载器，您可以创建和编译 C 程序在其上运行！本指南展示如何创建 elinOS 可以加载和执行的 RISC-V 二进制文件。
 
 ## 用户程序开发先决条件
 
@@ -25,14 +25,14 @@ sudo pacman -S riscv64-linux-gnu-gcc
 
 ## 创建 Hello World 程序
 
-创建一个可以在 elinKernel 上运行的简单 C 程序：
+创建一个可以在 elinOS 上运行的简单 C 程序：
 
 **hello.c:**
 ```c
-// elinKernel 的简单 Hello World
-// 此程序演示在 elinKernel 上的基本执行
+// elinOS 的简单 Hello World
+// 此程序演示在 elinOS 上的基本执行
 
-// elinKernel 的简单系统调用接口
+// elinOS 的简单系统调用接口
 static inline long syscall_write(const char* msg, int len) {
     register long a0 asm("a0") = 1;        // stdout fd
     register long a1 asm("a1") = (long)msg; // buffer
@@ -56,7 +56,7 @@ int strlen(const char* str) {
 
 // 主函数 - 入口点
 int main(void) {
-    const char* message = "Hello, World from elinKernel user program!\n";
+    const char* message = "Hello, World from elinOS user program!\n";
     syscall_write(message, strlen(message));
     
     const char* info = "This C program is running via ELF loader!\n";
@@ -105,9 +105,9 @@ readelf -h hello.elf
 # 应显示 Machine: RISC-V
 ```
 
-## 将程序添加到 elinKernel
+## 将程序添加到 elinOS
 
-要在 elinKernel 中使您的程序可用，请在初始化期间将其添加到文件系统：
+要在 elinOS 中使您的程序可用，请在初始化期间将其添加到文件系统：
 
 ### 选项 1：添加到 src/filesystem.rs
 
@@ -119,27 +119,27 @@ let hello_elf = include_bytes!("../hello.elf");
 let _ = fs.create_file("hello.elf", hello_elf);
 ```
 
-## 在 elinKernel 中测试您的程序
+## 在 elinOS 中测试您的程序
 
-添加程序到文件系统并重新构建 elinKernel 后：
+添加程序到文件系统并重新构建 elinOS 后：
 
 ```bash
-# 使用您的程序重新构建 elinKernel
+# 使用您的程序重新构建 elinOS
 ./build.sh
 
-# 运行 elinKernel
+# 运行 elinOS
 ./run.sh
 ```
 
-在 elinKernel 命令行中：
+在 elinOS 命令行中：
 
 ```
-elinKernel> ls
+elinOS> ls
 Files:
   hello.txt (30 bytes)
   hello.elf (8432 bytes)
 
-elinKernel> elf-info hello.elf
+elinOS> elf-info hello.elf
 ELF Binary Information:
   Class: ELF64
   Data: Little-endian
@@ -147,14 +147,14 @@ ELF Binary Information:
   Type: Executable
   Entry point: 0x10078
 
-elinKernel> elf-load hello.elf
+elinOS> elf-load hello.elf
 ELF loaded successfully!
 Entry point: 0x10078
 ```
 
 ## 系统调用接口
 
-elinKernel 为用户程序提供以下系统调用：
+elinOS 为用户程序提供以下系统调用：
 
 ### 文件 I/O 操作 (1-50)
 - `SYS_WRITE (1)` - 写入文件描述符
@@ -164,13 +164,13 @@ elinKernel 为用户程序提供以下系统调用：
 ### 进程管理 (121-170)
 - `SYS_EXIT (121)` - 退出进程
 
-### elinKernel 特定 (900-999)
+### elinOS 特定 (900-999)
 - `SYS_ELINOS_VERSION (902)` - 获取操作系统版本
 
 ## 当前限制
 
 ⚠️ **重要说明**：
-- **尚未实际执行**：elinKernel 可以加载和解析 ELF 文件，但尚未执行它们
+- **尚未实际执行**：elinOS 可以加载和解析 ELF 文件，但尚未执行它们
 - **无虚拟内存**：程序需要适当的内存管理才能执行
 - **无进程隔离**：当前实现缺乏进程上下文切换
 - **有限的系统调用**：仅实现了基本系统调用

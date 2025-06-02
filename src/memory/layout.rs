@@ -1,4 +1,4 @@
-// Dynamic Memory Layout Manager for elinKernel
+// Dynamic Memory Layout Manager for elinOS
 // Replaces hardcoded memory allocations with intelligent detection
 
 use crate::sbi;

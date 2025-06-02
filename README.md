@@ -1,4 +1,4 @@
-# elinKernel
+# elinOS
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
@@ -7,7 +7,7 @@ An **experimental** RISC-V kernel written in Rust, featuring dynamic memory mana
 ## 🚀 Quick Start
 
 ```bash
-# Build and run elinKernel
+# Build and run elinOS
 make
 ./run.sh
 ```
@@ -66,20 +66,20 @@ make
 
 ## 🖥 Interactive Demo
 
-Once elinKernel boots, explore its capabilities:
+Once elinOS boots, explore its capabilities:
 
 ```bash
-elinKernel> help                    # Show all available commands
-elinKernel> version                 # Display elinKernel version info
-elinKernel> memory                  # View memory layout
-elinKernel> ext4check               # Check embedded ext4 filesystem
-elinKernel> disktest                # Test filesystem operations
-elinKernel> syscall                 # Show system call architecture
-elinKernel> ls                      # List filesystem contents
-elinKernel> cat hello.txt           # Display file contents
-elinKernel> elf-info hello.elf      # Analyze ELF binary structure
-elinKernel> elf-load hello.elf      # Load ELF into memory
-elinKernel> shutdown                # Graceful system shutdown
+elinOS> help                    # Show all available commands
+elinOS> version                 # Display elinOS version info
+elinOS> memory                  # View memory layout
+elinOS> ext4check               # Check embedded ext4 filesystem
+elinOS> disktest                # Test filesystem operations
+elinOS> syscall                 # Show system call architecture
+elinOS> ls                      # List filesystem contents
+elinOS> cat hello.txt           # Display file contents
+elinOS> elf-info hello.elf      # Analyze ELF binary structure
+elinOS> elf-load hello.elf      # Load ELF into memory
+elinOS> shutdown                # Graceful system shutdown
 ```
 
 ## 🎯 Current Capabilities
@@ -122,7 +122,7 @@ elinKernel> shutdown                # Graceful system shutdown
 
 *See [Getting Started Guide](docs/en/getting-started.md) for detailed setup instructions.*
 
-## 🏆 Why elinKernel?
+## 🏆 Why elinOS?
 
 ### For Learning
 - **Clear, readable code** demonstrating OS concepts
@@ -161,6 +161,6 @@ This project is free and open source software, allowing unrestricted use, modifi
 
 ---
 
-**elinKernel** demonstrates **educational-quality** kernel development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
+**elinOS** demonstrates **educational-quality** kernel development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
 
 **🎮 Try it now:** `./build.sh && ./run.sh`

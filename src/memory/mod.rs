@@ -1,4 +1,4 @@
-// Memory Management Module for elinKernel
+// Memory Management Module for elinOS
 // Implements Maestro-inspired design with MIT-licensed buddy allocator
 
 pub mod buddy;
@@ -75,7 +75,7 @@ impl MemoryManager {
     pub fn init(&mut self) {
         {
             let mut uart = UART.lock();
-            let _ = writeln!(uart, "🚀 Initializing elinKernel Memory Management System...");
+            let _ = writeln!(uart, "🚀 Initializing elinOS Memory Management System...");
         }
         
         // Initialize memory layout detection

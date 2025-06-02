@@ -73,10 +73,10 @@ pub const SYS_WAIT: usize = SYS_WAITID; // Map wait to waitid
 pub const SYS_WAITPID: usize = SYS_WAITID; // Map waitpid to waitid
 pub const SYS_SIGNAL: usize = SYS_RT_SIGACTION; // Map signal to rt_sigaction
 
-// ELF loading syscalls - elinKernel specific (keeping high numbers to avoid conflicts)
-pub const SYS_LOAD_ELF: usize = 900;    // elinKernel: load ELF binary
-pub const SYS_EXEC_ELF: usize = 901;    // elinKernel: execute ELF binary
-pub const SYS_ELF_INFO: usize = 902;    // elinKernel: ELF binary info
+// ELF loading syscalls - elinOS specific (keeping high numbers to avoid conflicts)
+pub const SYS_LOAD_ELF: usize = 900;    // elinOS: load ELF binary
+pub const SYS_EXEC_ELF: usize = 901;    // elinOS: execute ELF binary
+pub const SYS_ELF_INFO: usize = 902;    // elinOS: ELF binary info
 
 // Linux compatible process management syscall handler
 pub fn handle_process_syscall(args: &SyscallArgs) -> SysCallResult {
@@ -96,7 +96,7 @@ pub fn handle_process_syscall(args: &SyscallArgs) -> SysCallResult {
         SYS_TGKILL => sys_tgkill(args.arg0_as_i32(), args.arg1_as_i32(), args.arg2_as_i32()),
         SYS_RT_SIGACTION => sys_rt_sigaction(args.arg0_as_i32(), args.arg1, args.arg2),
         
-        // elinKernel-specific ELF syscalls
+        // elinOS-specific ELF syscalls
         SYS_LOAD_ELF => sys_load_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_EXEC_ELF => sys_exec_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_ELF_INFO => sys_elf_info(args.arg0_as_ptr::<u8>(), args.arg1),

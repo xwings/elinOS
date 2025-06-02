@@ -1,4 +1,4 @@
-# elinKernel
+# elinOS
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
@@ -7,7 +7,7 @@
 ## 🚀 快速开始
 
 ```bash
-# 编译并运行 elinKernel
+# 编译并运行 elinOS
 make
 ./run.sh
 ```
@@ -72,20 +72,20 @@ make
 
 ## 🖥 交互演示
 
-elinKernel 启动后，探索其功能：
+elinOS 启动后，探索其功能：
 
 ```bash
-elinKernel> help                    # 显示所有可用命令
-elinKernel> version                 # 显示 elinKernel 版本信息
-elinKernel> memory                  # 查看内存布局
-elinKernel> ext4check               # 检查嵌入式 ext4 文件系统
-elinKernel> disktest                # 测试文件系统操作
-elinKernel> syscall                 # 显示系统调用架构
-elinKernel> ls                      # 列出文件系统内容
-elinKernel> cat hello.txt           # 显示文件内容
-elinKernel> elf-info hello.elf      # 分析 ELF 二进制结构
-elinKernel> elf-load hello.elf      # 将 ELF 加载到内存
-elinKernel> shutdown                # 优雅系统关机
+elinOS> help                    # 显示所有可用命令
+elinOS> version                 # 显示 elinOS 版本信息
+elinOS> memory                  # 查看内存布局
+elinOS> ext4check               # 检查嵌入式 ext4 文件系统
+elinOS> disktest                # 测试文件系统操作
+elinOS> syscall                 # 显示系统调用架构
+elinOS> ls                      # 列出文件系统内容
+elinOS> cat hello.txt           # 显示文件内容
+elinOS> elf-info hello.elf      # 分析 ELF 二进制结构
+elinOS> elf-load hello.elf      # 将 ELF 加载到内存
+elinOS> shutdown                # 优雅系统关机
 ```
 
 ## 🎯 当前功能
@@ -128,7 +128,7 @@ elinKernel> shutdown                # 优雅系统关机
 
 *详细安装说明请参见 [快速开始指南](docs/en/getting-started.md)（英文）。*
 
-## 🏆 为什么选择 elinKernel？
+## 🏆 为什么选择 elinOS？
 
 ### 学习价值
 - **清晰易读的代码** 演示操作系统概念
@@ -167,6 +167,6 @@ MIT 协议 - 详情请参见 [LICENSE](LICENSE) 文件。
 
 ---
 
-**elinKernel** 展示了 Rust 语言下**教育级**操作系统开发实践，是优秀的**学习平台**和 RISC-V 系统开发的**实验基础**。
+**elinOS** 展示了 Rust 语言下**教育级**操作系统开发实践，是优秀的**学习平台**和 RISC-V 系统开发的**实验基础**。
 
 **🎮 立即体验：** `./build.sh && ./run.sh` 
