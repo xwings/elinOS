@@ -1,4 +1,4 @@
-// elinOS System Call Module
+// elinKernel System Call Module
 
 use crate::UART;
 use core::fmt::Write;
@@ -126,7 +126,7 @@ pub fn get_syscall_category(syscall_num: usize) -> &'static str {
         221..=270 => "Network Operations",
         271..=300 => "Time and Timer Operations",
         301..=350 => "System Information",
-        900..=999 => "elinOS-Specific Operations",
+        900..=999 => "elinKernel-Specific Operations",
         _ => "Unknown Category",
     }
 }
@@ -218,6 +218,6 @@ pub fn sys_show_categories() -> Result<(), &'static str> {
     sys_print("  221-270: Network Operations\n")?;
     sys_print("  271-300: Time and Timer Operations\n")?;
     sys_print("  301-350: System Information\n")?;
-    sys_print("  900-999: elinOS-Specific Operations\n")?;
+    sys_print("  900-999: elinKernel-Specific Operations\n")?;
     Ok(())
 } 

@@ -15,7 +15,7 @@ pub const SYS_MLOCK: usize = 75;
 pub const SYS_MUNLOCK: usize = 76;
 pub const SYS_BRK: usize = 77;
 pub const SYS_SBRK: usize = 78;
-pub const SYS_GETMEMINFO: usize = 100;  // elinOS-specific memory info
+pub const SYS_GETMEMINFO: usize = 100;  // elinKernel-specific memory info
 // Reserved for future memory management: 79-99, 101-120
 
 // Memory protection flags

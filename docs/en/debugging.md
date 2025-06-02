@@ -1,6 +1,6 @@
-# Debugging and Troubleshooting elinOS
+# Debugging and Troubleshooting elinKernel
 
-This guide covers debugging techniques, common issues, and troubleshooting steps for elinOS development.
+This guide covers debugging techniques, common issues, and troubleshooting steps for elinKernel development.
 
 ## Debugging Setup
 
@@ -154,7 +154,7 @@ fn check_stack_integrity() {
 
 **Debugging:**
 ```bash
-elinOS> memory
+elinKernel> memory
 Memory regions:
   Region 0: 0x80000000 - 0x88000000 (128 MB) RAM
 ```
@@ -196,10 +196,10 @@ Memory regions:
 
 **Debugging:**
 ```bash
-elinOS> syscall
+elinKernel> syscall
 # Check available system calls
 
-elinOS> categories
+elinKernel> categories
 # Verify call number ranges
 ```
 
@@ -235,7 +235,7 @@ elinOS> categories
 
 **Debugging:**
 ```bash
-elinOS> devices
+elinKernel> devices
 Probing for VirtIO devices...
 # Should show VirtIO devices
 ```
@@ -318,11 +318,11 @@ hexdump -C hello.elf | head -1
 
 **Debugging:**
 ```bash
-elinOS> ls
+elinKernel> ls
 # Check available files
 
 # Verify filename exactly
-elinOS> cat "exact_filename.txt"
+elinKernel> cat "exact_filename.txt"
 ```
 
 **Solutions:**
@@ -454,7 +454,7 @@ mod tests {
 ```bash
 # Script to test various scenarios
 #!/bin/bash
-echo "Testing elinOS functionality..."
+echo "Testing elinKernel functionality..."
 
 # Test 1: Basic boot
 timeout 30 ./run.sh << EOF
@@ -559,4 +559,4 @@ git add -A
 git commit -m "Working state before changes"
 ```
 
-This debugging guide should help you identify and resolve most issues encountered during elinOS development and usage. 
+This debugging guide should help you identify and resolve most issues encountered during elinKernel development and usage. 

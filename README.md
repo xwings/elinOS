@@ -1,4 +1,4 @@
-# elinOS
+# elinKernel
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
@@ -7,7 +7,7 @@ An **experimental** RISC-V operating system written in Rust, featuring dynamic m
 ## 🚀 Quick Start
 
 ```bash
-# Build and run elinOS
+# Build and run elinKernel
 make
 ./run.sh
 ```
@@ -64,19 +64,19 @@ make
 
 ## 🖥 Interactive Demo
 
-Once elinOS boots, explore its capabilities:
+Once elinKernel boots, explore its capabilities:
 
 ```bash
-elinOS> help                    # Show all available commands
-elinOS> version                 # Display elinOS version info
-elinOS> memory                  # View memory layout
-elinOS> devices                 # Probe VirtIO devices
-elinOS> syscall                 # Show system call architecture
-elinOS> ls                      # List filesystem contents
-elinOS> cat hello.txt           # Display file contents
-elinOS> elf-info hello.elf      # Analyze ELF binary structure
-elinOS> elf-load hello.elf      # Load ELF into memory
-elinOS> shutdown                # Graceful system shutdown
+elinKernel> help                    # Show all available commands
+elinKernel> version                 # Display elinKernel version info
+elinKernel> memory                  # View memory layout
+elinKernel> devices                 # Probe VirtIO devices
+elinKernel> syscall                 # Show system call architecture
+elinKernel> ls                      # List filesystem contents
+elinKernel> cat hello.txt           # Display file contents
+elinKernel> elf-info hello.elf      # Analyze ELF binary structure
+elinKernel> elf-load hello.elf      # Load ELF into memory
+elinKernel> shutdown                # Graceful system shutdown
 ```
 
 ## 🎯 Current Capabilities
@@ -118,7 +118,7 @@ elinOS> shutdown                # Graceful system shutdown
 
 *See [Getting Started Guide](docs/en/getting-started.md) for detailed setup instructions.*
 
-## 🏆 Why elinOS?
+## 🏆 Why elinKernel?
 
 ### For Learning
 - **Clear, readable code** demonstrating OS concepts
@@ -157,6 +157,6 @@ This project is free and open source software, allowing unrestricted use, modifi
 
 ---
 
-**elinOS** demonstrates **educational-quality** operating system development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
+**elinKernel** demonstrates **educational-quality** operating system development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
 
 **🎮 Try it now:** `./build.sh && ./run.sh`

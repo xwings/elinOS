@@ -23,9 +23,9 @@ impl SimpleFS {
         };
         
         // Add some test files
-        let _ = fs.create_file("hello.txt", b"Hello from elinOS filesystem!\n");
+        let _ = fs.create_file("hello.txt", b"Hello from elinKernel filesystem!\n");
         let _ = fs.create_file("test.txt", b"This is a test file.\nLine 2\nLine 3\n");
-        let _ = fs.create_file("readme.md", b"# elinOS\n\nA simple operating system in Rust.\n");
+        let _ = fs.create_file("readme.md", b"# elinKernel\n\nA simple operating system in Rust.\n");
         
         // Add a sample ELF binary for testing (minimal RISC-V ELF header)
         let sample_elf: [u8; 120] = [

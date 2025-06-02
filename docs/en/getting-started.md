@@ -1,6 +1,6 @@
-# Getting Started with elinOS
+# Getting Started with elinKernel
 
-This guide covers setting up, building, and running elinOS from source.
+This guide covers setting up, building, and running elinKernel from source.
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ brew install qemu
 
 ## Building the Kernel
 
-Build elinOS using the provided script:
+Build elinKernel using the provided script:
 
 ```bash
 ./build.sh
@@ -174,6 +174,6 @@ export CARGO_BUILD_JOBS=4
 
 ## Next Steps
 
-- See [Commands](commands.md) for using the elinOS shell
+- See [Commands](commands.md) for using the elinKernel shell
 - See [Development](development.md) for creating user programs
 - See [Architecture](architecture.md) for technical details 

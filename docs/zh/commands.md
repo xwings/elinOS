@@ -1,12 +1,12 @@
-# elinOS 命令参考
+# elinKernel 命令参考
 
 > **🚧 翻译进行中** - 本文档正在翻译中，详细内容请参考 [英文完整版](../en/commands.md)。
 
-本指南介绍 elinOS 交互式命令行中的所有可用命令。
+本指南介绍 elinKernel 交互式命令行中的所有可用命令。
 
 ## 概述
 
-elinOS 启动后，您可以使用包含以下类别的交互式命令行：
+elinKernel 启动后，您可以使用包含以下类别的交互式命令行：
 
 - **系统信息** - 检查系统状态和配置
 - **文件系统操作** - 管理文件和目录
@@ -19,35 +19,35 @@ elinOS 启动后，您可以使用包含以下类别的交互式命令行：
 显示可用命令及其说明。
 
 ```
-elinOS> help
+elinKernel> help
 ```
 
 ### `version`
-显示 elinOS 版本信息。
+显示 elinKernel 版本信息。
 
 ```
-elinOS> version
+elinKernel> version
 ```
 
 ### `memory`
 显示内存区域信息。
 
 ```
-elinOS> memory
+elinKernel> memory
 ```
 
 ### `ls`
 列出所有文件及其大小。
 
 ```
-elinOS> ls
+elinKernel> ls
 ```
 
 ### `cat <文件名>`
 显示文件内容。
 
 ```
-elinOS> cat hello.txt
+elinKernel> cat hello.txt
 ```
 
 ## ELF 相关命令
@@ -56,30 +56,30 @@ elinOS> cat hello.txt
 分析 ELF 二进制文件结构。
 
 ```
-elinOS> elf-info hello.elf
+elinKernel> elf-info hello.elf
 ```
 
 ### `elf-load <文件名>`
 将 ELF 二进制文件加载到内存。
 
 ```
-elinOS> elf-load hello.elf
+elinKernel> elf-load hello.elf
 ```
 
 ## 系统控制
 
 ### `shutdown`
-优雅关闭 elinOS。
+优雅关闭 elinKernel。
 
 ```
-elinOS> shutdown
+elinKernel> shutdown
 ```
 
 ### `clear`
 清除屏幕。
 
 ```
-elinOS> clear
+elinKernel> clear
 ```
 
 ## 📖 完整文档

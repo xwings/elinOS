@@ -1,10 +1,10 @@
-# elinOS Shell Commands
+# elinKernel Shell Commands
 
-This guide covers all available commands in the elinOS interactive shell.
+This guide covers all available commands in the elinKernel interactive shell.
 
 ## Overview
 
-Once elinOS boots, you'll have access to an interactive shell with comprehensive commands organized into several categories:
+Once elinKernel boots, you'll have access to an interactive shell with comprehensive commands organized into several categories:
 
 - **System Information** - Inspect system state and configuration
 - **File System Operations** - Manage files and directories
@@ -18,7 +18,7 @@ Shows available commands with descriptions.
 
 **Usage:**
 ```
-elinOS> help
+elinKernel> help
 ```
 
 **Output:**
@@ -37,7 +37,7 @@ Display detected memory regions via `SYS_GETMEMINFO`.
 
 **Usage:**
 ```
-elinOS> memory
+elinKernel> memory
 ```
 
 **Example Output:**
@@ -51,7 +51,7 @@ Probe and list VirtIO devices via `SYS_GETDEVICES`.
 
 **Usage:**
 ```
-elinOS> devices
+elinKernel> devices
 ```
 
 **Example Output:**
@@ -68,7 +68,7 @@ Show system call information and architecture.
 
 **Usage:**
 ```
-elinOS> syscall
+elinKernel> syscall
 ```
 
 **Output:**
@@ -89,7 +89,7 @@ Show syscall categorization system.
 
 **Usage:**
 ```
-elinOS> categories
+elinKernel> categories
 ```
 
 **Output:**
@@ -103,16 +103,16 @@ System Call Categories:
 ```
 
 ### `version`
-Show elinOS version via `SYS_ELINOS_VERSION`.
+Show elinKernel version via `SYS_ELINOS_VERSION`.
 
 **Usage:**
 ```
-elinOS> version
+elinKernel> version
 ```
 
 **Output:**
 ```
-elinOS v0.1.0 - RISC-V Operating System
+elinKernel v0.1.0 - RISC-V Operating System
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 ```
@@ -124,7 +124,7 @@ List all files with sizes using `SYS_GETDENTS`.
 
 **Usage:**
 ```
-elinOS> ls
+elinKernel> ls
 ```
 
 **Example Output:**
@@ -141,13 +141,13 @@ Display file contents using `SYS_OPEN`.
 
 **Usage:**
 ```
-elinOS> cat hello.txt
+elinKernel> cat hello.txt
 ```
 
 **Example Output:**
 ```
 Contents of hello.txt:
-Hello from elinOS filesystem!
+Hello from elinKernel filesystem!
 --- End of file ---
 ```
 
@@ -156,7 +156,7 @@ Create a new empty file using filesystem + `SYS_OPEN`.
 
 **Usage:**
 ```
-elinOS> touch newfile.txt
+elinKernel> touch newfile.txt
 ```
 
 **Output:**
@@ -169,7 +169,7 @@ Delete a file using `SYS_UNLINK`.
 
 **Usage:**
 ```
-elinOS> rm oldfile.txt
+elinKernel> rm oldfile.txt
 ```
 
 **Output:**
@@ -184,7 +184,7 @@ Analyze ELF binary structure and display detailed information.
 
 **Usage:**
 ```
-elinOS> elf-info hello.elf
+elinKernel> elf-info hello.elf
 ```
 
 **Example Output:**
@@ -206,7 +206,7 @@ Load ELF binary into memory and show entry point/segments.
 
 **Usage:**
 ```
-elinOS> elf-load hello.elf
+elinKernel> elf-load hello.elf
 ```
 
 **Example Output:**
@@ -227,7 +227,7 @@ Load ELF binary and prepare for execution (simulated).
 
 **Usage:**
 ```
-elinOS> elf-exec hello.elf
+elinKernel> elf-exec hello.elf
 ```
 
 **Example Output:**
@@ -249,7 +249,7 @@ Built-in demonstration with sample ELF header.
 
 **Usage:**
 ```
-elinOS> elf-demo
+elinKernel> elf-demo
 ```
 
 **Example Output:**
@@ -277,16 +277,16 @@ Note: This is just a header demo - no actual code segments.
 ## System Control
 
 ### `shutdown`
-Gracefully shutdown elinOS and exit QEMU using `SYS_ELINOS_SHUTDOWN`.
+Gracefully shutdown elinKernel and exit QEMU using `SYS_ELINOS_SHUTDOWN`.
 
 **Usage:**
 ```
-elinOS> shutdown
+elinKernel> shutdown
 ```
 
 **Output:**
 ```
-elinOS shutting down...
+elinKernel shutting down...
 Goodbye!
 # Returns to host shell automatically
 ```
@@ -296,12 +296,12 @@ Restart the system using `SYS_ELINOS_REBOOT`.
 
 **Usage:**
 ```
-elinOS> reboot
+elinKernel> reboot
 ```
 
 **Output:**
 ```
-elinOS rebooting...
+elinKernel rebooting...
 # System restarts
 ```
 
@@ -310,7 +310,7 @@ Clear the screen using `SYS_WRITE`.
 
 **Usage:**
 ```
-elinOS> clear
+elinKernel> clear
 ```
 
 **Effect:**
@@ -321,10 +321,10 @@ Clears the terminal screen and positions cursor at top.
 Here's a complete example session showing various commands:
 
 ```
-elinOS v0.1.0 - RISC-V Operating System
+elinKernel v0.1.0 - RISC-V Operating System
 Starting interactive shell...
 
-elinOS> help
+elinKernel> help
 Available commands:
   help       - Show this help
   memory     - Show memory information
@@ -336,7 +336,7 @@ Available commands:
   clear      - Clear screen
   syscall    - Show system call info
   categories - Show syscall categories
-  version    - Show elinOS version
+  version    - Show elinKernel version
   elf-info <file>  - Show ELF binary information
   elf-load <file>  - Load ELF binary into memory
   elf-exec <file>  - Execute ELF binary (simulated)
@@ -344,28 +344,28 @@ Available commands:
   shutdown   - Shutdown the system
   reboot     - Reboot the system
 
-elinOS> version
-elinOS v0.1.0 - RISC-V Operating System
+elinKernel> version
+elinKernel v0.1.0 - RISC-V Operating System
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 
-elinOS> memory
+elinKernel> memory
 Memory regions:
   Region 0: 0x80000000 - 0x88000000 (128 MB) RAM
 
-elinOS> ls
+elinKernel> ls
 Files:
   hello.txt (30 bytes)
   test.txt (35 bytes)
   readme.md (42 bytes)
   hello.elf (120 bytes)
 
-elinOS> cat hello.txt
+elinKernel> cat hello.txt
 Contents of hello.txt:
-Hello from elinOS filesystem!
+Hello from elinKernel filesystem!
 --- End of file ---
 
-elinOS> elf-info hello.elf
+elinKernel> elf-info hello.elf
 ELF Binary Information:
   Class: ELF64
   Data: Little-endian
@@ -377,15 +377,15 @@ ELF Binary Information:
   Section header offset: 0x0
   Section header count: 0
 
-elinOS> devices
+elinKernel> devices
 Probing for VirtIO devices...
 VirtIO device at 0x10008000, ID: 2
   - Block device found!
 VirtIO block device found at 0x10008000
 VirtIO block device initialized, queue size: 128
 
-elinOS> shutdown
-elinOS shutting down...
+elinKernel> shutdown
+elinKernel shutting down...
 Goodbye!
 ```
 
