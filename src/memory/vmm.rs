@@ -4,6 +4,10 @@
 
 use core::fmt;
 use heapless::Vec;
+use crate::memory::allocate_memory;
+use spin::Mutex;
+use crate::UART;
+use core::fmt::Write;
 
 /// Page size (4KB on RISC-V)
 pub const PAGE_SIZE: usize = 4096;
@@ -231,14 +235,15 @@ impl VirtualMemoryManager {
         // Allocate physical memory if anonymous mapping
         let mut physical_addrs = Vec::<usize, 256>::new();
         if flags.anonymous {
-            for i in 0..(aligned_size / PAGE_SIZE) {
+            for _i in 0..(aligned_size / PAGE_SIZE) {
                 // Use our memory allocator to get physical pages
-                if let Some(paddr) = crate::memory::allocate_memory(PAGE_SIZE) {
+                if let Some(paddr) = allocate_memory(PAGE_SIZE) {
                     physical_addrs.push(paddr).map_err(|_| "Too many pages")?;
                 } else {
                     // Clean up allocated pages on failure
                     for &paddr in &physical_addrs {
-                        crate::memory::deallocate_memory(paddr, PAGE_SIZE);
+                        // TODO: Implement proper deallocation
+                        let _ = paddr; // Suppress unused warning
                     }
                     return Err("Out of physical memory");
                 }

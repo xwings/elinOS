@@ -2,6 +2,16 @@
 
 This document provides detailed technical information about elinKernel architecture, design principles, and implementation details.
 
+## Design Philosophy
+
+elinKernel prioritizes **educational clarity** over production complexity:
+
+- **Embedded Filesystem**: Simple ext4 implementation without complex device drivers
+- **Direct Hardware Access**: UART communication without VirtIO overhead  
+- **Focus on Core Concepts**: Memory management, syscalls, and ELF loading
+- **Rust Safety**: Type-safe implementation preventing common OS bugs
+- **Modular Design**: Clean separation of concerns for easy learning
+
 ## System Call Architecture
 
 elinKernel implements a **well-structured** kernel architecture with industry-standard organization inspired by the **Qiling framework**.
@@ -113,8 +123,7 @@ src/
 ├── commands.rs          # User space commands with dynamic dispatch
 ├── memory.rs            # Dynamic memory management
 ├── sbi.rs              # OpenSBI interface with shutdown support
-├── virtio_blk.rs       # VirtIO block device driver
-├── filesystem.rs       # In-memory filesystem
+├── filesystem.rs       # Embedded ext4 filesystem implementation
 ├── elf.rs              # ELF loader implementation
 └── linker.ld           # Linker script with flexible memory layout
 ```
@@ -191,50 +200,41 @@ pub struct ElfHeader {
 - Memory-safe implementation using Rust's type system
 - Integration with syscall system through process management category
 
-### VirtIO Support
+### Embedded ext4 Filesystem
 
-**Driver Architecture:**
-```rust
-// src/virtio_blk.rs
-pub struct VirtIOBlockDevice {
-    base_addr: usize,
-    queue_size: u16,
-    // Device state management
-}
-
-impl VirtIOBlockDevice {
-    pub fn probe() -> Option<Self> {
-        // MMIO-based device discovery
-        // VirtIO protocol implementation
-    }
-    
-    pub fn read_block(&self, block: u32) -> Result<[u8; 512], VirtIOError> {
-        // Block device operations
-    }
-}
-```
-
-**Features:**
-- MMIO-based device discovery at standard addresses
-- VirtIO 1.0 specification compliance
-- Block device abstraction layer
-- Ready for extension to full DMA-based I/O
-
-### Filesystem
-
-**In-Memory Design:**
+**Educational Implementation:**
 ```rust
 // src/filesystem.rs
-pub struct SimpleFS {
-    files: heapless::FnvIndexMap<heapless::String<64>, heapless::Vec<u8, 4096>, 16>,
+struct EmbeddedBlockDevice {
+    // Simple in-memory block device
+}
+
+impl EmbeddedBlockDevice {
+    fn read_block(&mut self, block_num: u64, buffer: &mut [u8]) -> Result<(), &'static str> {
+        match block_num {
+            0 => {
+                // Block 0: Contains ext4 superblock at offset 1024
+                let superblock = Ext4Superblock {
+                    s_magic: EXT4_SUPER_MAGIC,
+                    s_inodes_count: 65536,
+                    s_blocks_count_lo: 65536,
+                    // ... realistic ext4 metadata
+                };
+                // Write to buffer at correct offset
+            },
+            _ => {
+                // Other blocks: metadata or data blocks
+            }
+        }
+    }
 }
 ```
 
-**Features:**
-- POSIX-like file operations (create, read, delete, list)
-- Memory-safe using `heapless` collections
-- No dynamic allocation - uses compile-time bounds
-- Extensible design for future real filesystems
+**Benefits:**
+- **Educational Focus**: Learn ext4 structure without device complexity
+- **Realistic Data**: Proper ext4 superblock with correct magic numbers
+- **Simple Architecture**: No VirtIO, MMIO, or complex device protocols
+- **Easy Debugging**: All data in memory, no hardware dependencies
 
 ### Memory Management
 

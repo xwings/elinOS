@@ -8,7 +8,6 @@ use spin::Mutex;
 
 mod memory;
 mod sbi;
-mod virtio_blk;
 mod filesystem;
 mod syscall;
 mod commands;
@@ -116,19 +115,28 @@ pub extern "C" fn main() -> ! {
     // Initialize memory management
     {
         let mut uart = UART.lock();
-        let _ = writeln!(uart, "Initializing memory management...");
-    }
-    
-    {
+        let _ = writeln!(uart, "🔧 Initializing memory management...");
+        drop(uart);
+        
         let mut mem_mgr = memory::MEMORY_MANAGER.lock();
         mem_mgr.init();
+        
+        let mut uart = UART.lock();
+        let _ = writeln!(uart, "✅ Memory management ready!");
     }
     
-    // Initialize VirtIO devices
-    virtio_blk::probe_virtio_devices();
-    
     // Initialize filesystem
-    filesystem::init_filesystem();
+    match filesystem::init_filesystem() {
+        Ok(()) => {
+            let mut uart = UART.lock();
+            let _ = writeln!(uart, "🎉 All systems ready!");
+        }
+        Err(e) => {
+            let mut uart = UART.lock();
+            let _ = writeln!(uart, "⚠️  Warning: Filesystem error: {}", e);
+            let _ = writeln!(uart, "   Continuing with limited functionality...");
+        }
+    }
     
     {
         let mut uart = UART.lock();

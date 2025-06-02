@@ -2,8 +2,10 @@
 // dlmalloc-style allocator for small objects < 4KB
 // Implements size classes and bins for efficient allocation
 
-use heapless::Vec;
-use core::ptr;
+use crate::memory::allocate_memory;
+use spin::Mutex;
+use crate::UART;
+use core::fmt::Write;
 
 /// Number of size classes for small objects
 const NUM_SIZE_CLASSES: usize = 32;

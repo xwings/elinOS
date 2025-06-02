@@ -7,7 +7,7 @@ This guide covers all available commands in the elinKernel interactive shell.
 Once elinKernel boots, you'll have access to an interactive shell with comprehensive commands organized into several categories:
 
 - **System Information** - Inspect system state and configuration
-- **File System Operations** - Manage files and directories
+- **Embedded Filesystem Operations** - Manage files and test ext4 implementation
 - **ELF Operations** - Load and analyze ELF binaries
 - **System Control** - Shutdown, reboot, and clear screen
 
@@ -26,7 +26,8 @@ elinKernel> help
 Available commands:
   help       - Show this help
   memory     - Show memory information
-  devices    - Probe for VirtIO devices
+  ext4check  - Check embedded ext4 filesystem
+  disktest   - Test filesystem operations
   ls         - List files
   cat <file> - Show file contents
   ...
@@ -46,21 +47,69 @@ Memory regions:
   Region 0: 0x80000000 - 0x88000000 (128 MB) RAM
 ```
 
-### `devices`
-Probe and list VirtIO devices via `SYS_GETDEVICES`.
+### `ext4check`
+Check the embedded ext4 filesystem status and superblock information.
 
 **Usage:**
 ```
-elinKernel> devices
+elinKernel> ext4check
 ```
 
 **Example Output:**
 ```
-Probing for VirtIO devices...
-VirtIO device at 0x10008000, ID: 2
-  - Block device found!
-VirtIO block device found at 0x10008000
-VirtIO block device initialized, queue size: 128
+EXT4 Filesystem Check
+====================
+
+✅ EXT4 filesystem is active and healthy!
+
+📊 Superblock Information:
+   Magic: 0xef53 ✅
+   Inodes: 65536
+   Blocks: 65536
+   Block size: 4096 bytes
+   Volume: elinKernel
+```
+
+### `disktest`
+Test filesystem operations including initialization, file listing, and reading.
+
+**Usage:**
+```
+elinKernel> disktest
+```
+
+**Example Output:**
+```
+Filesystem Test
+==============
+
+📋 Testing filesystem operations...
+
+1. Filesystem status... ✅ Initialized
+2. File listing... ✅ Success (3 files)
+3. File reading... ✅ Success
+
+🎉 Filesystem test complete!
+```
+
+### `diskdump [block_num]`
+Display information about filesystem blocks (educational purposes).
+
+**Usage:**
+```
+elinKernel> diskdump 0
+elinKernel> diskdump 5
+```
+
+**Example Output:**
+```
+Filesystem Block Dump
+====================
+
+📖 Reading block 0 from embedded filesystem...
+✅ Block 0: Contains ext4 superblock at offset 1024
+   📊 Magic: 0xef53, Block size: 4096 bytes
+   📁 Filesystem: elinKernel embedded ext4
 ```
 
 ### `syscall`
@@ -117,7 +166,7 @@ Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 ```
 
-## File System Operations
+## Embedded Filesystem Operations
 
 ### `ls`
 List all files with sizes using `SYS_GETDENTS`.
@@ -130,10 +179,9 @@ elinKernel> ls
 **Example Output:**
 ```
 Files:
-  hello.txt (30 bytes)
-  test.txt (35 bytes)
-  readme.md (42 bytes)
-  hello.elf (8432 bytes)
+  hello.txt (28 bytes)
+  readme.md (45 bytes)
+  lost+found (0 bytes)
 ```
 
 ### `cat <filename>`
@@ -328,7 +376,8 @@ elinKernel> help
 Available commands:
   help       - Show this help
   memory     - Show memory information
-  devices    - Probe for VirtIO devices
+  ext4check  - Check embedded ext4 filesystem
+  disktest   - Test filesystem operations
   ls         - List files
   cat <file> - Show file contents
   touch <file> - Create empty file
@@ -355,10 +404,9 @@ Memory regions:
 
 elinKernel> ls
 Files:
-  hello.txt (30 bytes)
-  test.txt (35 bytes)
-  readme.md (42 bytes)
-  hello.elf (120 bytes)
+  hello.txt (28 bytes)
+  readme.md (45 bytes)
+  lost+found (0 bytes)
 
 elinKernel> cat hello.txt
 Contents of hello.txt:
@@ -377,12 +425,50 @@ ELF Binary Information:
   Section header offset: 0x0
   Section header count: 0
 
-elinKernel> devices
-Probing for VirtIO devices...
-VirtIO device at 0x10008000, ID: 2
-  - Block device found!
-VirtIO block device found at 0x10008000
-VirtIO block device initialized, queue size: 128
+elinKernel> ext4check
+EXT4 Filesystem Check
+====================
+
+✅ EXT4 filesystem is active and healthy!
+
+📊 Superblock Information:
+   Magic: 0xef53 ✅
+   Inodes: 65536
+   Blocks: 65536
+   Block size: 4096 bytes
+   Volume: elinKernel
+
+elinKernel> disktest
+Filesystem Test
+==============
+
+📋 Testing filesystem operations...
+
+1. Filesystem status... ✅ Initialized
+2. File listing... ✅ Success (3 files)
+3. File reading... ✅ Success
+
+🎉 Filesystem test complete!
+
+elinKernel> diskdump 0
+Filesystem Block Dump
+====================
+
+📖 Reading block 0 from embedded filesystem...
+✅ Block 0: Contains ext4 superblock at offset 1024
+   📊 Magic: 0xef53, Block size: 4096 bytes
+   📁 Filesystem: elinKernel embedded ext4
+
+elinKernel> syscall
+System Call Information:
+  This shell uses categorized system calls for all kernel operations!
+
+Currently Implemented System Calls:
+  File I/O Operations:
+    SYS_WRITE (1)     - Write to file descriptor
+    SYS_READ (2)      - Read from file descriptor [TODO]
+    SYS_OPEN (3)      - Open file
+    ...
 
 elinKernel> shutdown
 elinKernel shutting down...

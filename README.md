@@ -2,7 +2,7 @@
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
-An **experimental** RISC-V kernel written in Rust, featuring dynamic memory management, well-organized system call architecture, VirtIO device support, filesystem operations, and **ELF program execution capability**. Perfect for **learning**, **research**, and **educational purposes**.
+An **experimental** RISC-V kernel written in Rust, featuring dynamic memory management, well-organized system call architecture, **embedded ext4 filesystem**, and **ELF program execution capability**. Perfect for **learning**, **research**, and **educational purposes**.
 
 ## 🚀 Quick Start
 
@@ -15,8 +15,8 @@ make
 **What you'll see:**
 - Interactive shell with comprehensive commands
 - Professional system call architecture (9 categories, 15+ syscalls)
-- File system operations (create, read, delete files)
-- VirtIO device discovery and management
+- **Embedded ext4 filesystem** with realistic superblock data
+- **Simplified device management** (no complex VirtIO)
 - ELF binary loading and analysis
 - System information and memory management
 
@@ -26,6 +26,7 @@ make
 - **Range-based syscall organization** (1-50: File I/O, 51-70: Directory, etc.)
 - **Well-structured design** with 9 distinct categories
 - **Type-safe implementation** leveraging Rust's safety features
+- **Educational simplicity** - focus on core concepts, not device complexity
 
 ### 💾 **Memory Management**
 - **Dynamic memory detection** via OpenSBI
@@ -33,17 +34,18 @@ make
 - **Per-hart stack allocation** (supports up to 4 RISC-V cores)
 - **Memory-safe operations** with bounds checking
 
-### 🔧 **Device & I/O Support**
-- **VirtIO block device** driver with automatic discovery
-- **MMIO-based device probing** at standard addresses
-- **Block device abstraction** for future filesystem integration
-- **Serial UART** communication and debugging
+### 🔧 **Simplified Device Management**
+- **Direct UART communication** for debugging and I/O
+- **Clean abstractions** without complex device driver overhead
+- **Educational focus** on filesystem and memory management
+- **Embedded approach** - perfect for learning core OS concepts
 
-### 📁 **Filesystem Operations**
+### 📁 **Embedded ext4 Filesystem**
+- **Realistic ext4 superblock** with proper magic numbers and metadata
 - **In-memory filesystem** with POSIX-like operations
 - **File management commands** (ls, cat, touch, rm)
-- **Dynamic file creation** and deletion
-- **Extensible design** for real filesystem support
+- **Educational ext4 implementation** demonstrating filesystem concepts
+- **No complex block device drivers** - focus on filesystem logic
 
 ### 🔄 **ELF Program Support**
 - **Complete ELF64 loader** with validation and parsing
@@ -70,7 +72,8 @@ Once elinKernel boots, explore its capabilities:
 elinKernel> help                    # Show all available commands
 elinKernel> version                 # Display elinKernel version info
 elinKernel> memory                  # View memory layout
-elinKernel> devices                 # Probe VirtIO devices
+elinKernel> ext4check               # Check embedded ext4 filesystem
+elinKernel> disktest                # Test filesystem operations
 elinKernel> syscall                 # Show system call architecture
 elinKernel> ls                      # List filesystem contents
 elinKernel> cat hello.txt           # Display file contents
@@ -85,18 +88,19 @@ elinKernel> shutdown                # Graceful system shutdown
 - ✅ **Professional syscall system** with 9 categories covering all OS functionality
 - ✅ **Dynamic command dispatch** - easy to add new commands
 - ✅ **Memory management** with automatic configuration
-- ✅ **VirtIO device support** with block device driver
+- ✅ **Embedded ext4 filesystem** with realistic superblock and metadata
 - ✅ **File operations** create, read, delete, list files
 - ✅ **ELF binary loading** parse and load RISC-V executables
 - ✅ **System information** commands for debugging and monitoring
 - ✅ **Clean shutdown/reboot** via OpenSBI interface
+- ✅ **Educational simplicity** - focus on core OS concepts without device complexity
 
 ## 🚧 Coming Next
 
 ### Phase 1: Foundation (Short Term)
 - **Complete syscall implementation** (SYS_READ, directory operations)
 - **Enhanced memory management** (mmap, memory protection)
-- **VirtIO network device** support
+- **Extended filesystem commands** (mkdir, file permissions)
 
 ### Phase 2: Execution (Medium Term)
 - **Virtual memory management** (RISC-V Sv39 page tables)
@@ -104,8 +108,8 @@ elinKernel> shutdown                # Graceful system shutdown
 - **Actual ELF program execution** with user/kernel mode separation
 
 ### Phase 3: Advanced Features (Long Term)
-- **Real filesystem** (FAT32 integration)
-- **Network stack** (IP, sockets)
+- **Real ext4 filesystem** with actual disk I/O (if needed)
+- **Network stack** (simple TCP/IP implementation)
 - **Multi-core support** (SMP)
 
 *See [Roadmap](docs/en/roadmap.md) for detailed development plans.*

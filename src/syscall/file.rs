@@ -109,7 +109,12 @@ fn sys_openat(dirfd: i32, pathname: *const u8, flags: i32, _mode: u32) -> SysCal
                 SysCallResult::Success(10)
             } else if flags & O_CREAT != 0 {
                 // Create file if O_CREAT flag is set
-                SysCallResult::Success(10) // Return fake fd for now
+                drop(fs); // Release lock before mutable access
+                let mut fs = filesystem::FILESYSTEM.lock();
+                match fs.create_file(filename, b"") {
+                    Ok(_) => SysCallResult::Success(10),
+                    Err(_) => SysCallResult::Error("Failed to create file")
+                }
             } else {
                 SysCallResult::Error("File not found")
             }
@@ -156,27 +161,32 @@ fn sys_getdents64(fd: i32, buf: *mut u8, buflen: usize) -> SysCallResult {
         let mut written = 0;
         let mut ptr = buf;
         
-        for (name, size) in fs.list_files() {
-            // Manual string formatting instead of format! macro
-            let mut entry_str = heapless::String::<128>::new();
-            let _ = write!(entry_str, "{} {} bytes\n", name, size);
-            let entry_bytes = entry_str.as_bytes();
-            
-            if written + entry_bytes.len() >= buflen {
-                break;
+        match fs.list_files() {
+            Ok(files) => {
+                for (name, size) in files {
+                    // Manual string formatting instead of format! macro
+                    let mut entry_str = heapless::String::<128>::new();
+                    let _ = write!(entry_str, "{} {} bytes\n", name.as_str(), size);
+                    let entry_bytes = entry_str.as_bytes();
+                    
+                    if written + entry_bytes.len() >= buflen {
+                        break;
+                    }
+                    
+                    core::ptr::copy_nonoverlapping(
+                        entry_bytes.as_ptr(),
+                        ptr,
+                        entry_bytes.len()
+                    );
+                    
+                    ptr = ptr.add(entry_bytes.len());
+                    written += entry_bytes.len();
+                }
+                
+                SysCallResult::Success(written as isize)
             }
-            
-            core::ptr::copy_nonoverlapping(
-                entry_bytes.as_ptr(),
-                ptr,
-                entry_bytes.len()
-            );
-            
-            ptr = ptr.add(entry_bytes.len());
-            written += entry_bytes.len();
+            Err(_) => SysCallResult::Error("Failed to list files")
         }
-        
-        SysCallResult::Success(written as isize)
     }
 }
 
@@ -194,13 +204,14 @@ fn sys_newfstatat(dirfd: i32, pathname: *const u8, statbuf: *mut u8, _flags: i32
         let slice = core::slice::from_raw_parts(pathname, len);
         if let Ok(filename) = core::str::from_utf8(slice) {
             let fs = filesystem::FILESYSTEM.lock();
-            if let Some(content) = fs.read_file(filename) {
-                // Simple stat structure: just file size as usize
-                let size = content.len();
-                core::ptr::write(statbuf as *mut usize, size);
-                SysCallResult::Success(0)
-            } else {
-                SysCallResult::Error("File not found")
+            match fs.read_file(filename) {
+                Ok(content) => {
+                    // Simple stat structure: just file size as usize
+                    let size = content.len();
+                    core::ptr::write(statbuf as *mut usize, size);
+                    SysCallResult::Success(0)
+                }
+                Err(_) => SysCallResult::Error("File not found")
             }
         } else {
             SysCallResult::Error("Invalid filename")
