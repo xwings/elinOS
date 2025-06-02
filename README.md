@@ -8,7 +8,7 @@ An **experimental** RISC-V operating system written in Rust, featuring dynamic m
 
 ```bash
 # Build and run elinOS
-./build.sh
+make
 ./run.sh
 ```
 
@@ -17,7 +17,7 @@ An **experimental** RISC-V operating system written in Rust, featuring dynamic m
 - Professional system call architecture (9 categories, 15+ syscalls)
 - File system operations (create, read, delete files)
 - VirtIO device discovery and management
-- **ELF binary loading and analysis**
+- ELF binary loading and analysis
 - System information and memory management
 
 ## ✨ Key Features
@@ -27,7 +27,7 @@ An **experimental** RISC-V operating system written in Rust, featuring dynamic m
 - **Well-structured design** with 9 distinct categories
 - **Type-safe implementation** leveraging Rust's safety features
 
-### 💾 **Advanced Memory Management**
+### 💾 **Memory Management**
 - **Dynamic memory detection** via OpenSBI
 - **Adaptive heap configuration** based on available RAM
 - **Per-hart stack allocation** (supports up to 4 RISC-V cores)
