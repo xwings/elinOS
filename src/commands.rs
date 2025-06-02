@@ -293,9 +293,8 @@ pub fn cmd_clear() -> Result<(), &'static str> {
 }
 
 pub fn cmd_syscall() -> Result<(), &'static str> {
-    syscall::sys_print("System Call Information (Linux Compatible):\n")?;
-    syscall::sys_print("  elinOS now follows Linux syscall numbers for better compatibility!\n\n")?;
-    
+    syscall::sys_print("System Call Information:\n")?;
+     
     syscall::sys_print("Currently Implemented System Calls:\n")?;
     syscall::sys_print("  File I/O Operations:\n")?;
     syscall::sys_print("    SYS_WRITE (64)     - Write to file descriptor\n")?;

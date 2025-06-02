@@ -2,7 +2,7 @@
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
-An **experimental** RISC-V kernel written in Rust, featuring dynamic memory management, well-organized system call architecture, **embedded ext4 filesystem**, and **ELF program execution capability**. Perfect for **learning**, **research**, and **educational purposes**.
+An **experimental** RISC-V64 kernel written in Rust, featuring dynamic memory management, well-organized system call architecture, **embedded ext4 filesystem**, and **ELF program execution capability**. Perfect for **learning**, **research**, and **educational purposes**.
 
 ## 🚀 Quick Start
 
