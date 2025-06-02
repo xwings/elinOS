@@ -46,6 +46,31 @@ pub fn process_command(command: &str) {
         "version" => cmd_version(),
         "shutdown" => cmd_shutdown(),
         "reboot" => cmd_reboot(),
+        "elf-info" => {
+            if parts.len() > 1 {
+                cmd_elf_info(parts[1])
+            } else {
+                let _ = syscall::sys_print("Usage: elf-info <filename>\n");
+                Ok(())
+            }
+        },
+        "elf-load" => {
+            if parts.len() > 1 {
+                cmd_elf_load(parts[1])
+            } else {
+                let _ = syscall::sys_print("Usage: elf-load <filename>\n");
+                Ok(())
+            }
+        },
+        "elf-exec" => {
+            if parts.len() > 1 {
+                cmd_elf_exec(parts[1])
+            } else {
+                let _ = syscall::sys_print("Usage: elf-exec <filename>\n");
+                Ok(())
+            }
+        },
+        "elf-demo" => cmd_elf_demo(),
         _ => {
             let _ = syscall::sys_print("Unknown command: ");
             let _ = syscall::sys_print(parts[0]);
@@ -66,7 +91,8 @@ pub fn process_command(command: &str) {
 pub fn get_available_commands() -> &'static [&'static str] {
     &[
         "help", "memory", "devices", "ls", "cat", "touch", "rm", 
-        "clear", "syscall", "categories", "version", "shutdown", "reboot"
+        "clear", "syscall", "categories", "version", "shutdown", "reboot",
+        "elf-info", "elf-load", "elf-exec", "elf-demo"
     ]
 }
 
@@ -87,6 +113,11 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  version    - Show ElinOS version\n")?;
     syscall::sys_print("  shutdown   - Shutdown the system\n")?;
     syscall::sys_print("  reboot     - Reboot the system\n")?;
+    syscall::sys_print("\nELF Binary Support:\n")?;
+    syscall::sys_print("  elf-info <file> - Show ELF binary information\n")?;
+    syscall::sys_print("  elf-load <file> - Load ELF binary into memory\n")?;
+    syscall::sys_print("  elf-exec <file> - Load and execute ELF binary\n")?;
+    syscall::sys_print("  elf-demo        - Demonstrate ELF loading with sample binary\n")?;
     Ok(())
 }
 
@@ -274,6 +305,9 @@ pub fn cmd_syscall() -> Result<(), &'static str> {
 
     syscall::sys_print("  Process Management:\n")?;
     syscall::sys_print("    SYS_EXIT (121)    - Exit process\n")?;
+    syscall::sys_print("    SYS_LOAD_ELF (130) - Load ELF binary into memory\n")?;
+    syscall::sys_print("    SYS_EXEC_ELF (131) - Load and execute ELF binary\n")?;
+    syscall::sys_print("    SYS_ELF_INFO (132) - Display ELF binary information\n")?;
 
     syscall::sys_print("  Device Management:\n")?;
     syscall::sys_print("    SYS_GETDEVICES (200) - Device information\n")?;
@@ -286,6 +320,7 @@ pub fn cmd_syscall() -> Result<(), &'static str> {
 
     syscall::sys_print("\nCommands are user-space programs that call these syscalls.\n")?;
     syscall::sys_print("Use 'categories' to see the full categorization system.\n")?;
+    syscall::sys_print("Use 'elf-demo' to test the ELF loader functionality.\n")?;
     Ok(())
 }
 
@@ -338,4 +373,234 @@ pub fn cmd_reboot() -> Result<(), &'static str> {
         syscall::SysCallResult::Success(_) => Ok(()),
         syscall::SysCallResult::Error(e) => Err(e),
     }
+}
+
+pub fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
+    // Get file content from filesystem and clone it
+    let file_data = {
+        let fs = crate::filesystem::FILESYSTEM.lock();
+        match fs.read_file(filename) {
+            Some(data) => {
+                // Clone the data to a Vec so we can use it after dropping the lock
+                let mut cloned_data = heapless::Vec::<u8, 1024>::new();
+                for &byte in data {
+                    if cloned_data.push(byte).is_err() {
+                        return Err("File too large to process");
+                    }
+                }
+                cloned_data
+            }
+            None => {
+                syscall::sys_print("Error: File '")?;
+                syscall::sys_print(filename)?;
+                syscall::sys_print("' not found\n")?;
+                return Err("File not found");
+            }
+        }
+    }; // fs lock is automatically dropped here
+
+    // Call ELF info syscall
+    let result = syscall::syscall_handler(
+        syscall::process::SYS_ELF_INFO,
+        file_data.as_ptr() as usize,
+        file_data.len(),
+        0,
+        0,
+    );
+
+    match result {
+        syscall::SysCallResult::Success(_) => Ok(()),
+        syscall::SysCallResult::Error(e) => {
+            syscall::sys_print("ELF info error: ")?;
+            syscall::sys_print(e)?;
+            syscall::sys_print("\n")?;
+            Err(e)
+        }
+    }
+}
+
+pub fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
+    // Get file content from filesystem and clone it
+    let file_data = {
+        let fs = crate::filesystem::FILESYSTEM.lock();
+        match fs.read_file(filename) {
+            Some(data) => {
+                // Clone the data to a Vec so we can use it after dropping the lock
+                let mut cloned_data = heapless::Vec::<u8, 1024>::new();
+                for &byte in data {
+                    if cloned_data.push(byte).is_err() {
+                        return Err("File too large to process");
+                    }
+                }
+                cloned_data
+            }
+            None => {
+                syscall::sys_print("Error: File '")?;
+                syscall::sys_print(filename)?;
+                syscall::sys_print("' not found\n")?;
+                return Err("File not found");
+            }
+        }
+    }; // fs lock is automatically dropped here
+
+    syscall::sys_print("Loading ELF binary: ")?;
+    syscall::sys_print(filename)?;
+    syscall::sys_print("\n")?;
+
+    // Call ELF load syscall
+    let result = syscall::syscall_handler(
+        syscall::process::SYS_LOAD_ELF,
+        file_data.as_ptr() as usize,
+        file_data.len(),
+        0,
+        0,
+    );
+
+    match result {
+        syscall::SysCallResult::Success(entry_point) => {
+            syscall::sys_print("ELF binary loaded successfully!\n")?;
+            syscall::sys_print("Entry point: 0x")?;
+            
+            // Format entry point as hex string
+            let mut buffer = [0u8; 16];
+            let mut value = entry_point as u64;
+            let mut pos = 0;
+            if value == 0 {
+                buffer[0] = b'0';
+                pos = 1;
+            } else {
+                while value > 0 {
+                    let digit = (value % 16) as u8;
+                    buffer[15 - pos] = if digit < 10 { b'0' + digit } else { b'a' + digit - 10 };
+                    value /= 16;
+                    pos += 1;
+                }
+            }
+            
+            let hex_str = core::str::from_utf8(&buffer[16-pos..]).unwrap_or("?");
+            syscall::sys_print(hex_str)?;
+            syscall::sys_print("\n")?;
+            Ok(())
+        }
+        syscall::SysCallResult::Error(e) => {
+            syscall::sys_print("ELF load error: ")?;
+            syscall::sys_print(e)?;
+            syscall::sys_print("\n")?;
+            Err(e)
+        }
+    }
+}
+
+pub fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
+    // Get file content from filesystem and clone it
+    let file_data = {
+        let fs = crate::filesystem::FILESYSTEM.lock();
+        match fs.read_file(filename) {
+            Some(data) => {
+                // Clone the data to a Vec so we can use it after dropping the lock
+                let mut cloned_data = heapless::Vec::<u8, 1024>::new();
+                for &byte in data {
+                    if cloned_data.push(byte).is_err() {
+                        return Err("File too large to process");
+                    }
+                }
+                cloned_data
+            }
+            None => {
+                syscall::sys_print("Error: File '")?;
+                syscall::sys_print(filename)?;
+                syscall::sys_print("' not found\n")?;
+                return Err("File not found");
+            }
+        }
+    }; // fs lock is automatically dropped here
+
+    syscall::sys_print("Executing ELF binary: ")?;
+    syscall::sys_print(filename)?;
+    syscall::sys_print("\n")?;
+
+    // Call ELF execute syscall
+    let result = syscall::syscall_handler(
+        syscall::process::SYS_EXEC_ELF,
+        file_data.as_ptr() as usize,
+        file_data.len(),
+        0,
+        0,
+    );
+
+    match result {
+        syscall::SysCallResult::Success(_) => {
+            syscall::sys_print("ELF execution completed\n")?;
+            Ok(())
+        }
+        syscall::SysCallResult::Error(e) => {
+            syscall::sys_print("ELF execution error: ")?;
+            syscall::sys_print(e)?;
+            syscall::sys_print("\n")?;
+            Err(e)
+        }
+    }
+}
+
+pub fn cmd_elf_demo() -> Result<(), &'static str> {
+    syscall::sys_print("ELF Loader Demo\n")?;
+    syscall::sys_print("================\n\n")?;
+
+    // Create a minimal ELF header for demonstration
+    // This is a simple RISC-V ELF64 header
+    let elf_demo: [u8; 64] = [
+        // ELF Magic + Class + Data + Version
+        0x7f, b'E', b'L', b'F',  // e_ident[0-3]: ELF magic
+        2,                        // e_ident[4]: ELFCLASS64
+        1,                        // e_ident[5]: ELFDATA2LSB
+        1,                        // e_ident[6]: EV_CURRENT
+        0,                        // e_ident[7]: ELFOSABI_NONE
+        0, 0, 0, 0, 0, 0, 0, 0,   // e_ident[8-15]: padding
+        
+        // ELF header fields
+        2, 0,                     // e_type: ET_EXEC (executable)
+        243, 0,                   // e_machine: EM_RISCV (243)
+        1, 0, 0, 0,               // e_version: EV_CURRENT
+        0x00, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, // e_entry: 0x10000
+        64, 0, 0, 0, 0, 0, 0, 0,  // e_phoff: program header offset
+        0, 0, 0, 0, 0, 0, 0, 0,   // e_shoff: section header offset  
+        0, 0, 0, 0,               // e_flags
+        64, 0,                    // e_ehsize: header size
+        56, 0,                    // e_phentsize: program header size
+        1, 0,                     // e_phnum: program header count
+        64, 0,                    // e_shentsize: section header size
+        0, 0,                     // e_shnum: section header count
+        0, 0,                     // e_shstrndx: string table index
+    ];
+
+    syscall::sys_print("Testing ELF header parsing with demo binary...\n\n")?;
+
+    // Test ELF info on demo binary
+    let result = syscall::syscall_handler(
+        syscall::process::SYS_ELF_INFO,
+        elf_demo.as_ptr() as usize,
+        elf_demo.len(),
+        0,
+        0,
+    );
+
+    match result {
+        syscall::SysCallResult::Success(_) => {
+            syscall::sys_print("\nDemo ELF header parsed successfully!\n")?;
+            syscall::sys_print("Note: This is just a header demo - no actual code segments.\n")?;
+        }
+        syscall::SysCallResult::Error(e) => {
+            syscall::sys_print("Demo failed: ")?;
+            syscall::sys_print(e)?;
+            syscall::sys_print("\n")?;
+        }
+    }
+
+    syscall::sys_print("\nTo test with real ELF binaries:\n")?;
+    syscall::sys_print("1. Add ELF files to the filesystem\n")?;
+    syscall::sys_print("2. Use 'elf-info <filename>' to inspect them\n")?;
+    syscall::sys_print("3. Use 'elf-load <filename>' to load them into memory\n")?;
+    syscall::sys_print("4. Use 'elf-exec <filename>' to attempt execution\n")?;
+
+    Ok(())
 } 

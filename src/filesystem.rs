@@ -27,6 +27,43 @@ impl SimpleFS {
         let _ = fs.create_file("test.txt", b"This is a test file.\nLine 2\nLine 3\n");
         let _ = fs.create_file("readme.md", b"# ElinOS\n\nA simple operating system in Rust.\n");
         
+        // Add a sample ELF binary for testing (minimal RISC-V ELF header)
+        let sample_elf: [u8; 120] = [
+            // ELF header (64 bytes)
+            0x7f, b'E', b'L', b'F',  // e_ident[0-3]: ELF magic
+            2,                        // e_ident[4]: ELFCLASS64
+            1,                        // e_ident[5]: ELFDATA2LSB
+            1,                        // e_ident[6]: EV_CURRENT
+            0,                        // e_ident[7]: ELFOSABI_NONE
+            0, 0, 0, 0, 0, 0, 0, 0,   // e_ident[8-15]: padding
+            
+            2, 0,                     // e_type: ET_EXEC (executable)
+            243, 0,                   // e_machine: EM_RISCV (243)
+            1, 0, 0, 0,               // e_version: EV_CURRENT
+            0x00, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, // e_entry: 0x10000
+            64, 0, 0, 0, 0, 0, 0, 0,  // e_phoff: program header offset
+            0, 0, 0, 0, 0, 0, 0, 0,   // e_shoff: section header offset  
+            0, 0, 0, 0,               // e_flags
+            64, 0,                    // e_ehsize: header size
+            56, 0,                    // e_phentsize: program header size
+            1, 0,                     // e_phnum: program header count
+            64, 0,                    // e_shentsize: section header size
+            0, 0,                     // e_shnum: section header count
+            0, 0,                     // e_shstrndx: string table index
+            
+            // Program header (56 bytes)
+            1, 0, 0, 0,               // p_type: PT_LOAD (1)
+            5, 0, 0, 0,               // p_flags: PF_R | PF_X (4 | 1)
+            0, 0, 0, 0, 0, 0, 0, 0,   // p_offset: 0
+            0x00, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, // p_vaddr: 0x10000
+            0x00, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, // p_paddr: 0x10000
+            120, 0, 0, 0, 0, 0, 0, 0, // p_filesz: 120 bytes
+            120, 0, 0, 0, 0, 0, 0, 0, // p_memsz: 120 bytes
+            16, 0, 0, 0, 0, 0, 0, 0,  // p_align: 16
+        ];
+        
+        let _ = fs.create_file("hello.elf", &sample_elf);
+        
         fs
     }
 

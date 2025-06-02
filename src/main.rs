@@ -12,6 +12,7 @@ mod virtio_blk;
 mod filesystem;
 mod syscall;
 mod commands;
+mod elf;
 
 // Memory layout constants (fallback values)
 const UART0: usize = 0x10000000;
