@@ -4,7 +4,7 @@ This document provides detailed technical information about elinKernel architect
 
 ## System Call Architecture
 
-elinKernel implements a **well-structured** operating system architecture with industry-standard organization inspired by the **Qiling framework**.
+elinKernel implements a **well-structured** kernel architecture with industry-standard organization inspired by the **Qiling framework**.
 
 ### Categorized System Call Organization
 
@@ -374,4 +374,4 @@ unsafe {
 - **Sandboxing**: Process isolation and resource limits
 - **Secure Boot**: Verified boot process with cryptographic signatures
 
-This architecture provides a solid foundation for an educational operating system while maintaining the simplicity and safety that makes elinKernel an excellent learning and development platform. 
+This architecture provides a solid foundation for an educational kernel while maintaining the simplicity and safety that makes elinKernel an excellent learning and development platform. 

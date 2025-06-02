@@ -112,7 +112,7 @@ elinKernel> version
 
 **Output:**
 ```
-elinKernel v0.1.0 - RISC-V Operating System
+elinKernel v0.1.0 - RISC-V kernel
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 ```
@@ -321,7 +321,7 @@ Clears the terminal screen and positions cursor at top.
 Here's a complete example session showing various commands:
 
 ```
-elinKernel v0.1.0 - RISC-V Operating System
+elinKernel v0.1.0 - RISC-V kernel
 Starting interactive shell...
 
 elinKernel> help
@@ -345,7 +345,7 @@ Available commands:
   reboot     - Reboot the system
 
 elinKernel> version
-elinKernel v0.1.0 - RISC-V Operating System
+elinKernel v0.1.0 - RISC-V kernel
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 

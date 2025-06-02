@@ -47,7 +47,7 @@ fn sys_elinos_stats() -> SysCallResult {
 
 fn sys_elinos_version() -> SysCallResult {
     let mut uart = UART.lock();
-    let _ = writeln!(uart, "elinKernel v0.1.0 - RISC-V Operating System");
+    let _ = writeln!(uart, "elinKernel v0.1.0 - RISC-V kernel");
     let _ = writeln!(uart, "Built with Rust and proper syscall architecture");
     let _ = writeln!(uart, "Organized syscalls inspired by Qiling framework");
     SysCallResult::Success(0)

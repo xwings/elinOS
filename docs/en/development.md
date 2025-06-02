@@ -165,7 +165,7 @@ pub fn new() -> Self {
     // Add existing test files
     let _ = fs.create_file("hello.txt", b"Hello from elinKernel filesystem!\n");
     let _ = fs.create_file("test.txt", b"This is a test file.\nLine 2\nLine 3\n");
-    let _ = fs.create_file("readme.md", b"# elinKernel\n\nA simple operating system in Rust.\n");
+    let _ = fs.create_file("readme.md", b"# elinKernel\n\nA simple kernel in Rust.\n");
     
     // Add your compiled ELF binary
     let hello_elf = include_bytes!("../hello.elf");

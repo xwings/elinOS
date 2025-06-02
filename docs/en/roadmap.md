@@ -292,4 +292,4 @@ elinKernel has achieved:
 5. **Code Review** - Peer review and feedback
 6. **Integration** - Merge approved changes
 
-This roadmap provides a clear path for elinKernel evolution from its current solid foundation to a full-featured operating system suitable for education, research, and embedded applications. 
+This roadmap provides a clear path for elinKernel evolution from its current solid foundation to a full-featured kernel suitable for education, research, and embedded applications. 

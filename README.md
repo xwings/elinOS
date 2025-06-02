@@ -2,7 +2,7 @@
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
-An **experimental** RISC-V operating system written in Rust, featuring dynamic memory management, well-organized system call architecture, VirtIO device support, filesystem operations, and **ELF program execution capability**. Perfect for **learning**, **research**, and **educational purposes**.
+An **experimental** RISC-V kernel written in Rust, featuring dynamic memory management, well-organized system call architecture, VirtIO device support, filesystem operations, and **ELF program execution capability**. Perfect for **learning**, **research**, and **educational purposes**.
 
 ## 🚀 Quick Start
 
@@ -157,6 +157,6 @@ This project is free and open source software, allowing unrestricted use, modifi
 
 ---
 
-**elinKernel** demonstrates **educational-quality** operating system development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
+**elinKernel** demonstrates **educational-quality** kernel development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
 
 **🎮 Try it now:** `./build.sh && ./run.sh`
