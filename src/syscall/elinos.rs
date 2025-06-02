@@ -4,7 +4,7 @@
 use crate::UART;
 use crate::sbi;
 use core::fmt::Write;
-use super::SysCallResult;
+use super::{SysCallResult, SyscallArgs};
 
 // === ELINOS-SPECIFIC SYSTEM CALL CONSTANTS (900-999) ===
 pub const SYS_ELINOS_DEBUG: usize = 900;
@@ -14,16 +14,10 @@ pub const SYS_ELINOS_SHUTDOWN: usize = 903;
 pub const SYS_ELINOS_REBOOT: usize = 904;
 // Reserved for ElinOS-specific: 905-999
 
-// Handle ElinOS-specific system calls
-pub fn handle_elinos_syscall(
-    syscall_num: usize,
-    arg0: usize,
-    _arg1: usize,
-    _arg2: usize,
-    _arg3: usize,
-) -> SysCallResult {
-    match syscall_num {
-        SYS_ELINOS_DEBUG => sys_elinos_debug(arg0),
+// Standardized ElinOS-specific syscall handler
+pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
+    match args.syscall_num {
+        SYS_ELINOS_DEBUG => sys_elinos_debug(args.arg0),
         SYS_ELINOS_STATS => sys_elinos_stats(),
         SYS_ELINOS_VERSION => sys_elinos_version(),
         SYS_ELINOS_SHUTDOWN => sys_elinos_shutdown(),

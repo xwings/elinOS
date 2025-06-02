@@ -3,7 +3,7 @@
 
 use crate::{UART, elf::{ElfLoader, ElfError}};
 use core::fmt::Write;
-use super::SysCallResult;
+use super::{SysCallResult, SyscallArgs};
 
 // === PROCESS MANAGEMENT SYSTEM CALL CONSTANTS (121-170) ===
 pub const SYS_EXIT: usize = 121;
@@ -21,27 +21,21 @@ pub const SYS_EXEC_ELF: usize = 131;
 pub const SYS_ELF_INFO: usize = 132;
 // Reserved for future process management: 133-170
 
-// Handle process management system calls
-pub fn handle_process_syscall(
-    syscall_num: usize,
-    arg0: usize,
-    arg1: usize,
-    arg2: usize,
-    _arg3: usize,
-) -> SysCallResult {
-    match syscall_num {
-        SYS_EXIT => sys_exit(arg0 as i32),
+// Standardized process management syscall handler
+pub fn handle_process_syscall(args: &SyscallArgs) -> SysCallResult {
+    match args.syscall_num {
+        SYS_EXIT => sys_exit(args.arg0_as_i32()),
         SYS_FORK => sys_fork(),
-        SYS_EXECVE => sys_execve(arg0 as *const u8, arg1 as *const *const u8, arg2 as *const *const u8),
-        SYS_WAIT => sys_wait(arg0 as *mut i32),
-        SYS_WAITPID => sys_waitpid(arg0 as i32, arg1 as *mut i32, arg2 as i32),
+        SYS_EXECVE => sys_execve(args.arg0_as_ptr::<u8>(), args.arg1_as_ptr::<*const u8>(), args.arg2_as_ptr::<*const u8>()),
+        SYS_WAIT => sys_wait(args.arg0_as_mut_ptr::<i32>()),
+        SYS_WAITPID => sys_waitpid(args.arg0_as_i32(), args.arg1_as_mut_ptr::<i32>(), args.arg2_as_i32()),
         SYS_GETPID => sys_getpid(),
         SYS_GETPPID => sys_getppid(),
-        SYS_KILL => sys_kill(arg0 as i32, arg1 as i32),
-        SYS_SIGNAL => sys_signal(arg0 as i32, arg1),
-        SYS_LOAD_ELF => sys_load_elf(arg0 as *const u8, arg1),
-        SYS_EXEC_ELF => sys_exec_elf(arg0 as *const u8, arg1),
-        SYS_ELF_INFO => sys_elf_info(arg0 as *const u8, arg1),
+        SYS_KILL => sys_kill(args.arg0_as_i32(), args.arg1_as_i32()),
+        SYS_SIGNAL => sys_signal(args.arg0_as_i32(), args.arg1),
+        SYS_LOAD_ELF => sys_load_elf(args.arg0_as_ptr::<u8>(), args.arg1),
+        SYS_EXEC_ELF => sys_exec_elf(args.arg0_as_ptr::<u8>(), args.arg1),
+        SYS_ELF_INFO => sys_elf_info(args.arg0_as_ptr::<u8>(), args.arg1),
         _ => SysCallResult::Error("Unknown process management system call"),
     }
 }

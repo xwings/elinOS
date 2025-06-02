@@ -4,7 +4,7 @@
 use crate::UART;
 use crate::filesystem;
 use core::fmt::Write;
-use super::{SysCallResult, STDOUT_FD, STDERR_FD};
+use super::{SysCallResult, SyscallArgs, STDOUT_FD, STDERR_FD};
 
 // === FILE I/O SYSTEM CALL CONSTANTS (1-50) ===
 pub const SYS_WRITE: usize = 1;
@@ -33,31 +33,25 @@ pub const O_CREAT: i32 = 64;
 pub const O_TRUNC: i32 = 512;
 pub const O_APPEND: i32 = 1024;
 
-// Handle file I/O system calls
-pub fn handle_file_syscall(
-    syscall_num: usize,
-    arg0: usize,
-    arg1: usize,
-    arg2: usize,
-    _arg3: usize,
-) -> SysCallResult {
-    match syscall_num {
-        SYS_WRITE => sys_write(arg0 as i32, arg1 as *const u8, arg2),
-        SYS_READ => sys_read(arg0 as i32, arg1 as *mut u8, arg2),
-        SYS_OPEN => sys_open(arg0 as *const u8, arg1 as i32),
-        SYS_CLOSE => sys_close(arg0 as i32),
-        SYS_UNLINK => sys_unlink(arg0 as *const u8),
-        SYS_GETDENTS => sys_getdents(arg0 as *mut u8, arg1),
-        SYS_STAT => sys_stat(arg0 as *const u8, arg1 as *mut u8),
-        SYS_LSEEK => sys_lseek(arg0 as i32, arg1 as isize, arg2 as i32),
-        SYS_TRUNCATE => sys_truncate(arg0 as *const u8, arg1),
-        SYS_FTRUNCATE => sys_ftruncate(arg0 as i32, arg1),
-        SYS_CHMOD => sys_chmod(arg0 as *const u8, arg1 as u32),
-        SYS_CHOWN => sys_chown(arg0 as *const u8, arg1 as u32, arg2 as u32),
-        SYS_LINK => sys_link(arg0 as *const u8, arg1 as *const u8),
-        SYS_RENAME => sys_rename(arg0 as *const u8, arg1 as *const u8),
+// Standardized file I/O syscall handler
+pub fn handle_file_syscall(args: &SyscallArgs) -> SysCallResult {
+    match args.syscall_num {
+        SYS_WRITE => sys_write(args.arg0_as_i32(), args.arg1_as_ptr::<u8>(), args.arg2),
+        SYS_READ => sys_read(args.arg0_as_i32(), args.arg1_as_mut_ptr::<u8>(), args.arg2),
+        SYS_OPEN => sys_open(args.arg0_as_ptr::<u8>(), args.arg1_as_i32()),
+        SYS_CLOSE => sys_close(args.arg0_as_i32()),
+        SYS_UNLINK => sys_unlink(args.arg0_as_ptr::<u8>()),
+        SYS_GETDENTS => sys_getdents(args.arg0_as_mut_ptr::<u8>(), args.arg1),
+        SYS_STAT => sys_stat(args.arg0_as_ptr::<u8>(), args.arg1_as_mut_ptr::<u8>()),
+        SYS_LSEEK => sys_lseek(args.arg0_as_i32(), args.arg1 as isize, args.arg2_as_i32()),
+        SYS_TRUNCATE => sys_truncate(args.arg0_as_ptr::<u8>(), args.arg1),
+        SYS_FTRUNCATE => sys_ftruncate(args.arg0_as_i32(), args.arg1),
+        SYS_CHMOD => sys_chmod(args.arg0_as_ptr::<u8>(), args.arg1 as u32),
+        SYS_CHOWN => sys_chown(args.arg0_as_ptr::<u8>(), args.arg1 as u32, args.arg2 as u32),
+        SYS_LINK => sys_link(args.arg0_as_ptr::<u8>(), args.arg1_as_ptr::<u8>()),
+        SYS_RENAME => sys_rename(args.arg0_as_ptr::<u8>(), args.arg1_as_ptr::<u8>()),
         SYS_SYNC => sys_sync(),
-        SYS_FSYNC => sys_fsync(arg0 as i32),
+        SYS_FSYNC => sys_fsync(args.arg0_as_i32()),
         _ => SysCallResult::Error("Unknown file I/O system call"),
     }
 }

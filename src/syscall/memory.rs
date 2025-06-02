@@ -4,7 +4,7 @@
 use crate::memory;
 use crate::UART;
 use core::fmt::Write;
-use super::SysCallResult;
+use super::{SysCallResult, SyscallArgs};
 
 // === MEMORY MANAGEMENT SYSTEM CALL CONSTANTS (71-120) ===
 pub const SYS_MMAP: usize = 71;
@@ -30,23 +30,17 @@ pub const MAP_PRIVATE: usize = 2;
 pub const MAP_ANONYMOUS: usize = 32;
 pub const MAP_FIXED: usize = 16;
 
-// Handle memory management system calls
-pub fn handle_memory_syscall(
-    syscall_num: usize,
-    arg0: usize,
-    arg1: usize,
-    arg2: usize,
-    _arg3: usize,
-) -> SysCallResult {
-    match syscall_num {
-        SYS_MMAP => sys_mmap(arg0, arg1, arg2),
-        SYS_MUNMAP => sys_munmap(arg0, arg1),
-        SYS_MPROTECT => sys_mprotect(arg0, arg1, arg2),
-        SYS_MADVISE => sys_madvise(arg0, arg1, arg2),
-        SYS_MLOCK => sys_mlock(arg0, arg1),
-        SYS_MUNLOCK => sys_munlock(arg0, arg1),
-        SYS_BRK => sys_brk(arg0),
-        SYS_SBRK => sys_sbrk(arg0 as isize),
+// Standardized memory management syscall handler
+pub fn handle_memory_syscall(args: &SyscallArgs) -> SysCallResult {
+    match args.syscall_num {
+        SYS_MMAP => sys_mmap(args.arg0, args.arg1, args.arg2),
+        SYS_MUNMAP => sys_munmap(args.arg0, args.arg1),
+        SYS_MPROTECT => sys_mprotect(args.arg0, args.arg1, args.arg2),
+        SYS_MADVISE => sys_madvise(args.arg0, args.arg1, args.arg2),
+        SYS_MLOCK => sys_mlock(args.arg0, args.arg1),
+        SYS_MUNLOCK => sys_munlock(args.arg0, args.arg1),
+        SYS_BRK => sys_brk(args.arg0),
+        SYS_SBRK => sys_sbrk(args.arg0 as isize),
         SYS_GETMEMINFO => sys_getmeminfo(),
         _ => SysCallResult::Error("Unknown memory management system call"),
     }

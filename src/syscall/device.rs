@@ -2,7 +2,7 @@
 // Handles device operations, I/O control, etc.
 
 use crate::virtio_blk;
-use super::SysCallResult;
+use super::{SysCallResult, SyscallArgs};
 
 // === DEVICE AND I/O MANAGEMENT SYSTEM CALL CONSTANTS (171-220) ===
 pub const SYS_IOCTL: usize = 171;
@@ -14,21 +14,15 @@ pub const SYS_DUP2: usize = 176;
 pub const SYS_GETDEVICES: usize = 200;  // ElinOS-specific device info
 // Reserved for future device management: 177-199, 201-220
 
-// Handle device management system calls
-pub fn handle_device_syscall(
-    syscall_num: usize,
-    arg0: usize,
-    arg1: usize,
-    arg2: usize,
-    _arg3: usize,
-) -> SysCallResult {
-    match syscall_num {
-        SYS_IOCTL => sys_ioctl(arg0 as i32, arg1, arg2),
-        SYS_FCNTL => sys_fcntl(arg0 as i32, arg1 as i32, arg2),
-        SYS_PIPE => sys_pipe(arg0 as *mut i32),
-        SYS_PIPE2 => sys_pipe2(arg0 as *mut i32, arg1 as i32),
-        SYS_DUP => sys_dup(arg0 as i32),
-        SYS_DUP2 => sys_dup2(arg0 as i32, arg1 as i32),
+// Standardized device management syscall handler
+pub fn handle_device_syscall(args: &SyscallArgs) -> SysCallResult {
+    match args.syscall_num {
+        SYS_IOCTL => sys_ioctl(args.arg0_as_i32(), args.arg1, args.arg2),
+        SYS_FCNTL => sys_fcntl(args.arg0_as_i32(), args.arg1_as_i32(), args.arg2),
+        SYS_PIPE => sys_pipe(args.arg0_as_mut_ptr::<i32>()),
+        SYS_PIPE2 => sys_pipe2(args.arg0_as_mut_ptr::<i32>(), args.arg1_as_i32()),
+        SYS_DUP => sys_dup(args.arg0_as_i32()),
+        SYS_DUP2 => sys_dup2(args.arg0_as_i32(), args.arg1_as_i32()),
         SYS_GETDEVICES => sys_getdevices(),
         _ => SysCallResult::Error("Unknown device management system call"),
     }
