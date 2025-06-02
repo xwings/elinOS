@@ -94,6 +94,7 @@ impl SyscallArgs {
     pub fn arg0_as_i32(&self) -> i32 { self.arg0 as i32 }
     pub fn arg1_as_i32(&self) -> i32 { self.arg1 as i32 }
     pub fn arg2_as_i32(&self) -> i32 { self.arg2 as i32 }
+    pub fn arg3_as_i32(&self) -> i32 { self.arg3 as i32 }
     
     pub fn arg0_as_ptr<T>(&self) -> *const T { self.arg0 as *const T }
     pub fn arg1_as_ptr<T>(&self) -> *const T { self.arg1 as *const T }
@@ -118,20 +119,38 @@ pub const STDERR_FD: i32 = 2;
 // System call categorization for debugging and documentation
 pub fn get_syscall_category(syscall_num: usize) -> &'static str {
     match syscall_num {
-        1..=50 => "File I/O Operations",
-        51..=70 => "Directory Operations", 
-        71..=120 => "Memory Management",
-        121..=170 => "Process Management",
-        171..=220 => "Device and I/O Management",
-        221..=270 => "Network Operations",
-        271..=300 => "Time and Timer Operations",
-        301..=350 => "System Information",
+        // File I/O operations (Linux numbers)
+        35 | 45..=47 | 56..=64 | 78..=83 => "File I/O Operations",
+        
+        // Directory operations (Linux numbers)  
+        34 | 49..=55 => "Directory Operations",
+        
+        // Device and I/O management (Linux numbers)
+        23..=33 | 59 => "Device and I/O Management",
+        
+        // Process management (Linux numbers) - non-overlapping ranges
+        93..=100 | 129..=178 | 220..=221 => "Process Management",
+        
+        // Time operations (Linux numbers) - non-overlapping ranges  
+        101..=115 => "Time and Timer Operations",
+        
+        // System information (Linux numbers) - non-overlapping ranges
+        160..=168 | 169..=171 | 179 => "System Information",
+        
+        // Network operations (Linux numbers)
+        198..=213 => "Network Operations", 
+        
+        // Memory management (Linux numbers)
+        214..=239 => "Memory Management",
+        
+        // elinKernel-specific operations
         900..=999 => "elinKernel-Specific Operations",
+        
         _ => "Unknown Category",
     }
 }
 
-// Main system call handler with standardized dispatch
+// Main system call handler with Linux-compatible dispatch
 pub fn syscall_handler(
     syscall_num: usize,
     arg0: usize,
@@ -142,31 +161,56 @@ pub fn syscall_handler(
     let args = SyscallArgs::new(syscall_num, arg0, arg1, arg2, arg3);
     
     match syscall_num {
-        // === FILE I/O OPERATIONS (1-50) ===
-        1..=50 => file::handle_file_syscall(&args),
+        // === DEVICE AND I/O MANAGEMENT (Linux numbers) ===
+        23..=33 |      // dup, dup3, fcntl, ioctl, etc.
+        59 |           // pipe2
+        950            // elinKernel: getdevices
+        => device::handle_device_syscall(&args),
         
-        // === DIRECTORY OPERATIONS (51-70) ===
-        51..=70 => directory::handle_directory_syscall(&args),
+        // === DIRECTORY OPERATIONS (Linux numbers) ===
+        34 |           // mkdirat
+        49..=55        // chdir, fchdir, chroot, fchmod, fchmodat, fchownat, fchown
+        => directory::handle_directory_syscall(&args),
         
-        // === MEMORY MANAGEMENT (71-120) ===
-        71..=120 => memory::handle_memory_syscall(&args),
+        // === FILE I/O OPERATIONS (Linux numbers) ===
+        35 |           // unlinkat
+        45..=47 |      // truncate, ftruncate, fallocate  
+        56..=64 |      // openat, close, read, write, readv, writev, etc.
+        78..=83        // readlinkat, newfstatat, fstat, sync, fsync, fdatasync
+        => file::handle_file_syscall(&args),
         
-        // === PROCESS MANAGEMENT (121-170) ===
-        121..=170 => process::handle_process_syscall(&args),
+        // === PROCESS MANAGEMENT (Linux numbers - first range) ===
+        93..=100       // exit, exit_group, waitid, futex, etc.
+        => process::handle_process_syscall(&args),
         
-        // === DEVICE AND I/O MANAGEMENT (171-220) ===
-        171..=220 => device::handle_device_syscall(&args),
+        // === TIME AND TIMER OPERATIONS (Linux numbers) ===
+        101..=115      // nanosleep, getitimer, setitimer, timer_*, clock_*
+        => time::handle_time_syscall(&args),
         
-        // === NETWORK OPERATIONS (221-270) ===
-        221..=270 => network::handle_network_syscall(&args),
+        // === PROCESS MANAGEMENT (Linux numbers - second range) ===
+        129..=178      // kill, getpid, getppid, etc.
+        => process::handle_process_syscall(&args),
         
-        // === TIME AND TIMER OPERATIONS (271-300) ===
-        271..=300 => time::handle_time_syscall(&args),
+        // === NETWORK OPERATIONS (Linux numbers) ===
+        198..=213      // socket, socketpair, bind, listen, accept, connect, etc.
+        => network::handle_network_syscall(&args),
         
-        // === SYSTEM INFORMATION (301-350) ===
-        301..=350 => sysinfo::handle_sysinfo_syscall(&args),
+        // === MEMORY MANAGEMENT (Linux numbers) ===
+        214..=239 |    // brk, munmap, mremap, mmap, mprotect, msync, mlock, etc.
+        960            // elinKernel: getmeminfo
+        => memory::handle_memory_syscall(&args),
         
-        // === ELINOS-SPECIFIC (900-999) ===
+        // === PROCESS MANAGEMENT (Linux numbers - third range) ===
+        220..=221      // clone, execve
+        => process::handle_process_syscall(&args),
+        
+        // === SYSTEM INFORMATION (Linux numbers) ===
+        160..=168 |    // uname, sethostname, getrlimit, setrlimit, etc.
+        169..=171 |    // gettimeofday, settimeofday, adjtimex  
+        179            // sysinfo
+        => sysinfo::handle_sysinfo_syscall(&args),
+        
+        // === ELINOS-SPECIFIC OPERATIONS ===
         900..=999 => elinos::handle_elinos_syscall(&args),
         
         _ => SysCallResult::Error("Unknown system call"),
@@ -209,15 +253,32 @@ pub fn sys_device_info() -> Result<(), &'static str> {
 
 // Debug function to show syscall categories
 pub fn sys_show_categories() -> Result<(), &'static str> {
-    sys_print("System Call Categories:\n")?;
-    sys_print("  1-50:   File I/O Operations\n")?;
-    sys_print("  51-70:  Directory Operations\n")?;
-    sys_print("  71-120: Memory Management\n")?;
-    sys_print("  121-170: Process Management\n")?;
-    sys_print("  171-220: Device and I/O Management\n")?;
-    sys_print("  221-270: Network Operations\n")?;
-    sys_print("  271-300: Time and Timer Operations\n")?;
-    sys_print("  301-350: System Information\n")?;
-    sys_print("  900-999: elinKernel-Specific Operations\n")?;
+    sys_print("System Call Categories (Linux Compatible Numbers):\n")?;
+    sys_print("  File I/O Operations:\n")?;
+    sys_print("    35: unlinkat, 45-47: truncate/ftruncate/fallocate\n")?;
+    sys_print("    56-64: openat/close/read/write/readv/writev/sendfile/etc\n")?;
+    sys_print("    78-83: readlinkat/newfstatat/fstat/sync/fsync/fdatasync\n")?;
+    sys_print("  Directory Operations:\n")?;
+    sys_print("    34: mkdirat, 49-55: chdir/fchdir/chroot/fchmod/etc\n")?;
+    sys_print("  Memory Management:\n")?;
+    sys_print("    214-239: brk/munmap/mremap/mmap/mprotect/mlock/etc\n")?;
+    sys_print("    960: getmeminfo (elinKernel-specific)\n")?;
+    sys_print("  Process Management:\n")?;
+    sys_print("    93-100: exit/waitid/futex/getpid/getppid/kill/etc\n")?;
+    sys_print("    129-178: kill/getpid/getppid/etc\n")?;
+    sys_print("    220-221: clone/execve\n")?;
+    sys_print("  Device and I/O Management:\n")?;
+    sys_print("    23-33: dup/dup3/fcntl/ioctl/flock/mknodat/etc\n")?;
+    sys_print("    59: pipe2, 950: getdevices (elinKernel-specific)\n")?;
+    sys_print("  Network Operations:\n")?;
+    sys_print("    198-213: socket/bind/listen/accept/connect/etc\n")?;
+    sys_print("  Time and Timer Operations:\n")?;
+    sys_print("    101-115: nanosleep/getitimer/timer_*/clock_*\n")?;
+    sys_print("  System Information:\n")?;
+    sys_print("    160-168: uname/sethostname/getrlimit/setrlimit/etc\n")?;
+    sys_print("    169-171: gettimeofday/settimeofday/adjtimex\n")?;
+    sys_print("    179: sysinfo\n")?;
+    sys_print("  elinKernel-Specific Operations:\n")?;
+    sys_print("    900-999: debug/version/shutdown/load_elf/exec_elf/etc\n")?;
     Ok(())
 } 

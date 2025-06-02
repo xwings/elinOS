@@ -281,44 +281,56 @@ pub fn cmd_clear() -> Result<(), &'static str> {
 }
 
 pub fn cmd_syscall() -> Result<(), &'static str> {
-    syscall::sys_print("System Call Information:\n")?;
-    syscall::sys_print("  This shell uses categorized system calls for all kernel operations!\n\n")?;
+    syscall::sys_print("System Call Information (Linux Compatible):\n")?;
+    syscall::sys_print("  elinKernel now follows Linux syscall numbers for better compatibility!\n\n")?;
     
     syscall::sys_print("Currently Implemented System Calls:\n")?;
     syscall::sys_print("  File I/O Operations:\n")?;
-    syscall::sys_print("    SYS_WRITE (1)     - Write to file descriptor\n")?;
-    syscall::sys_print("    SYS_READ (2)      - Read from file descriptor [TODO]\n")?;
-    syscall::sys_print("    SYS_OPEN (3)      - Open file\n")?;
-    syscall::sys_print("    SYS_CLOSE (4)     - Close file descriptor [TODO]\n")?;
-    syscall::sys_print("    SYS_UNLINK (5)    - Delete file\n")?;
-    syscall::sys_print("    SYS_GETDENTS (6)  - List directory entries\n")?;
-    syscall::sys_print("    SYS_STAT (9)      - Get file status\n")?;
+    syscall::sys_print("    SYS_WRITE (64)     - Write to file descriptor\n")?;
+    syscall::sys_print("    SYS_READ (63)      - Read from file descriptor [TODO]\n")?;
+    syscall::sys_print("    SYS_OPENAT (56)    - Open file (modern Linux openat)\n")?;
+    syscall::sys_print("    SYS_CLOSE (57)     - Close file descriptor [TODO]\n")?;
+    syscall::sys_print("    SYS_UNLINKAT (35)  - Delete file (modern Linux unlinkat)\n")?;
+    syscall::sys_print("    SYS_GETDENTS64 (61) - List directory entries\n")?;
+    syscall::sys_print("    SYS_NEWFSTATAT (79) - Get file status (modern Linux stat)\n")?;
 
     syscall::sys_print("  Directory Operations:\n")?;
-    syscall::sys_print("    SYS_MKDIR (51)    - Create directory [TODO]\n")?;
-    syscall::sys_print("    SYS_RMDIR (52)    - Remove directory [TODO]\n")?;
+    syscall::sys_print("    SYS_MKDIRAT (34)   - Create directory [TODO]\n")?;
+    syscall::sys_print("    SYS_CHDIR (49)     - Change directory [TODO]\n")?;
 
     syscall::sys_print("  Memory Management:\n")?;
-    syscall::sys_print("    SYS_MMAP (71)     - Memory mapping [TODO]\n")?;
-    syscall::sys_print("    SYS_MUNMAP (72)   - Memory unmapping [TODO]\n")?;
-    syscall::sys_print("    SYS_GETMEMINFO (100) - Memory information\n")?;
+    syscall::sys_print("    SYS_MMAP (222)     - Memory mapping [TODO]\n")?;
+    syscall::sys_print("    SYS_MUNMAP (215)   - Memory unmapping [TODO]\n")?;
+    syscall::sys_print("    SYS_BRK (214)      - Program break [TODO]\n")?;
+    syscall::sys_print("    SYS_GETMEMINFO (960) - Memory information (elinKernel)\n")?;
 
     syscall::sys_print("  Process Management:\n")?;
-    syscall::sys_print("    SYS_EXIT (121)    - Exit process\n")?;
-    syscall::sys_print("    SYS_LOAD_ELF (130) - Load ELF binary into memory\n")?;
-    syscall::sys_print("    SYS_EXEC_ELF (131) - Load and execute ELF binary\n")?;
-    syscall::sys_print("    SYS_ELF_INFO (132) - Display ELF binary information\n")?;
+    syscall::sys_print("    SYS_EXIT (93)      - Exit process\n")?;
+    syscall::sys_print("    SYS_CLONE (220)    - Clone process [TODO]\n")?;
+    syscall::sys_print("    SYS_EXECVE (221)   - Execute program [TODO]\n")?;
+    syscall::sys_print("    SYS_GETPID (172)   - Get process ID\n")?;
+    syscall::sys_print("    SYS_GETPPID (173)  - Get parent process ID\n")?;
+    syscall::sys_print("    SYS_KILL (129)     - Send signal to process [TODO]\n")?;
 
     syscall::sys_print("  Device Management:\n")?;
-    syscall::sys_print("    SYS_GETDEVICES (200) - Device information\n")?;
+    syscall::sys_print("    SYS_IOCTL (29)     - I/O control [TODO]\n")?;
+    syscall::sys_print("    SYS_DUP (23)       - Duplicate file descriptor [TODO]\n")?;
+    syscall::sys_print("    SYS_PIPE2 (59)     - Create pipe [TODO]\n")?;
+    syscall::sys_print("    SYS_GETDEVICES (950) - Device information (elinKernel)\n")?;
 
-    syscall::sys_print("  elinKernel-Specific:\n")?;
+    syscall::sys_print("  elinKernel-Specific (ELF Support):\n")?;
+    syscall::sys_print("    SYS_LOAD_ELF (900)  - Load ELF binary into memory\n")?;
+    syscall::sys_print("    SYS_EXEC_ELF (901)  - Load and execute ELF binary\n")?;
+    syscall::sys_print("    SYS_ELF_INFO (902)  - Display ELF binary information\n")?;
+
+    syscall::sys_print("  elinKernel-Specific (System Control):\n")?;
     syscall::sys_print("    SYS_ELINOS_DEBUG (900)    - Set debug level\n")?;
     syscall::sys_print("    SYS_ELINOS_VERSION (902)  - Show version\n")?;
     syscall::sys_print("    SYS_ELINOS_SHUTDOWN (903) - Shutdown system\n")?;
     syscall::sys_print("    SYS_ELINOS_REBOOT (904)   - Reboot system\n")?;
 
-    syscall::sys_print("\nCommands are user-space programs that call these syscalls.\n")?;
+    syscall::sys_print("\nNumbers in parentheses are Linux-compatible syscall numbers.\n")?;
+    syscall::sys_print("This makes elinKernel easier to understand for Linux developers!\n")?;
     syscall::sys_print("Use 'categories' to see the full categorization system.\n")?;
     syscall::sys_print("Use 'elf-demo' to test the ELF loader functionality.\n")?;
     Ok(())
