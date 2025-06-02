@@ -1,6 +1,6 @@
-# Debugging and Troubleshooting ElinOS
+# Debugging and Troubleshooting elinOS
 
-This guide covers debugging techniques, common issues, and troubleshooting steps for ElinOS development.
+This guide covers debugging techniques, common issues, and troubleshooting steps for elinOS development.
 
 ## Debugging Setup
 
@@ -454,7 +454,7 @@ mod tests {
 ```bash
 # Script to test various scenarios
 #!/bin/bash
-echo "Testing ElinOS functionality..."
+echo "Testing elinOS functionality..."
 
 # Test 1: Basic boot
 timeout 30 ./run.sh << EOF
@@ -559,4 +559,4 @@ git add -A
 git commit -m "Working state before changes"
 ```
 
-This debugging guide should help you identify and resolve most issues encountered during ElinOS development and usage. 
+This debugging guide should help you identify and resolve most issues encountered during elinOS development and usage. 

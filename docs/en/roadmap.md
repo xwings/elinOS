@@ -1,10 +1,10 @@
-# ElinOS Development Roadmap
+# elinOS Development Roadmap
 
-This document outlines the planned development phases and future enhancements for ElinOS.
+This document outlines the planned development phases and future enhancements for elinOS.
 
 ## Current Status
 
-ElinOS has achieved:
+elinOS has achieved:
 - ✅ **Core System**: RISC-V 64-bit kernel with dynamic memory management
 - ✅ **System Call Architecture**: 9-category professional organization (Qiling-inspired)
 - ✅ **VirtIO Support**: Block device driver with MMIO discovery
@@ -292,4 +292,4 @@ ElinOS has achieved:
 5. **Code Review** - Peer review and feedback
 6. **Integration** - Merge approved changes
 
-This roadmap provides a clear path for ElinOS evolution from its current solid foundation to a full-featured operating system suitable for education, research, and embedded applications. 
+This roadmap provides a clear path for elinOS evolution from its current solid foundation to a full-featured operating system suitable for education, research, and embedded applications. 

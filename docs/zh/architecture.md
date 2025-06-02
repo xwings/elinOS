@@ -1,12 +1,12 @@
-# ElinOS 技术架构
+# elinOS 技术架构
 
 > **🚧 翻译进行中** - 本文档正在翻译中，详细内容请参考 [英文完整版](../en/architecture.md)。
 
-本文档提供 ElinOS 架构、设计原则和实现细节的详细技术信息。
+本文档提供 elinOS 架构、设计原则和实现细节的详细技术信息。
 
 ## 系统调用架构
 
-ElinOS 实现了**结构清晰**的操作系统架构，采用受 **Qiling 框架**启发的行业标准组织方式。
+elinOS 实现了**结构清晰**的操作系统架构，采用受 **Qiling 框架**启发的行业标准组织方式。
 
 ### 分类系统调用组织
 
@@ -22,7 +22,7 @@ ElinOS 实现了**结构清晰**的操作系统架构，采用受 **Qiling 框�
 | 221-270 | 网络操作 | 网络协议栈 | socket, bind, listen, accept |
 | 271-300 | 时间和定时器操作 | 时间管理 | gettimeofday, nanosleep |
 | 301-350 | 系统信息 | 系统查询 | uname, sysinfo, getuid |
-| 900-999 | ElinOS 特定操作 | 操作系统特有功能 | debug, version, shutdown |
+| 900-999 | elinOS 特定操作 | 操作系统特有功能 | debug, version, shutdown |
 
 ## 内存布局
 
@@ -59,7 +59,7 @@ src/
 │   ├── network.rs       # 网络操作 (221-270)
 │   ├── time.rs          # 时间和定时器操作 (271-300)
 │   ├── sysinfo.rs       # 系统信息 (301-350)
-│   └── elinos.rs        # ElinOS 特定操作 (900-999)
+│   └── elinos.rs        # elinOS 特定操作 (900-999)
 ├── commands.rs          # 用户空间命令和动态分发
 ├── memory.rs            # 动态内存管理
 ├── sbi.rs              # OpenSBI 接口，支持关机

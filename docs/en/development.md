@@ -1,6 +1,6 @@
-# Creating User Programs for ElinOS
+# Creating User Programs for elinOS
 
-Since ElinOS has a built-in ELF loader, you can create and compile C programs to run on it! This guide shows how to create RISC-V binaries that ElinOS can load and execute.
+Since elinOS has a built-in ELF loader, you can create and compile C programs to run on it! This guide shows how to create RISC-V binaries that elinOS can load and execute.
 
 ## Prerequisites for User Program Development
 
@@ -32,14 +32,14 @@ make linux
 
 ## Creating a Hello World Program
 
-Create a simple C program that can run on ElinOS:
+Create a simple C program that can run on elinOS:
 
 **hello.c:**
 ```c
-// Simple Hello World for ElinOS
-// This program demonstrates basic execution on ElinOS
+// Simple Hello World for elinOS
+// This program demonstrates basic execution on elinOS
 
-// Simple system call interface for ElinOS
+// Simple system call interface for elinOS
 // In a real implementation, you'd use proper syscall numbers
 static inline long syscall_write(const char* msg, int len) {
     register long a0 asm("a0") = 1;        // stdout fd
@@ -74,7 +74,7 @@ int strlen(const char* str) {
 
 // Main function - entry point
 int main(void) {
-    const char* message = "Hello, World from ElinOS user program!\n";
+    const char* message = "Hello, World from elinOS user program!\n";
     syscall_write(message, strlen(message));
     
     const char* info = "This C program is running via ELF loader!\n";
@@ -148,9 +148,9 @@ readelf -l hello.elf
 riscv64-linux-gnu-objdump -d hello.elf
 ```
 
-## Adding Your Program to ElinOS
+## Adding Your Program to elinOS
 
-To make your program available in ElinOS, add it to the filesystem during initialization:
+To make your program available in elinOS, add it to the filesystem during initialization:
 
 ### Option 1: Add to src/filesystem.rs
 
@@ -163,9 +163,9 @@ pub fn new() -> Self {
     };
     
     // Add existing test files
-    let _ = fs.create_file("hello.txt", b"Hello from ElinOS filesystem!\n");
+    let _ = fs.create_file("hello.txt", b"Hello from elinOS filesystem!\n");
     let _ = fs.create_file("test.txt", b"This is a test file.\nLine 2\nLine 3\n");
-    let _ = fs.create_file("readme.md", b"# ElinOS\n\nA simple operating system in Rust.\n");
+    let _ = fs.create_file("readme.md", b"# elinOS\n\nA simple operating system in Rust.\n");
     
     // Add your compiled ELF binary
     let hello_elf = include_bytes!("../hello.elf");
@@ -184,19 +184,19 @@ xxd -i hello.elf > hello_elf.h
 # Then manually copy the array into filesystem.rs
 ```
 
-## Testing Your Program in ElinOS
+## Testing Your Program in elinOS
 
-Once you've added your program to the filesystem and rebuilt ElinOS:
+Once you've added your program to the filesystem and rebuilt elinOS:
 
 ```bash
-# Rebuild ElinOS with your program
+# Rebuild elinOS with your program
 ./build.sh
 
-# Run ElinOS
+# Run elinOS
 ./run.sh
 ```
 
-In the ElinOS shell:
+In the elinOS shell:
 
 ```
 elinOS> ls
@@ -302,7 +302,7 @@ int main(void) {
 #include "elinos_syscalls.h"
 
 int main(void) {
-    syscall_write("ElinOS System Information\n", 26);
+    syscall_write("elinOS System Information\n", 26);
     syscall_write("========================\n", 26);
     
     // Get memory information via syscall
@@ -320,7 +320,7 @@ int main(void) {
 
 ## System Call Interface
 
-ElinOS provides the following system calls for user programs:
+elinOS provides the following system calls for user programs:
 
 ### File I/O Operations (1-50)
 - `SYS_WRITE (1)` - Write to file descriptor
@@ -338,7 +338,7 @@ ElinOS provides the following system calls for user programs:
 ### Device Management (171-220)
 - `SYS_GETDEVICES (200)` - Get device information
 
-### ElinOS-Specific (900-999)
+### elinOS-Specific (900-999)
 - `SYS_ELINOS_VERSION (902)` - Get OS version
 
 ## Creating System Call Headers
@@ -420,24 +420,24 @@ static inline int strlen(const char* str) {
 
 ## Development Workflow
 
-1. **Write C program** using ElinOS system calls
+1. **Write C program** using elinOS system calls
 2. **Compile** to RISC-V ELF using appropriate flags
 3. **Verify** ELF binary with `readelf` and `objdump`
 4. **Add to filesystem** in `src/filesystem.rs`
-5. **Rebuild ElinOS** with `./build.sh`
+5. **Rebuild elinOS** with `./build.sh`
 6. **Test in QEMU** using ELF commands
 
 ## Current Limitations
 
 ⚠️ **Important Notes:**
-- **No actual execution yet**: ElinOS can load and parse ELF files, but doesn't execute them yet
+- **No actual execution yet**: elinOS can load and parse ELF files, but doesn't execute them yet
 - **No virtual memory**: Programs would need proper memory management for execution
 - **No process isolation**: Current implementation lacks process context switching
 - **Limited syscalls**: Only basic syscalls are implemented
 
 ## Roadmap for Full Program Execution
 
-To enable actual program execution, ElinOS needs:
+To enable actual program execution, elinOS needs:
 
 1. **Virtual Memory Management**: Page tables and memory mapping
 2. **Process Context**: CPU state management and switching
@@ -468,7 +468,7 @@ The current ELF loader provides the foundation for all of this!
 ### Testing
 - Test with different input sizes
 - Verify ELF structure with tools
-- Use ElinOS built-in ELF commands for debugging
+- Use elinOS built-in ELF commands for debugging
 
 ## Next Steps
 

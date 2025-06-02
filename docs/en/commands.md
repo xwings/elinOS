@@ -1,10 +1,10 @@
-# ElinOS Shell Commands
+# elinOS Shell Commands
 
-This guide covers all available commands in the ElinOS interactive shell.
+This guide covers all available commands in the elinOS interactive shell.
 
 ## Overview
 
-Once ElinOS boots, you'll have access to an interactive shell with comprehensive commands organized into several categories:
+Once elinOS boots, you'll have access to an interactive shell with comprehensive commands organized into several categories:
 
 - **System Information** - Inspect system state and configuration
 - **File System Operations** - Manage files and directories
@@ -103,7 +103,7 @@ System Call Categories:
 ```
 
 ### `version`
-Show ElinOS version via `SYS_ELINOS_VERSION`.
+Show elinOS version via `SYS_ELINOS_VERSION`.
 
 **Usage:**
 ```
@@ -112,7 +112,7 @@ elinOS> version
 
 **Output:**
 ```
-ElinOS v0.1.0 - RISC-V Operating System
+elinOS v0.1.0 - RISC-V Operating System
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 ```
@@ -147,7 +147,7 @@ elinOS> cat hello.txt
 **Example Output:**
 ```
 Contents of hello.txt:
-Hello from ElinOS filesystem!
+Hello from elinOS filesystem!
 --- End of file ---
 ```
 
@@ -277,7 +277,7 @@ Note: This is just a header demo - no actual code segments.
 ## System Control
 
 ### `shutdown`
-Gracefully shutdown ElinOS and exit QEMU using `SYS_ELINOS_SHUTDOWN`.
+Gracefully shutdown elinOS and exit QEMU using `SYS_ELINOS_SHUTDOWN`.
 
 **Usage:**
 ```
@@ -286,7 +286,7 @@ elinOS> shutdown
 
 **Output:**
 ```
-ElinOS shutting down...
+elinOS shutting down...
 Goodbye!
 # Returns to host shell automatically
 ```
@@ -301,7 +301,7 @@ elinOS> reboot
 
 **Output:**
 ```
-ElinOS rebooting...
+elinOS rebooting...
 # System restarts
 ```
 
@@ -321,7 +321,7 @@ Clears the terminal screen and positions cursor at top.
 Here's a complete example session showing various commands:
 
 ```
-ElinOS v0.1.0 - RISC-V Operating System
+elinOS v0.1.0 - RISC-V Operating System
 Starting interactive shell...
 
 elinOS> help
@@ -336,7 +336,7 @@ Available commands:
   clear      - Clear screen
   syscall    - Show system call info
   categories - Show syscall categories
-  version    - Show ElinOS version
+  version    - Show elinOS version
   elf-info <file>  - Show ELF binary information
   elf-load <file>  - Load ELF binary into memory
   elf-exec <file>  - Execute ELF binary (simulated)
@@ -345,7 +345,7 @@ Available commands:
   reboot     - Reboot the system
 
 elinOS> version
-ElinOS v0.1.0 - RISC-V Operating System
+elinOS v0.1.0 - RISC-V Operating System
 Built with Rust and proper syscall architecture
 Organized syscalls inspired by Qiling framework
 
@@ -362,7 +362,7 @@ Files:
 
 elinOS> cat hello.txt
 Contents of hello.txt:
-Hello from ElinOS filesystem!
+Hello from elinOS filesystem!
 --- End of file ---
 
 elinOS> elf-info hello.elf
@@ -385,7 +385,7 @@ VirtIO block device found at 0x10008000
 VirtIO block device initialized, queue size: 128
 
 elinOS> shutdown
-ElinOS shutting down...
+elinOS shutting down...
 Goodbye!
 ```
 

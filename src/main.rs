@@ -140,7 +140,7 @@ pub extern "C" fn main() -> ! {
     
     {
         let mut uart = UART.lock();
-        let _ = write!(uart, "\n\nWelcome to ElinOS\n");
+        let _ = write!(uart, "\n\nWelcome to elinOS\n");
         let _ = write!(uart, "Type 'help' for commands or 'syscall' for system call info.\n\n");
         drop(uart);
     }

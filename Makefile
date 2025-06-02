@@ -1,4 +1,4 @@
-# ElinOS Build System
+# elinOS Build System
 
 # Configuration
 TARGET := riscv64gc-unknown-none-elf
@@ -34,7 +34,7 @@ clean:
 
 # Build ELF kernel
 $(BUILD_DIR)/$(KERNEL_NAME): src/*.rs Cargo.toml src/linker.ld
-	@echo "🔨 Building ElinOS kernel with release profile..."
+	@echo "🔨 Building elinOS kernel with release profile..."
 	RUSTFLAGS="$(RUSTFLAGS)" cargo build --release --target $(TARGET)
 	@if [ ! -f "$@" ]; then \
 		echo "❌ Error: ELF file not found. Build failed."; \
@@ -84,7 +84,7 @@ install-tools:
 # Show help
 .PHONY: help
 help:
-	@echo "ElinOS Build System"
+	@echo "elinOS Build System"
 	@echo "=================="
 	@echo "Targets:"
 	@echo "  build         - Clean and build kernel (replaces build.sh)"

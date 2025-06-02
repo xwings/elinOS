@@ -110,7 +110,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  clear      - Clear screen\n")?;
     syscall::sys_print("  syscall    - Show system call info\n")?;
     syscall::sys_print("  categories - Show syscall categories\n")?;
-    syscall::sys_print("  version    - Show ElinOS version\n")?;
+    syscall::sys_print("  version    - Show elinOS version\n")?;
     syscall::sys_print("  shutdown   - Shutdown the system\n")?;
     syscall::sys_print("  reboot     - Reboot the system\n")?;
     syscall::sys_print("\nELF Binary Support:\n")?;
@@ -312,7 +312,7 @@ pub fn cmd_syscall() -> Result<(), &'static str> {
     syscall::sys_print("  Device Management:\n")?;
     syscall::sys_print("    SYS_GETDEVICES (200) - Device information\n")?;
 
-    syscall::sys_print("  ElinOS-Specific:\n")?;
+    syscall::sys_print("  elinOS-Specific:\n")?;
     syscall::sys_print("    SYS_ELINOS_DEBUG (900)    - Set debug level\n")?;
     syscall::sys_print("    SYS_ELINOS_VERSION (902)  - Show version\n")?;
     syscall::sys_print("    SYS_ELINOS_SHUTDOWN (903) - Shutdown system\n")?;

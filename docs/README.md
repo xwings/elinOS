@@ -1,4 +1,4 @@
-# ElinOS Documentation
+# elinOS Documentation
 
 This directory contains documentation organized by language:
 

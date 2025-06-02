@@ -1,10 +1,10 @@
-# ElinOS Technical Architecture
+# elinOS Technical Architecture
 
-This document provides detailed technical information about ElinOS architecture, design principles, and implementation details.
+This document provides detailed technical information about elinOS architecture, design principles, and implementation details.
 
 ## System Call Architecture
 
-ElinOS implements a **well-structured** operating system architecture with industry-standard organization inspired by the **Qiling framework**.
+elinOS implements a **well-structured** operating system architecture with industry-standard organization inspired by the **Qiling framework**.
 
 ### Categorized System Call Organization
 
@@ -20,7 +20,7 @@ System calls are organized into logical categories with dedicated number ranges:
 | 221-270 | Network Operations | Network stack | socket, bind, listen, accept |
 | 271-300 | Time and Timer Operations | Time management | gettimeofday, nanosleep |
 | 301-350 | System Information | System queries | uname, sysinfo, getuid |
-| 900-999 | ElinOS-Specific Operations | OS-specific features | debug, version, shutdown |
+| 900-999 | elinOS-Specific Operations | OS-specific features | debug, version, shutdown |
 
 ### Kernel Space Design (`src/syscall/`)
 
@@ -109,7 +109,7 @@ src/
 │   ├── network.rs       # Network operations (221-270)
 │   ├── time.rs          # Time and timer operations (271-300)
 │   ├── sysinfo.rs       # System information (301-350)
-│   └── elinos.rs        # ElinOS-specific operations (900-999)
+│   └── elinos.rs        # elinOS-specific operations (900-999)
 ├── commands.rs          # User space commands with dynamic dispatch
 ├── memory.rs            # Dynamic memory management
 ├── sbi.rs              # OpenSBI interface with shutdown support
@@ -374,4 +374,4 @@ unsafe {
 - **Sandboxing**: Process isolation and resource limits
 - **Secure Boot**: Verified boot process with cryptographic signatures
 
-This architecture provides a solid foundation for an educational operating system while maintaining the simplicity and safety that makes ElinOS an excellent learning and development platform. 
+This architecture provides a solid foundation for an educational operating system while maintaining the simplicity and safety that makes elinOS an excellent learning and development platform. 

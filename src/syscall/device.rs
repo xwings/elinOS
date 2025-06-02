@@ -11,7 +11,7 @@ pub const SYS_PIPE: usize = 173;
 pub const SYS_PIPE2: usize = 174;
 pub const SYS_DUP: usize = 175;
 pub const SYS_DUP2: usize = 176;
-pub const SYS_GETDEVICES: usize = 200;  // ElinOS-specific device info
+pub const SYS_GETDEVICES: usize = 200;  // elinOS-specific device info
 // Reserved for future device management: 177-199, 201-220
 
 // Standardized device management syscall handler

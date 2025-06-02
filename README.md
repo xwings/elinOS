@@ -1,4 +1,4 @@
-# ElinOS
+# elinOS
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
@@ -7,7 +7,7 @@ An **experimental** RISC-V operating system written in Rust, featuring dynamic m
 ## 🚀 Quick Start
 
 ```bash
-# Build and run ElinOS
+# Build and run elinOS
 ./build.sh
 ./run.sh
 ```
@@ -23,7 +23,6 @@ An **experimental** RISC-V operating system written in Rust, featuring dynamic m
 ## ✨ Key Features
 
 ### 🏗 **Clean Architecture**
-- **System call categorization** inspired by Qiling framework
 - **Range-based syscall organization** (1-50: File I/O, 51-70: Directory, etc.)
 - **Well-structured design** with 9 distinct categories
 - **Type-safe implementation** leveraging Rust's safety features
@@ -65,11 +64,11 @@ An **experimental** RISC-V operating system written in Rust, featuring dynamic m
 
 ## 🖥 Interactive Demo
 
-Once ElinOS boots, explore its capabilities:
+Once elinOS boots, explore its capabilities:
 
 ```bash
 elinOS> help                    # Show all available commands
-elinOS> version                 # Display ElinOS version info
+elinOS> version                 # Display elinOS version info
 elinOS> memory                  # View memory layout
 elinOS> devices                 # Probe VirtIO devices
 elinOS> syscall                 # Show system call architecture
@@ -119,7 +118,7 @@ elinOS> shutdown                # Graceful system shutdown
 
 *See [Getting Started Guide](docs/en/getting-started.md) for detailed setup instructions.*
 
-## 🏆 Why ElinOS?
+## 🏆 Why elinOS?
 
 ### For Learning
 - **Clear, readable code** demonstrating OS concepts
@@ -158,6 +157,6 @@ This project is free and open source software, allowing unrestricted use, modifi
 
 ---
 
-**ElinOS** demonstrates **educational-quality** operating system development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
+**elinOS** demonstrates **educational-quality** operating system development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
 
 **🎮 Try it now:** `./build.sh && ./run.sh`

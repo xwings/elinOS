@@ -1,8 +1,8 @@
-# ElinOS 快速开始
+# elinOS 快速开始
 
 > **🚧 翻译进行中** - 本文档正在翻译中，详细内容请参考 [英文版本](../en/getting-started.md)。
 
-本指南介绍如何从源代码设置、编译和运行 ElinOS。
+本指南介绍如何从源代码设置、编译和运行 elinOS。
 
 ## 先决条件
 
@@ -13,7 +13,7 @@
 ## 快速开始
 
 ```bash
-# 编译并运行 ElinOS
+# 编译并运行 elinOS
 ./build.sh
 ./run.sh
 ```
