@@ -190,7 +190,7 @@ Once you've added your program to the filesystem and rebuilt elinOS:
 
 ```bash
 # Rebuild elinOS with your program
-./build.sh
+make
 
 # Run elinOS
 ./run.sh
@@ -424,7 +424,7 @@ static inline int strlen(const char* str) {
 2. **Compile** to RISC-V ELF using appropriate flags
 3. **Verify** ELF binary with `readelf` and `objdump`
 4. **Add to filesystem** in `src/filesystem.rs`
-5. **Rebuild elinOS** with `./build.sh`
+5. **Rebuild elinOS** with `make`
 6. **Test in QEMU** using ELF commands
 
 ## Current Limitations

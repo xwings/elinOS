@@ -163,4 +163,4 @@ This project is free and open source software, allowing unrestricted use, modifi
 
 **elinOS** demonstrates **educational-quality** kernel development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
 
-**🎮 Try it now:** `./build.sh && ./run.sh`
+**🎮 Try it now:** `make && ./run.sh`

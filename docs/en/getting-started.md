@@ -42,7 +42,7 @@ brew install qemu
 Build elinOS using the provided script:
 
 ```bash
-./build.sh
+make
 ```
 
 This script:
@@ -131,7 +131,7 @@ rustup target add riscv64gc-unknown-none-elf
 ```bash
 # Clean and rebuild
 cargo clean
-./build.sh
+make
 ```
 
 ### Runtime Issues
@@ -154,7 +154,7 @@ cargo clean
 ```bash
 # Use parallel compilation
 export CARGO_BUILD_JOBS=4
-./build.sh
+make
 ```
 
 **QEMU acceleration:**
@@ -167,7 +167,7 @@ export CARGO_BUILD_JOBS=4
 ## Development Workflow
 
 1. **Edit source code** in `src/`
-2. **Build kernel** with `./build.sh`
+2. **Build kernel** with `make`
 3. **Test in QEMU** with `./run.sh`
 4. **Check logs** in `qemu.log` for debugging
 5. **Iterate** and repeat

@@ -125,7 +125,7 @@ let _ = fs.create_file("hello.elf", hello_elf);
 
 ```bash
 # 使用您的程序重新构建 elinOS
-./build.sh
+make
 
 # 运行 elinOS
 ./run.sh

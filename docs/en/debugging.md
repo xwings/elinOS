@@ -73,7 +73,7 @@ ENTRY(_start)
 ```bash
 # Clean and rebuild
 cargo clean
-./build.sh
+make
 
 # Check for missing dependencies
 cargo check
@@ -544,7 +544,7 @@ For complete recovery:
 make clean  # or rm -f kernel.bin qemu.log disk.qcow2
 
 # Rebuild from scratch
-./build.sh
+make
 ./run.sh
 ```
 

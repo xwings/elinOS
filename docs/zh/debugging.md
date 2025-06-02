@@ -68,7 +68,7 @@ ENTRY(_start)
 ```bash
 # 清理并重新构建
 cargo clean
-./build.sh
+make
 
 # 检查缺少的依赖项
 cargo check

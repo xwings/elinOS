@@ -14,7 +14,7 @@
 
 ```bash
 # 编译并运行 elinOS
-./build.sh
+make
 ./run.sh
 ```
 
