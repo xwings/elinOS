@@ -152,7 +152,9 @@ We welcome contributions! Areas of focus:
 
 ## 📄 License
 
-Open source project. Free to use, modify, and distribute.
+MIT License - see the [LICENSE](LICENSE) file for details.
+
+This project is free and open source software, allowing unrestricted use, modification, and distribution.
 
 ---
 
