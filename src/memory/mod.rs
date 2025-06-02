@@ -4,6 +4,7 @@
 pub mod buddy;
 pub mod small_alloc;
 pub mod vmm;
+pub mod layout;
 
 use core::fmt::Write;
 use core::option::Option::{self, Some, None};
@@ -12,93 +13,7 @@ use spin::Mutex;
 use crate::UART;
 use crate::sbi;
 
-// === LEGACY MEMORY MANAGER FOR BACKWARD COMPATIBILITY ===
-
-// Legacy memory region structure
-#[derive(Debug, Clone, Copy)]
-pub struct LegacyMemoryRegion {
-    pub start: usize,
-    pub size: usize,
-    pub is_ram: bool,
-}
-
-// Legacy memory manager structure
-pub struct LegacyMemoryManager {
-    regions: [LegacyMemoryRegion; 8],  // Support up to 8 memory regions
-    region_count: usize,
-    heap_start: usize,
-    heap_end: usize,
-    current_heap: usize,
-}
-
-impl LegacyMemoryManager {
-    pub const fn new() -> Self {
-        LegacyMemoryManager {
-            regions: [LegacyMemoryRegion { start: 0, size: 0, is_ram: false }; 8],
-            region_count: 0,
-            heap_start: 0,
-            heap_end: 0,
-            current_heap: 0,
-        }
-    }
-
-    // Initialize memory regions from OpenSBI
-    pub fn init(&mut self) {
-        
-        let sbi_regions = sbi::get_memory_regions();
-        
-        // Convert SBI regions to our format
-        self.region_count = sbi_regions.count;
-        for i in 0..self.region_count {
-            let sbi_region = &sbi_regions.regions[i];
-            self.regions[i] = LegacyMemoryRegion {
-                start: sbi_region.start,
-                size: sbi_region.size,
-                is_ram: (sbi_region.flags & 1) != 0,  // Check if region is RAM
-            };
-        }
-        
-        // Set up heap in the first RAM region
-        if self.region_count > 0 {
-            for region in &self.regions[..self.region_count] {
-                if region.is_ram {
-                    self.heap_start = region.start + 2 * 1024 * 1024;  // Leave 2MB for kernel
-                    self.heap_end = region.start + region.size;
-                    self.current_heap = self.heap_start;
-                    
-                    {
-                        let mut uart = UART.lock();
-                        let _ = writeln!(uart, "Legacy heap configured: 0x{:x} - 0x{:x}",
-                            self.heap_start,
-                            self.heap_end
-                        );
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
-    pub fn allocate(&mut self, size: usize) -> Option<usize> {
-        let aligned_size = (size + 7) & !7;  // 8-byte alignment
-        if self.current_heap + aligned_size > self.heap_end {
-            None
-        } else {
-            let ptr = self.current_heap;
-            self.current_heap += aligned_size;
-            Some(ptr)
-        }
-    }
-
-    pub fn get_memory_info(&self) -> &[LegacyMemoryRegion] {
-        &self.regions[..self.region_count]
-    }
-}
-
-// Global legacy memory manager instance
-pub static MEMORY_MANAGER: Mutex<LegacyMemoryManager> = Mutex::new(LegacyMemoryManager::new());
-
-// === ADVANCED MEMORY MANAGER ===
+// === MEMORY MANAGER ===
 
 // Enhanced memory region structure
 #[derive(Debug, Clone, Copy)]
@@ -117,16 +32,13 @@ pub enum MemoryZone {
     High,       // High memory zone (if applicable)
 }
 
-// Advanced Memory Manager with buddy allocator
-pub struct AdvancedMemoryManager {
-    // Legacy compatibility
+// Advanced Memory Manager with hybrid allocation engine
+pub struct MemoryManager {
+    // Memory region information
     regions: [MemoryRegion; 8],
     region_count: usize,
-    heap_start: usize,
-    heap_end: usize,
-    current_heap: usize,
     
-    // New buddy allocator components
+    // Advanced allocator components
     buddy_allocator: Option<buddy::BuddyAllocator>,
     small_allocator: Option<small_alloc::SmallAllocator>,
     
@@ -136,10 +48,10 @@ pub struct AdvancedMemoryManager {
     allocation_count: usize,
 }
 
-impl AdvancedMemoryManager {
+impl MemoryManager {
     pub const fn new() -> Self {
-        AdvancedMemoryManager {
-            // Legacy fields
+        MemoryManager {
+            // Memory regions
             regions: [MemoryRegion { 
                 start: 0, 
                 size: 0, 
@@ -147,49 +59,53 @@ impl AdvancedMemoryManager {
                 zone_type: MemoryZone::Normal 
             }; 8],
             region_count: 0,
-            heap_start: 0,
-            heap_end: 0,
-            current_heap: 0,
             
-            // New fields
+            // Advanced allocators
             buddy_allocator: None,
             small_allocator: None,
+            
+            // Statistics
             allocated_bytes: 0,
             free_bytes: 0,
             allocation_count: 0,
         }
     }
 
-    /// Initialize memory regions and buddy allocator
+    /// Initialize memory regions and all allocators
     pub fn init(&mut self) {
         {
             let mut uart = UART.lock();
-            let _ = writeln!(uart, "Initializing advanced memory management...");
+            let _ = writeln!(uart, "🚀 Initializing elinKernel Memory Management System...");
         }
         
-        // First, do the legacy initialization
-        self.init_legacy();
+        // Initialize memory layout detection
+        self.init_memory_regions();
         
-        // Then initialize the buddy allocator
+        // Initialize all allocators  
         self.init_buddy_allocator();
-        
-        // Initialize small allocator
         self.init_small_allocator();
         
         {
             let mut uart = UART.lock();
-            let _ = writeln!(uart, "Advanced memory management initialized successfully!");
+            let _ = writeln!(uart, "✅ Memory management system ready!");
+            let _ = writeln!(uart, "   🚀 Hybrid Allocation Engine: Small → Buddy");
         }
     }
     
-    /// Legacy initialization (for backward compatibility)
-    fn init_legacy(&mut self) {
+    /// Initialize memory regions using dynamic layout
+    fn init_memory_regions(&mut self) {
         {
             let mut uart = UART.lock();
-            let _ = writeln!(uart, "Detecting memory regions through OpenSBI...");
+            let _ = writeln!(uart, "🔍 Detecting memory layout...");
         }
         
-        // Get memory regions from OpenSBI
+        // Get dynamic memory layout (SBI issue now fixed!)
+        let memory_layout = layout::get_memory_layout();
+        
+        // Display the dynamic layout
+        memory_layout.display();
+        
+        // Get memory regions from SBI (now working properly)
         let sbi_regions = sbi::get_memory_regions();
         
         // Convert SBI regions to our enhanced format
@@ -224,95 +140,82 @@ impl AdvancedMemoryManager {
                 );
             }
         }
-        
-        // Set up legacy heap in the first RAM region
-        if self.region_count > 0 {
-            for region in &self.regions[..self.region_count] {
-                if region.is_ram {
-                    self.heap_start = region.start + 2 * 1024 * 1024;  // Leave 2MB for kernel
-                    self.heap_end = region.start + region.size;
-                    self.current_heap = self.heap_start;
-                    
-                    {
-                        let mut uart = UART.lock();
-                        let _ = writeln!(uart, "Legacy heap configured: 0x{:x} - 0x{:x}",
-                            self.heap_start,
-                            self.heap_end
-                        );
-                    }
-                    break;
-                }
-            }
-        }
     }
     
     /// Initialize buddy allocator for large allocations
     fn init_buddy_allocator(&mut self) {
-        if self.region_count > 0 {
-            for region in &self.regions[..self.region_count] {
-                if region.is_ram && region.zone_type == MemoryZone::Normal {
-                    // Use part of normal RAM for buddy allocator
-                    let buddy_start = region.start + 4 * 1024 * 1024;  // Leave 4MB for kernel and legacy heap
-                    let buddy_size = region.size - 4 * 1024 * 1024;
+        // Get dynamic memory layout (SBI issue now fixed!)
+        let memory_layout = layout::get_memory_layout();
+        
+        // Use the calculated buddy allocator region
+        let buddy_start = memory_layout.buddy_heap_start;
+        let buddy_size = memory_layout.buddy_heap_size;
+        
+        {
+            let mut uart = UART.lock();
+            let _ = writeln!(uart, "🔧 Buddy allocator parameters:");
+            let _ = writeln!(uart, "   Start: 0x{:x}", buddy_start);
+            let _ = writeln!(uart, "   Size: {} bytes ({} KB)", buddy_size, buddy_size / 1024);
+        }
+        
+        if buddy_size >= 4 * 1024 {  // Only if we have at least 4KB (minimum for buddy)
+            match buddy::BuddyAllocator::new(buddy_start, buddy_size) {
+                Ok(allocator) => {
+                    self.buddy_allocator = Some(allocator);
+                    self.free_bytes = buddy_size;
                     
-                    if buddy_size >= 1024 * 1024 {  // Only if we have at least 1MB
-                        match buddy::BuddyAllocator::new(buddy_start, buddy_size) {
-                            Ok(allocator) => {
-                                self.buddy_allocator = Some(allocator);
-                                self.free_bytes = buddy_size;
-                                
-                                let mut uart = UART.lock();
-                                let _ = writeln!(uart, "Buddy allocator initialized: 0x{:x} - 0x{:x} ({} MB)",
-                                    buddy_start,
-                                    buddy_start + buddy_size,
-                                    buddy_size / (1024 * 1024)
-                                );
-                            }
-                            Err(e) => {
-                                let mut uart = UART.lock();
-                                let _ = writeln!(uart, "Failed to initialize buddy allocator: {:?}", e);
-                            }
-                        }
-                    }
-                    break;
+                    let mut uart = UART.lock();
+                    let _ = writeln!(uart, "🧩 Buddy allocator ready: 0x{:x} - 0x{:x} ({} KB)",
+                        buddy_start,
+                        buddy_start + buddy_size,
+                        buddy_size / 1024
+                    );
+                }
+                Err(e) => {
+                    let mut uart = UART.lock();
+                    let _ = writeln!(uart, "❌ Buddy allocator failed: {:?}", e);
                 }
             }
+        } else {
+            let mut uart = UART.lock();
+            let _ = writeln!(uart, "⚠️  Insufficient memory for buddy allocator: {} KB available", 
+                buddy_size / 1024);
         }
     }
     
     /// Initialize small allocator for small objects
     fn init_small_allocator(&mut self) {
-        if self.region_count > 0 {
-            for region in &self.regions[..self.region_count] {
-                if region.is_ram && region.zone_type == MemoryZone::Normal {
-                    // Use part of normal RAM for small allocator (after buddy allocator)
-                    let small_start = region.start + 6 * 1024 * 1024;  // Leave 6MB for kernel, legacy heap, and buddy
-                    let small_size = 2 * 1024 * 1024; // 2MB for small allocator
-                    
-                    if small_start + small_size <= region.start + region.size {
-                        let allocator = small_alloc::SmallAllocator::new(small_start, small_size);
-                        self.small_allocator = Some(allocator);
-                        
-                        let mut uart = UART.lock();
-                        let _ = writeln!(uart, "Small allocator initialized: 0x{:x} - 0x{:x} ({} MB)",
-                            small_start,
-                            small_start + small_size,
-                            small_size / (1024 * 1024)
-                        );
-                    }
-                    break;
-                }
-            }
+        // Get dynamic memory layout (SBI issue now fixed!)
+        let memory_layout = layout::get_memory_layout();
+        
+        // Use the calculated small allocator region
+        let small_start = memory_layout.small_heap_start;
+        let small_size = memory_layout.small_heap_size;
+        
+        if small_size >= 128 * 1024 {  // Only if we have at least 128KB
+            let allocator = small_alloc::SmallAllocator::new(small_start, small_size);
+            self.small_allocator = Some(allocator);
+            
+            let mut uart = UART.lock();
+            let _ = writeln!(uart, "🔍 Small allocator ready: 0x{:x} - 0x{:x} ({} KB)",
+                small_start,
+                small_start + small_size,
+                small_size / 1024
+            );
+        } else {
+            let mut uart = UART.lock();
+            let _ = writeln!(uart, "⚠️  Insufficient memory for small allocator: {} KB available", 
+                small_size / 1024);
         }
     }
 
-    /// Allocate memory using two-tier strategy
+    /// Smart allocation using hybrid allocation engine
     pub fn allocate(&mut self, size: usize) -> Option<usize> {
         self.allocation_count += 1;
         
-        // Two-tier allocation strategy inspired by Maestro
+        // Hybrid allocation engine strategy
         if size >= 4096 {
-            // Large allocation: Use buddy allocator
+            // Large allocation (≥4KB): Use buddy allocator
             if let Some(ref mut buddy) = self.buddy_allocator {
                 if let Some(addr) = buddy.allocate(size) {
                     self.allocated_bytes += size;
@@ -321,7 +224,7 @@ impl AdvancedMemoryManager {
                 }
             }
         } else {
-            // Small allocation: Use small allocator first
+            // Small allocation (<4KB): Use small allocator
             if let Some(ref mut small) = self.small_allocator {
                 if let Some(ptr) = small.allocate(size) {
                     let addr = ptr as usize;
@@ -331,11 +234,11 @@ impl AdvancedMemoryManager {
             }
         }
         
-        // Fallback: Use legacy allocator
-        self.allocate_legacy(size)
+        // No suitable allocator available
+        None
     }
     
-    /// Deallocate memory using two-tier strategy
+    /// Smart deallocation using hybrid allocation engine
     pub fn deallocate(&mut self, addr: usize, size: usize) {
         // Try small allocator first for small allocations
         if size < 4096 {
@@ -360,32 +263,23 @@ impl AdvancedMemoryManager {
             }
         }
         
-        // For legacy allocations, we can't deallocate (bump allocator limitation)
-        // TODO: Track legacy allocations for proper deallocation
+        // For fallback allocations, we can't deallocate (bump allocator limitation)
+        // This is acceptable for kernel allocations that typically live for the system lifetime
     }
 
-    /// Legacy allocation for backward compatibility
-    pub fn allocate_legacy(&mut self, size: usize) -> Option<usize> {
-        let aligned_size = (size + 7) & !7;  // 8-byte alignment
-        if self.current_heap + aligned_size > self.heap_end {
-            None
-        } else {
-            let ptr = self.current_heap;
-            self.current_heap += aligned_size;
-            self.allocated_bytes += aligned_size;
-            Some(ptr)
-        }
-    }
-
-    /// Get memory usage statistics
+    /// Get comprehensive memory usage statistics
     pub fn get_stats(&self) -> MemoryStats {
         let mut small_alloc_stats = None;
         if let Some(ref small) = self.small_allocator {
             small_alloc_stats = Some(small.get_stats());
         }
         
+        // Calculate total memory from our allocators
+        let memory_layout = layout::get_memory_layout();
+        let total_memory = memory_layout.buddy_heap_size + memory_layout.small_heap_size;
+        
         MemoryStats {
-            total_memory: self.heap_end - self.heap_start,
+            total_memory,
             allocated_bytes: self.allocated_bytes,
             free_bytes: self.free_bytes,
             allocation_count: self.allocation_count,
@@ -395,7 +289,7 @@ impl AdvancedMemoryManager {
         }
     }
 
-    /// Get memory info (legacy compatibility)
+    /// Get memory region information
     pub fn get_memory_info(&self) -> &[MemoryRegion] {
         &self.regions[..self.region_count]
     }
@@ -413,18 +307,18 @@ pub struct MemoryStats {
     pub small_alloc_stats: Option<small_alloc::SmallAllocatorStats>,
 }
 
-// Global advanced memory manager instance
-pub static ADVANCED_MEMORY_MANAGER: Mutex<AdvancedMemoryManager> = Mutex::new(AdvancedMemoryManager::new());
+// Global memory manager instance (unified)
+pub static MEMORY_MANAGER: Mutex<MemoryManager> = Mutex::new(MemoryManager::new());
 
-// Helper functions for compatibility
+// Helper functions for easy access
 pub fn allocate_memory(size: usize) -> Option<usize> {
-    ADVANCED_MEMORY_MANAGER.lock().allocate(size)
+    MEMORY_MANAGER.lock().allocate(size)
 }
 
 pub fn deallocate_memory(addr: usize, size: usize) {
-    ADVANCED_MEMORY_MANAGER.lock().deallocate(addr, size);
+    MEMORY_MANAGER.lock().deallocate(addr, size);
 }
 
 pub fn get_memory_stats() -> MemoryStats {
-    ADVANCED_MEMORY_MANAGER.lock().get_stats()
+    MEMORY_MANAGER.lock().get_stats()
 } 

@@ -33,20 +33,28 @@ SECTIONS {
     . = 0x80200000;
 
     .text : {
+        __text_start = .;
         KEEP(*(.text.boot))
         *(.text .text.*)
+        __text_end = .;
     } :text
 
     .rodata : {
+        __rodata_start = .;
         *(.rodata .rodata.*)
+        __rodata_end = .;
     } :rodata
 
     .data : {
+        __data_start = .;
         *(.data .data.*)
+        __data_end = .;
     } :data
 
     .bss : {
+        __bss_start = .;
         *(.bss .bss.*)
+        __bss_end = .;
     } :bss
 
     /* Move to RAM region for heap and stack */
@@ -61,10 +69,12 @@ SECTIONS {
     /* Stack space for each hart */
     . = ALIGN(4096);
     _stack_start = .;
+    __stack_bottom = .;
     .stack : {
         . = . + (_hart_stack_size * (_max_hart_id + 1));
     } >RAM AT>RAM :ram
     _stack_end = .;
+    __stack_top = .;
 
     /* Discard unnecessary sections */
     /DISCARD/ : {

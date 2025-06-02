@@ -113,39 +113,12 @@ pub extern "C" fn main() -> ! {
     let _ = write!(uart, "\n\n");
     drop(uart);
     
-    // Initialize advanced memory management
+    // Initialize memory management
     {
-        let mut mem_mgr = memory::ADVANCED_MEMORY_MANAGER.lock();
-        mem_mgr.init();
-        
-        // Display memory statistics
-        let stats = mem_mgr.get_stats();
         let mut uart = UART.lock();
-        let _ = write!(uart, "\nMemory Management Statistics:\n");
-        let _ = write!(uart, "  Total Memory: {} MB\n", stats.total_memory / (1024 * 1024));
-        let _ = write!(uart, "  Allocated: {} bytes\n", stats.allocated_bytes);
-        let _ = write!(uart, "  Free: {} bytes\n", stats.free_bytes);
-        let _ = write!(uart, "  Allocations: {}\n", stats.allocation_count);
-        let _ = write!(uart, "  Buddy Allocator: {}\n", if stats.buddy_enabled { "Enabled" } else { "Disabled" });
-        let _ = write!(uart, "  Small Allocator: {}\n", if stats.small_alloc_enabled { "Enabled" } else { "Disabled" });
-        drop(uart);
-        
-        // Display detected memory regions for compatibility
-        let mut uart = UART.lock();
-        for (i, region) in mem_mgr.get_memory_info().iter().enumerate() {
-            let _ = write!(uart, "Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}\n",
-                i,
-                region.start,
-                region.start + region.size,
-                region.size / (1024 * 1024),
-                if region.is_ram { "RAM" } else { "MMIO" },
-                region.zone_type
-            );
-        }
-        drop(uart);
+        let _ = writeln!(uart, "Initializing memory management...");
     }
     
-    // Initialize legacy memory manager for backward compatibility  
     {
         let mut mem_mgr = memory::MEMORY_MANAGER.lock();
         mem_mgr.init();

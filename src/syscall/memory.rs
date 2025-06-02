@@ -209,7 +209,7 @@ fn sys_getmeminfo() -> SysCallResult {
     
     // Show memory regions
     {
-        let mem_mgr = memory::ADVANCED_MEMORY_MANAGER.lock();
+        let mem_mgr = memory::MEMORY_MANAGER.lock();
         let _ = writeln!(uart, "Memory Regions:");
         for (i, region) in mem_mgr.get_memory_info().iter().enumerate() {
             let _ = writeln!(uart, "  Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}",
