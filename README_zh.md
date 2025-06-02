@@ -55,12 +55,12 @@ make
 
 | 指南 | 中文版本 | 英文版本 |
 |-------|---------|----------|
-| 🚀 **快速开始** | [基础版](docs/zh/getting-started.md) 🚧 | [完整版](docs/en/getting-started.md) ✅ |
-| 💻 **命令参考** | [基础版](docs/zh/commands.md) 🚧 | [完整版](docs/en/commands.md) ✅ |
-| 🏗 **架构设计** | [基础版](docs/zh/architecture.md) 🚧 | [完整版](docs/en/architecture.md) ✅ |
-| 👨‍💻 **开发指南** | [基础版](docs/zh/development.md) 🚧 | [完整版](docs/en/development.md) ✅ |
-| 🐛 **调试指南** | [基础版](docs/zh/debugging.md) 🚧 | [完整版](docs/en/debugging.md) ✅ |
-| 🗺 **发展路线** | [基础版](docs/zh/roadmap.md) 🚧 | [完整版](docs/en/roadmap.md) ✅ |
+| 🚀 [快速开始](docs/zh/getting-started.md) |
+| 💻 [命令参考](docs/zh/commands.md) |
+| 🏗  [架构设计](docs/zh/architecture.md) |
+| 👨‍💻 [开发指南](docs/zh/development.md) |
+| 🐛 [调试指南](docs/zh/debugging.md) |
+| 🗺 [发展路线](docs/zh/roadmap.md) |
 
 > **📂 文档组织**: 
 > - 📁 `docs/zh/` - 中文文档（逐步完善中）
