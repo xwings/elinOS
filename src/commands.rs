@@ -4,84 +4,59 @@ use crate::syscall;
 
 // Central command processor - main.rs calls this function
 pub fn process_command(command: &str) {
-    let parts: heapless::Vec<&str, 8> = command.split_whitespace().collect();
+    let command = command.trim();
     
-    if parts.is_empty() {
-        return;
-    }
-
-    // Dispatch to appropriate command handler
-    let result = match parts[0] {
+    let result = match command {
         "help" => cmd_help(),
-        "memory" => cmd_memory(),
-        "devices" => cmd_devices(), 
-        "ls" => cmd_ls(),
-        "cat" => {
-            if parts.len() > 1 {
-                cmd_cat(parts[1])
-            } else {
-                let _ = syscall::sys_print("Usage: cat <filename>\n");
-                Ok(())
-            }
-        },
-        "touch" => {
-            if parts.len() > 1 {
-                cmd_touch(parts[1])
-            } else {
-                let _ = syscall::sys_print("Usage: touch <filename>\n");
-                Ok(())
-            }
-        },
-        "rm" => {
-            if parts.len() > 1 {
-                cmd_rm(parts[1])
-            } else {
-                let _ = syscall::sys_print("Usage: rm <filename>\n");
-                Ok(())
-            }
-        },
-        "clear" => cmd_clear(),
-        "syscall" => cmd_syscall(),
-        "categories" => cmd_categories(),
         "version" => cmd_version(),
+        "syscall" => cmd_syscall(),
+        "memory" => cmd_memory(),
+        "memstats" => cmd_memstats(),
+        "alloc" => cmd_alloc_test(),
+        "bigalloc" => cmd_big_alloc_test(),
+        "buddy" => cmd_buddy_test(),
+        "comprehensive" => cmd_comprehensive_test(),
+        "devices" => cmd_devices(),
+        "ls" => cmd_ls(),
+        "cat" => cmd_cat(""),
+        "echo" => cmd_echo(""),
         "shutdown" => cmd_shutdown(),
         "reboot" => cmd_reboot(),
-        "elf-info" => {
-            if parts.len() > 1 {
-                cmd_elf_info(parts[1])
+        cmd if cmd.starts_with("cat ") => {
+            let filename = &cmd[4..];
+            cmd_cat(filename)
+        }
+        cmd if cmd.starts_with("echo ") => {
+            let message = &cmd[5..];
+            cmd_echo(message)
+        }
+        cmd if cmd.starts_with("elf_load ") => {
+            let filename = &cmd[9..];
+            cmd_elf_load(filename)
+        }
+        cmd if cmd.starts_with("elf_exec ") => {
+            let filename = &cmd[9..];
+            cmd_elf_exec(filename)
+        }
+        cmd if cmd.starts_with("alloc ") => {
+            let size_str = &cmd[6..];
+            if let Ok(size) = size_str.parse::<usize>() {
+                cmd_alloc_size_test(size)
             } else {
-                let _ = syscall::sys_print("Usage: elf-info <filename>\n");
-                Ok(())
+                Err("Invalid size format")
             }
-        },
-        "elf-load" => {
-            if parts.len() > 1 {
-                cmd_elf_load(parts[1])
-            } else {
-                let _ = syscall::sys_print("Usage: elf-load <filename>\n");
-                Ok(())
-            }
-        },
-        "elf-exec" => {
-            if parts.len() > 1 {
-                cmd_elf_exec(parts[1])
-            } else {
-                let _ = syscall::sys_print("Usage: elf-exec <filename>\n");
-                Ok(())
-            }
-        },
-        "elf-demo" => cmd_elf_demo(),
+        }
+        "" => Ok(()), // Empty command
         _ => {
             let _ = syscall::sys_print("Unknown command: ");
-            let _ = syscall::sys_print(parts[0]);
-            let _ = syscall::sys_print(". Type 'help' for available commands.\n");
+            let _ = syscall::sys_print(command);
+            let _ = syscall::sys_print("\nType 'help' for available commands.\n");
             Ok(())
         }
     };
 
-    // Handle any command errors
     if let Err(e) = result {
-        let _ = syscall::sys_print("Command error: ");
+        let _ = syscall::sys_print("Command failed: ");
         let _ = syscall::sys_print(e);
         let _ = syscall::sys_print("\n");
     }
@@ -100,29 +75,41 @@ pub fn get_available_commands() -> &'static [&'static str] {
 
 pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("Available commands:\n")?;
-    syscall::sys_print("  help       - Show this help\n")?;
-    syscall::sys_print("  memory     - Show memory information\n")?;
-    syscall::sys_print("  devices    - Probe for VirtIO devices\n")?;
-    syscall::sys_print("  ls         - List files\n")?;
-    syscall::sys_print("  cat <file> - Show file contents\n")?;
-    syscall::sys_print("  touch <file> - Create empty file\n")?;
-    syscall::sys_print("  rm <file>  - Delete file\n")?;
-    syscall::sys_print("  clear      - Clear screen\n")?;
-    syscall::sys_print("  syscall    - Show system call info\n")?;
-    syscall::sys_print("  categories - Show syscall categories\n")?;
-    syscall::sys_print("  version    - Show elinKernel version\n")?;
-    syscall::sys_print("  shutdown   - Shutdown the system\n")?;
-    syscall::sys_print("  reboot     - Reboot the system\n")?;
-    syscall::sys_print("\nELF Binary Support:\n")?;
-    syscall::sys_print("  elf-info <file> - Show ELF binary information\n")?;
-    syscall::sys_print("  elf-load <file> - Load ELF binary into memory\n")?;
-    syscall::sys_print("  elf-exec <file> - Load and execute ELF binary\n")?;
-    syscall::sys_print("  elf-demo        - Demonstrate ELF loading with sample binary\n")?;
+    syscall::sys_print("  help        - Show this help message\n")?;
+    syscall::sys_print("  version     - Show kernel version\n")?;
+    syscall::sys_print("  syscall     - Show system call information\n")?;
+    syscall::sys_print("  memory      - Show memory information\n")?;
+    syscall::sys_print("  memstats    - Show memory statistics\n")?;
+    syscall::sys_print("  alloc       - Test memory allocation (1KB)\n")?;
+    syscall::sys_print("  alloc <size> - Test memory allocation (specific size)\n")?;
+    syscall::sys_print("  bigalloc    - Test large allocation (1MB)\n")?;
+    syscall::sys_print("  buddy       - Test buddy allocator specifically\n")?;
+    syscall::sys_print("  comprehensive - Run comprehensive memory management test\n")?;
+    syscall::sys_print("  devices     - List available devices\n")?;
+    syscall::sys_print("  ls          - List files in filesystem\n")?;
+    syscall::sys_print("  cat <file>  - Display file contents\n")?;
+    syscall::sys_print("  echo <msg>  - Echo a message\n")?;
+    syscall::sys_print("  elf_load <file> - Load ELF binary\n")?;
+    syscall::sys_print("  elf_exec <file> - Execute ELF binary\n")?;
+    syscall::sys_print("  shutdown    - Shutdown the system\n")?;
+    syscall::sys_print("  reboot      - Reboot the system\n")?;
     Ok(())
 }
 
 pub fn cmd_memory() -> Result<(), &'static str> {
-    syscall::sys_memory_info()
+    // Call the memory info syscall
+    let result = syscall::syscall_handler(
+        syscall::memory::SYS_GETMEMINFO,
+        0,
+        0,
+        0,
+        0,
+    );
+    
+    match result {
+        syscall::SysCallResult::Success(_) => Ok(()),
+        syscall::SysCallResult::Error(e) => Err(e),
+    }
 }
 
 pub fn cmd_devices() -> Result<(), &'static str> {
@@ -614,5 +601,230 @@ pub fn cmd_elf_demo() -> Result<(), &'static str> {
     syscall::sys_print("3. Use 'elf-load <filename>' to load them into memory\n")?;
     syscall::sys_print("4. Use 'elf-exec <filename>' to attempt execution\n")?;
 
+    Ok(())
+}
+
+pub fn cmd_memstats() -> Result<(), &'static str> {
+    // Call the buddy stats syscall
+    let result = syscall::syscall_handler(
+        syscall::memory::SYS_BUDDY_STATS,
+        0,
+        0,
+        0,
+        0,
+    );
+    
+    match result {
+        syscall::SysCallResult::Success(_) => Ok(()),
+        syscall::SysCallResult::Error(e) => Err(e),
+    }
+}
+
+pub fn cmd_alloc_test() -> Result<(), &'static str> {
+    // Test 1KB allocation
+    cmd_alloc_size_test(1024)
+}
+
+pub fn cmd_alloc_size_test(size: usize) -> Result<(), &'static str> {
+    // Call the allocation test syscall
+    let result = syscall::syscall_handler(
+        syscall::memory::SYS_ALLOC_TEST,
+        size,
+        0,
+        0,
+        0,
+    );
+    
+    match result {
+        syscall::SysCallResult::Success(addr) => {
+            syscall::sys_print("Allocation successful!\n")?;
+            Ok(())
+        },
+        syscall::SysCallResult::Error(e) => Err(e),
+    }
+}
+
+pub fn cmd_big_alloc_test() -> Result<(), &'static str> {
+    syscall::sys_print("Testing large allocation (1MB) - should use buddy allocator:\n")?;
+    cmd_alloc_size_test(1024 * 1024)
+}
+
+pub fn cmd_buddy_test() -> Result<(), &'static str> {
+    syscall::sys_print("=== Buddy Allocator Comprehensive Test ===\n")?;
+    
+    // Test various allocation sizes
+    let test_sizes = [
+        (512, "512 bytes (small - legacy)"),
+        (4096, "4KB (large - buddy)"),
+        (8192, "8KB (buddy)"),
+        (65536, "64KB (buddy)"),
+        (1048576, "1MB (buddy)"),
+    ];
+    
+    for (size, description) in &test_sizes {
+        syscall::sys_print("Testing ")?;
+        syscall::sys_print(description)?;
+        syscall::sys_print(":\n")?;
+        
+        let result = syscall::syscall_handler(
+            syscall::memory::SYS_ALLOC_TEST,
+            *size,
+            0,
+            0,
+            0,
+        );
+        
+        match result {
+            syscall::SysCallResult::Success(_) => {
+                syscall::sys_print("  ✅ Success\n")?;
+            },
+            syscall::SysCallResult::Error(e) => {
+                syscall::sys_print("  ❌ Failed: ")?;
+                syscall::sys_print(e)?;
+                syscall::sys_print("\n")?;
+            }
+        }
+    }
+    
+    // Show final stats
+    syscall::sys_print("\nFinal statistics:\n")?;
+    cmd_memstats()
+}
+
+pub fn cmd_comprehensive_test() -> Result<(), &'static str> {
+    syscall::sys_print("=== elinKernel Memory Management Comprehensive Test ===\n")?;
+    syscall::sys_print("Testing all phases of our Maestro-inspired memory management!\n\n")?;
+    
+    // Phase 1: Show initial state
+    syscall::sys_print("📊 Phase 1: Initial Memory State\n")?;
+    cmd_memory()?;
+    syscall::sys_print("\n")?;
+    
+    // Phase 2: Test buddy allocator
+    syscall::sys_print("🧩 Phase 2: Buddy Allocator Tests\n")?;
+    syscall::sys_print("Testing large allocations (should use buddy allocator):\n")?;
+    
+    let buddy_tests = [4096, 8192, 65536, 1048576];
+    for &size in &buddy_tests {
+        let result = syscall::syscall_handler(
+            syscall::memory::SYS_ALLOC_TEST,
+            size,
+            0,
+            0,
+            0,
+        );
+        
+        match result {
+            syscall::SysCallResult::Success(_) => {
+                syscall::sys_print("  ✅ Large allocation succeeded\n")?;
+            },
+            _ => {
+                syscall::sys_print("  ❌ Large allocation failed\n")?;
+            }
+        }
+    }
+    syscall::sys_print("\n")?;
+    
+    // Phase 3: Test small allocator
+    syscall::sys_print("🔍 Phase 3: Small Allocator Tests\n")?;
+    syscall::sys_print("Testing small allocations (should use small allocator):\n")?;
+    
+    let small_tests = [8, 16, 32, 64, 128, 512, 1024, 2048];
+    for &size in &small_tests {
+        let result = syscall::syscall_handler(
+            syscall::memory::SYS_ALLOC_TEST,
+            size,
+            0,
+            0,
+            0,
+        );
+        
+        match result {
+            syscall::SysCallResult::Success(_) => {
+                syscall::sys_print("  ✅ Small allocation succeeded\n")?;
+            },
+            _ => {
+                syscall::sys_print("  ❌ Small allocation failed\n")?;
+            }
+        }
+    }
+    syscall::sys_print("\n")?;
+    
+    // Phase 4: Test virtual memory (mmap/brk)
+    syscall::sys_print("🗺️  Phase 4: Virtual Memory Tests\n")?;
+    syscall::sys_print("Testing mmap syscall:\n")?;
+    
+    // Test anonymous mmap
+    let mmap_result = syscall::syscall_handler(
+        syscall::memory::SYS_MMAP,
+        0,              // addr (let kernel choose)
+        8192,           // size (8KB)
+        7,              // prot (RWX)
+        32,             // flags (MAP_ANONYMOUS)
+    );
+    
+    match mmap_result {
+        syscall::SysCallResult::Success(addr) => {
+            syscall::sys_print("  ✅ mmap succeeded\n")?;
+            
+            // Test munmap
+            let munmap_result = syscall::syscall_handler(
+                syscall::memory::SYS_MUNMAP,
+                addr as usize,
+                8192,
+                0,
+                0,
+            );
+            
+            match munmap_result {
+                syscall::SysCallResult::Success(_) => {
+                    syscall::sys_print("  ✅ munmap succeeded\n")?;
+                },
+                _ => {
+                    syscall::sys_print("  ❌ munmap failed\n")?;
+                }
+            }
+        },
+        _ => {
+            syscall::sys_print("  ❌ mmap failed\n")?;
+        }
+    }
+    
+    // Test brk syscall
+    syscall::sys_print("Testing brk syscall:\n")?;
+    
+    // Get current break
+    let brk_result = syscall::syscall_handler(
+        syscall::memory::SYS_BRK,
+        0,
+        0,
+        0,
+        0,
+    );
+    
+    match brk_result {
+        syscall::SysCallResult::Success(_) => {
+            syscall::sys_print("  ✅ brk query succeeded\n")?;
+        },
+        _ => {
+            syscall::sys_print("  ❌ brk query failed\n")?;
+        }
+    }
+    syscall::sys_print("\n")?;
+    
+    // Phase 5: Show final statistics
+    syscall::sys_print("📈 Phase 5: Final Statistics\n")?;
+    cmd_memstats()?;
+    syscall::sys_print("\n")?;
+    
+    syscall::sys_print("🎉 Comprehensive test complete!\n")?;
+    syscall::sys_print("All phases of our Maestro-inspired memory management system tested!\n")?;
+    
+    Ok(())
+}
+
+pub fn cmd_echo(message: &str) -> Result<(), &'static str> {
+    syscall::sys_print(message)?;
+    syscall::sys_print("\n")?;
     Ok(())
 } 
