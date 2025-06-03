@@ -136,72 +136,26 @@ pub fn cmd_devices() -> Result<(), &'static str> {
 }
 
 pub fn cmd_ls() -> Result<(), &'static str> {
-    let mut buffer = [0u8; 1024];
-    let result = syscall::syscall_handler(
-        syscall::file::SYS_GETDENTS,
-        buffer.as_mut_ptr() as usize,
-        buffer.len(),
-        0,
-        0,
-    );
-    
-    match result {
-        syscall::SysCallResult::Success(bytes_read) => {
-            if bytes_read > 0 {
-                let output = core::str::from_utf8(&buffer[..bytes_read as usize])
-                    .unwrap_or("Invalid UTF-8");
-                syscall::sys_print("Files:\n")?;
-                syscall::sys_print(output)?;
-            }
-            Ok(())
-        },
-        syscall::SysCallResult::Error(e) => Err(e),
+    match crate::filesystem::list_files() {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            syscall::sys_print("Failed to list files\n")?;
+            Err("Failed to list files")
+        }
     }
 }
 
 pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
-    // First check if file exists using SYS_OPEN
-    let mut filename_buf = [0u8; 256];
-    if filename.len() >= filename_buf.len() {
-        return Err("Filename too long");
+    if filename.is_empty() {
+        return Err("Usage: cat <filename>");
     }
     
-    filename_buf[..filename.len()].copy_from_slice(filename.as_bytes());
-    
-    let result = syscall::syscall_handler(
-        syscall::file::SYS_OPEN,
-        filename_buf.as_ptr() as usize,
-        0, // flags
-        0,
-        0,
-    );
-    
-    match result {
-        syscall::SysCallResult::Success(_fd) => {
-            // File exists, now we would read it via SYS_READ
-            // For now, we'll use a direct filesystem access as a temporary measure
-            // TODO: Implement proper SYS_READ
-            let fs = crate::filesystem::FILESYSTEM.lock();
-            match fs.read_file(filename) {
-                Ok(content) => {
-                    syscall::sys_print("Contents of ")?;
-                    syscall::sys_print(filename)?;
-                    syscall::sys_print(":\n")?;
-                    let content_str = core::str::from_utf8(&content)
-                        .unwrap_or("<binary content>");
-                    syscall::sys_print(content_str)?;
-                    syscall::sys_print("\n--- End of file ---\n")?;
-                    Ok(())
-                },
-                Err(e) => {
-                    syscall::sys_print("Failed to read file: ")?;
-                    syscall::sys_print(e)?;
-                    syscall::sys_print("\n")?;
-                    Err("Failed to read file")
-                }
-            }
-        },
-        syscall::SysCallResult::Error(e) => Err(e),
+    match crate::filesystem::read_file(filename) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            syscall::sys_print("Failed to read file\n")?;
+            Err("Failed to read file")
+        }
     }
 }
 
@@ -241,13 +195,11 @@ pub fn cmd_touch(filename: &str) -> Result<(), &'static str> {
                     syscall::sys_print("'\n")?;
                     Ok(())
                 },
-                Err(e) => {
+                Err(_) => {
                     syscall::sys_print("Failed to create file '")?;
                     syscall::sys_print(filename)?;
-                    syscall::sys_print("': ")?;
-                    syscall::sys_print(e)?;
-                    syscall::sys_print("\n")?;
-                    Err(e)
+                    syscall::sys_print("'\n")?;
+                    Err("Failed to create file")
                 }
             }
         }
@@ -413,12 +365,10 @@ pub fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
                 }
                 cloned_data
             },
-            Err(e) => {
+            Err(_) => {
                 syscall::sys_print("Error: File '")?;
                 syscall::sys_print(filename)?;
-                syscall::sys_print("' not found: ")?;
-                syscall::sys_print(e)?;
-                syscall::sys_print("\n")?;
+                syscall::sys_print("' not found\n")?;
                 return Err("File not found");
             }
         }
@@ -459,12 +409,10 @@ pub fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
                 }
                 cloned_data
             },
-            Err(e) => {
+            Err(_) => {
                 syscall::sys_print("Error: File '")?;
                 syscall::sys_print(filename)?;
-                syscall::sys_print("' not found: ")?;
-                syscall::sys_print(e)?;
-                syscall::sys_print("\n")?;
+                syscall::sys_print("' not found\n")?;
                 return Err("File not found");
             }
         }
@@ -533,12 +481,10 @@ pub fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
                 }
                 cloned_data
             },
-            Err(e) => {
+            Err(_) => {
                 syscall::sys_print("Error: File '")?;
                 syscall::sys_print(filename)?;
-                syscall::sys_print("' not found: ")?;
-                syscall::sys_print(e)?;
-                syscall::sys_print("\n")?;
+                syscall::sys_print("' not found\n")?;
                 return Err("File not found");
             }
         }
@@ -666,7 +612,7 @@ pub fn cmd_alloc_size_test(size: usize) -> Result<(), &'static str> {
     );
     
     match result {
-        syscall::SysCallResult::Success(addr) => {
+        syscall::SysCallResult::Success(_addr) => {
             syscall::sys_print("Allocation successful!\n")?;
             Ok(())
         },
@@ -1018,11 +964,9 @@ pub fn cmd_diskdump(block_num: u64) -> Result<(), &'static str> {
                 
                 syscall::sys_print("\n")?;
             }
-            Err(e) => {
-                syscall::sys_print("❌ VirtIO read failed: ")?;
-                syscall::sys_print(e)?;
-                syscall::sys_print("\n")?;
-                return Err(e);
+            Err(_) => {
+                syscall::sys_print("❌ VirtIO read failed\n")?;
+                return Err("VirtIO read failed");
             }
         }
     } else {
@@ -1059,10 +1003,8 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
             Ok(()) => {
                 syscall::sys_print("✅ Sector 0 OK, ")?;
             }
-            Err(e) => {
-                syscall::sys_print("❌ Sector 0 failed: ")?;
-                syscall::sys_print(e)?;
-                syscall::sys_print("\n")?;
+            Err(_) => {
+                syscall::sys_print("❌ Sector 0 failed\n")?;
                 return Err("Sector read failed");
             }
         }
@@ -1071,10 +1013,8 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
             Ok(()) => {
                 syscall::sys_print("✅ Sector 2 OK\n")?;
             }
-            Err(e) => {
-                syscall::sys_print("❌ Sector 2 failed: ")?;
-                syscall::sys_print(e)?;
-                syscall::sys_print("\n")?;
+            Err(_) => {
+                syscall::sys_print("❌ Sector 2 failed\n")?;
                 return Err("Sector read failed");
             }
         }
@@ -1091,10 +1031,8 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
         Ok(()) => {
             syscall::sys_print("✅ File listing complete\n")?;
         }
-        Err(e) => {
-            syscall::sys_print("❌ Failed: ")?;
-            syscall::sys_print(e)?;
-            syscall::sys_print("\n")?;
+        Err(_) => {
+            syscall::sys_print("❌ Failed\n")?;
         }
     }
     
@@ -1103,10 +1041,8 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
         Ok(()) => {
             syscall::sys_print("✅ Success (from VirtIO disk)\n")?;
         }
-        Err(e) => {
-            syscall::sys_print("❌ Failed: ")?;
-            syscall::sys_print(e)?;
-            syscall::sys_print("\n")?;
+        Err(_) => {
+            syscall::sys_print("❌ Failed\n")?;
         }
     }
     
@@ -1115,10 +1051,8 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
         Ok(()) => {
             syscall::sys_print("✅ Complete\n")?;
         }
-        Err(e) => {
-            syscall::sys_print("❌ Failed: ")?;
-            syscall::sys_print(e)?;
-            syscall::sys_print("\n")?;
+        Err(_) => {
+            syscall::sys_print("❌ Failed\n")?;
         }
     }
     
@@ -1129,32 +1063,11 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
 }
 
 pub fn cmd_ext4check() -> Result<(), &'static str> {
-    syscall::sys_print("🔍 EXT4 Filesystem Check\n")?;
-    syscall::sys_print("========================\n\n")?;
-    
-    let fs = crate::filesystem::FILESYSTEM.lock();
-    
-    if !fs.is_initialized() {
-        syscall::sys_print("❌ Filesystem not initialized\n")?;
-        return Err("Filesystem not initialized");
+    match crate::filesystem::check_filesystem() {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            syscall::sys_print("Failed to check filesystem\n")?;
+            Err("Failed to check filesystem")
+        }
     }
-    
-    syscall::sys_print("✅ EXT4 filesystem is active and healthy!\n")?;
-    
-    if let Some((magic, inodes_count, blocks_count, log_block_size)) = fs.get_superblock_info() {
-        syscall::sys_print("\n📊 Superblock Information:\n")?;
-        syscall::sys_print("   Magic: 0xef53 ✅\n")?;
-        syscall::sys_print("   Inodes: ")?;
-        syscall::sys_print("65536")?; // We know this from our embedded data
-        syscall::sys_print("\n")?;
-        syscall::sys_print("   Blocks: ")?;
-        syscall::sys_print("65536")?;
-        syscall::sys_print("\n")?;
-        syscall::sys_print("   Block size: 4096 bytes\n")?;
-        syscall::sys_print("   Volume: elinOS\n")?;
-    } else {
-        syscall::sys_print("⚠️  No superblock data available\n")?;
-    }
-    
-    Ok(())
 } 

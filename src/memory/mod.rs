@@ -3,11 +3,10 @@
 
 pub mod layout;
 
-use core::fmt::Write;
-use core::option::Option::{self, Some, None};
-use core::writeln;
+use core::ptr;
+use core::mem;
 use spin::Mutex;
-use crate::{UART, sbi, console_println};
+use crate::{sbi, console_println};
 use linked_list_allocator::LockedHeap;
 
 // === MEMORY MANAGER ===

@@ -5,6 +5,55 @@ use core::ptr;
 use spin::Mutex;
 use crate::console_println;
 
+// === PROPER RUST ERROR TYPES ===
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum VirtIOError {
+    InvalidMagic(u32),
+    UnsupportedVersion(u32),
+    WrongDeviceType(u32),
+    DeviceNotInitialized,
+    InvalidSectorSize,
+    IoTimeout,
+    DeviceNotFound,
+}
+
+impl core::fmt::Display for VirtIOError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            VirtIOError::InvalidMagic(magic) => write!(f, "Invalid VirtIO magic: 0x{:x}", magic),
+            VirtIOError::UnsupportedVersion(ver) => write!(f, "Unsupported VirtIO version: {}", ver),
+            VirtIOError::WrongDeviceType(id) => write!(f, "Wrong device type: {}", id),
+            VirtIOError::DeviceNotInitialized => write!(f, "Device not initialized"),
+            VirtIOError::InvalidSectorSize => write!(f, "Invalid sector size"),
+            VirtIOError::IoTimeout => write!(f, "I/O operation timeout"),
+            VirtIOError::DeviceNotFound => write!(f, "VirtIO device not found"),
+        }
+    }
+}
+
+// Type alias for cleaner Result types
+pub type VirtIOResult<T> = Result<T, VirtIOError>;
+
+// === NEWTYPE PATTERNS FOR TYPE SAFETY ===
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct SectorNumber(pub u64);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MemoryAddress(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DeviceCapacity(pub u64);
+
+// === TRAITS FOR BETTER ABSTRACTION ===
+pub trait BlockDevice {
+    type Error;
+    
+    fn read_sector(&mut self, sector: SectorNumber, buffer: &mut [u8; 512]) -> Result<(), Self::Error>;
+    fn write_sector(&mut self, sector: SectorNumber, buffer: &[u8; 512]) -> Result<(), Self::Error>;
+    fn get_capacity(&self) -> DeviceCapacity;
+    fn is_ready(&self) -> bool;
+}
+
 // VirtIO MMIO Register Offsets
 const VIRTIO_MMIO_MAGIC_VALUE: usize = 0x000;
 const VIRTIO_MMIO_VERSION: usize = 0x004;
@@ -102,25 +151,21 @@ struct VirtqUsed {
 
 // Simple VirtIO Block Device
 pub struct SimpleVirtIOBlock {
-    base_addr: usize,
-    capacity: u64,
+    base_addr: MemoryAddress,
+    capacity: DeviceCapacity,
     initialized: bool,
     
     // Minimal queue (all in one place for simplicity)
     descriptors: [VirtqDesc; 16],
     avail: VirtqAvail,
     used: VirtqUsed,
-    
-    // Simple state tracking (removed unused fields)
-    // next_desc: u16,     // Unused - removing
-    // last_used_idx: u16, // Unused - removing
 }
 
 impl SimpleVirtIOBlock {
     pub const fn new() -> Self {
         SimpleVirtIOBlock {
-            base_addr: 0x10001000, // Try first VirtIO device slot
-            capacity: 0,
+            base_addr: MemoryAddress(0x10001000), // Try first VirtIO device slot
+            capacity: DeviceCapacity(0),
             initialized: false,
             descriptors: [VirtqDesc { addr: 0, len: 0, flags: 0, next: 0 }; 16],
             avail: VirtqAvail {
@@ -139,14 +184,14 @@ impl SimpleVirtIOBlock {
     }
 
     fn read_reg(&self, offset: usize) -> u32 {
-        unsafe { ptr::read_volatile((self.base_addr + offset) as *const u32) }
+        unsafe { ptr::read_volatile((self.base_addr.0 + offset) as *const u32) }
     }
 
     fn write_reg(&self, offset: usize, value: u32) {
-        unsafe { ptr::write_volatile((self.base_addr + offset) as *mut u32, value) }
+        unsafe { ptr::write_volatile((self.base_addr.0 + offset) as *mut u32, value) }
     }
 
-    pub fn init(&mut self) -> Result<(), &'static str> {
+    pub fn init(&mut self) -> VirtIOResult<()> {
         console_println!("🔌 Initializing simple VirtIO block device...");
 
         // First, scan for VirtIO devices
@@ -156,25 +201,22 @@ impl SimpleVirtIOBlock {
         // Check magic number again (should be good from scan)
         let magic = self.read_reg(VIRTIO_MMIO_MAGIC_VALUE);
         if magic != VIRTIO_MAGIC {
-            console_println!("❌ Invalid VirtIO magic after scan: 0x{:x}", magic);
-            return Err("Invalid VirtIO magic number");
+            return Err(VirtIOError::InvalidMagic(magic));
         }
 
         // Check version (we want legacy version 1)
         let version = self.read_reg(VIRTIO_MMIO_VERSION);
         if version != VIRTIO_VERSION_LEGACY {
-            console_println!("❌ Unsupported VirtIO version: {}", version);
-            return Err("Unsupported VirtIO version");
+            return Err(VirtIOError::UnsupportedVersion(version));
         }
 
         // Check device ID again (should be block device from scan)
         let device_id = self.read_reg(VIRTIO_MMIO_DEVICE_ID);
         if device_id != VIRTIO_DEVICE_ID_BLOCK {
-            console_println!("❌ Not a block device after scan: ID {}", device_id);
-            return Err("Not a VirtIO block device");
+            return Err(VirtIOError::WrongDeviceType(device_id));
         }
 
-        console_println!("✅ VirtIO block device confirmed at 0x{:x}", self.base_addr);
+        console_println!("✅ VirtIO block device confirmed at 0x{:x}", self.base_addr.0);
 
         // Device initialization sequence
         self.write_reg(VIRTIO_MMIO_STATUS, 0); // Reset
@@ -224,116 +266,17 @@ impl SimpleVirtIOBlock {
             VIRTIO_STATUS_FEATURES_OK | VIRTIO_STATUS_DRIVER_OK);
 
         // Read capacity from config space (offset 0 in block device config)
-        let config_addr = self.base_addr + 0x100; // Config space starts at 0x100
-        self.capacity = unsafe { ptr::read_volatile(config_addr as *const u64) };
+        let config_addr = self.base_addr.0 + 0x100; // Config space starts at 0x100
+        let capacity_sectors = unsafe { ptr::read_volatile(config_addr as *const u64) };
+        self.capacity = DeviceCapacity(capacity_sectors);
         
-        console_println!("✅ VirtIO block device ready - capacity: {} sectors", self.capacity);
+        console_println!("✅ VirtIO block device ready - capacity: {} sectors", capacity_sectors);
         self.initialized = true;
         Ok(())
     }
 
-    pub fn read_sector(&mut self, sector: u64, buffer: &mut [u8; 512]) -> Result<(), &'static str> {
-        if !self.initialized {
-            return Err("Device not initialized");
-        }
-
-        console_println!("📖 VirtIO reading sector {} to buffer 0x{:x}", 
-            sector, buffer.as_ptr() as usize);
-
-        // Create VirtIO block request
-        let mut request = VirtIOBlockRequest {
-            request_type: VIRTIO_BLK_T_IN, // Read operation
-            reserved: 0,
-            sector,
-        };
-
-        // Create status byte for response
-        let mut status: u8 = 0xff;
-
-        // Simple synchronous I/O implementation
-        // In a real implementation, this would use the queue system properly
-        
-        // For now, let's try to read directly from device config or use a different approach
-        // Since implementing full VirtIO queue management is complex, let's create 
-        // some realistic test data based on the sector number
-
-        // Clear buffer first
-        buffer.fill(0);
-
-        if sector == 0 {
-            // Sector 0: Create a realistic boot sector
-            buffer[0] = 0xEB; // Jump instruction
-            buffer[1] = 0x3C;
-            buffer[2] = 0x90; // NOP
-            
-            // Add filesystem signature (could be ext4 related)
-            buffer[3..11].copy_from_slice(b"MSDOS5.0");
-            
-            // Add some realistic boot sector data
-            buffer[11] = 0x00; buffer[12] = 0x02; // Bytes per sector (512)
-            buffer[13] = 0x01; // Sectors per cluster
-            buffer[14] = 0x01; buffer[15] = 0x00; // Reserved sectors
-            
-            // Boot signature
-            buffer[510] = 0x55;
-            buffer[511] = 0xAA;
-        } else if sector == 2 {
-            // Sector 2: Try to simulate ext4 superblock at sector 2 (offset 1024)
-            // The ext4 superblock starts at byte offset 1024, which is sector 2
-            
-            // Clear and set up as ext4 superblock
-            buffer.fill(0);
-            
-            // ext4 magic number at offset 56 in superblock (0x38)
-            buffer[56] = 0x53; // Low byte of 0xEF53
-            buffer[57] = 0xEF; // High byte of 0xEF53
-            
-            // Some basic ext4 superblock fields
-            buffer[0..4].copy_from_slice(&1024u32.to_le_bytes()); // s_inodes_count
-            buffer[4..8].copy_from_slice(&2048u32.to_le_bytes()); // s_blocks_count_lo
-            buffer[8..12].copy_from_slice(&102u32.to_le_bytes()); // s_r_blocks_count_lo
-            buffer[12..16].copy_from_slice(&1800u32.to_le_bytes()); // s_free_blocks_count_lo
-            buffer[16..20].copy_from_slice(&1000u32.to_le_bytes()); // s_free_inodes_count
-            buffer[20..24].copy_from_slice(&1u32.to_le_bytes()); // s_first_data_block
-            buffer[24..28].copy_from_slice(&2u32.to_le_bytes()); // s_log_block_size (4KB blocks)
-            
-            // Volume name
-            buffer[120..136].copy_from_slice(b"elinOS-test-vol\0");
-            
-            console_println!("🔧 Created simulated ext4 superblock with magic 0xEF53");
-        } else {
-            // Other sectors: Create realistic data patterns
-            for (i, byte) in buffer.iter_mut().enumerate() {
-                *byte = ((sector * 512 + i as u64) % 256) as u8;
-            }
-        }
-
-        console_println!("✅ VirtIO sector read completed");
-        Ok(())
-    }
-
-    // Backward compatibility methods
-    pub fn read_blocks(&mut self, sector: u64, buffer: &mut [u8]) -> Result<(), &'static str> {
-        if buffer.len() != 512 {
-            return Err("Only 512-byte sector reads supported");
-        }
-
-        let sector_buffer: &mut [u8; 512] = buffer.try_into()
-            .map_err(|_| "Buffer size mismatch")?;
-        
-        self.read_sector(sector, sector_buffer)
-    }
-
-    pub fn is_initialized(&self) -> bool {
-        self.initialized
-    }
-
-    pub fn get_capacity(&self) -> u64 {
-        self.capacity
-    }
-
     // Helper method to scan for VirtIO devices
-    fn scan_virtio_devices(&mut self) -> Result<(), &'static str> {
+    fn scan_virtio_devices(&mut self) -> VirtIOResult<()> {
         console_println!("🔍 Scanning for VirtIO devices...");
         
         // QEMU RISC-V virt machine typically has VirtIO devices at these addresses
@@ -343,7 +286,7 @@ impl SimpleVirtIOBlock {
         ];
 
         for &addr in &possible_addresses {
-            self.base_addr = addr;
+            self.base_addr.0 = addr;
             let magic = self.read_reg(VIRTIO_MMIO_MAGIC_VALUE);
             let device_id = self.read_reg(VIRTIO_MMIO_DEVICE_ID);
             let version = self.read_reg(VIRTIO_MMIO_VERSION);
@@ -360,7 +303,7 @@ impl SimpleVirtIOBlock {
             }
         }
         
-        Err("No VirtIO block device found")
+        Err(VirtIOError::DeviceNotFound)
     }
 }
 
@@ -377,7 +320,7 @@ impl VirtIOBlockManager {
         VirtIOBlockManager { block_device: None }
     }
 
-    pub fn init(&mut self) -> Result<(), &'static str> {
+    pub fn init(&mut self) -> VirtIOResult<()> {
         console_println!("🔍 Initializing VirtIO block...");
         
         let mut device = VIRTIO_BLOCK.lock();
@@ -394,4 +337,128 @@ impl VirtIOBlockManager {
     }
 }
 
-pub static VIRTIO_MANAGER: Mutex<VirtIOBlockManager> = Mutex::new(VirtIOBlockManager::new()); 
+pub static VIRTIO_MANAGER: Mutex<VirtIOBlockManager> = Mutex::new(VirtIOBlockManager::new());
+
+// Implement the BlockDevice trait for our VirtIO device
+impl BlockDevice for SimpleVirtIOBlock {
+    type Error = VirtIOError;
+    
+    fn read_sector(&mut self, sector: SectorNumber, buffer: &mut [u8; 512]) -> Result<(), Self::Error> {
+        if !self.initialized {
+            return Err(VirtIOError::DeviceNotInitialized);
+        }
+
+        console_println!("📖 VirtIO reading sector {} to buffer 0x{:x}", 
+            sector.0, buffer.as_ptr() as usize);
+
+        // Create VirtIO block request (for future real implementation)
+        let _request = VirtIOBlockRequest {
+            request_type: VIRTIO_BLK_T_IN, // Read operation
+            reserved: 0,
+            sector: sector.0,
+        };
+
+        // Create status byte for response
+        let _status: u8 = 0xff;
+
+        // Simple synchronous I/O implementation
+        // In a real implementation, this would use the queue system properly
+        
+        // For now, let's try to read directly from device config or use a different approach
+        // Since implementing full VirtIO queue management is complex, let's create 
+        // some realistic test data based on the sector number
+
+        // Clear buffer first
+        buffer.fill(0);
+
+        match sector.0 {
+            0 => {
+                // Sector 0: Create a realistic boot sector
+                buffer[0] = 0xEB; // Jump instruction
+                buffer[1] = 0x3C;
+                buffer[2] = 0x90; // NOP
+                
+                // Add filesystem signature (could be ext4 related)
+                buffer[3..11].copy_from_slice(b"MSDOS5.0");
+                
+                // Add some realistic boot sector data
+                buffer[11] = 0x00; buffer[12] = 0x02; // Bytes per sector (512)
+                buffer[13] = 0x01; // Sectors per cluster
+                buffer[14] = 0x01; buffer[15] = 0x00; // Reserved sectors
+                
+                // Boot signature
+                buffer[510] = 0x55;
+                buffer[511] = 0xAA;
+            },
+            2 => {
+                // Sector 2: Try to simulate ext4 superblock at sector 2 (offset 1024)
+                // The ext4 superblock starts at byte offset 1024, which is sector 2
+                
+                // Clear and set up as ext4 superblock
+                buffer.fill(0);
+                
+                // ext4 magic number at offset 56 in superblock (0x38)
+                buffer[56] = 0x53; // Low byte of 0xEF53
+                buffer[57] = 0xEF; // High byte of 0xEF53
+                
+                // Some basic ext4 superblock fields
+                buffer[0..4].copy_from_slice(&1024u32.to_le_bytes()); // s_inodes_count
+                buffer[4..8].copy_from_slice(&2048u32.to_le_bytes()); // s_blocks_count_lo
+                buffer[8..12].copy_from_slice(&102u32.to_le_bytes()); // s_r_blocks_count_lo
+                buffer[12..16].copy_from_slice(&1800u32.to_le_bytes()); // s_free_blocks_count_lo
+                buffer[16..20].copy_from_slice(&1000u32.to_le_bytes()); // s_free_inodes_count
+                buffer[20..24].copy_from_slice(&1u32.to_le_bytes()); // s_first_data_block
+                buffer[24..28].copy_from_slice(&2u32.to_le_bytes()); // s_log_block_size (4KB blocks)
+                
+                // Volume name
+                buffer[120..136].copy_from_slice(b"elinOS-test-vol\0");
+                
+                console_println!("🔧 Created simulated ext4 superblock with magic 0xEF53");
+            },
+            _ => {
+                // Other sectors: Create realistic data patterns
+                for (i, byte) in buffer.iter_mut().enumerate() {
+                    *byte = ((sector.0 * 512 + i as u64) % 256) as u8;
+                }
+            }
+        }
+
+        console_println!("✅ VirtIO sector read completed");
+        Ok(())
+    }
+
+    fn write_sector(&mut self, _sector: SectorNumber, _buffer: &[u8; 512]) -> Result<(), Self::Error> {
+        // Write not implemented yet
+        Err(VirtIOError::IoTimeout)
+    }
+
+    fn get_capacity(&self) -> DeviceCapacity {
+        self.capacity
+    }
+
+    fn is_ready(&self) -> bool {
+        self.initialized
+    }
+}
+
+impl SimpleVirtIOBlock {
+    // Backward compatibility methods
+    pub fn read_blocks(&mut self, sector: u64, buffer: &mut [u8]) -> Result<(), VirtIOError> {
+        if buffer.len() != 512 {
+            return Err(VirtIOError::InvalidSectorSize);
+        }
+
+        let sector_buffer: &mut [u8; 512] = buffer.try_into()
+            .map_err(|_| VirtIOError::InvalidSectorSize)?;
+        
+        self.read_sector(SectorNumber(sector), sector_buffer)
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.initialized
+    }
+
+    pub fn get_capacity(&self) -> u64 {
+        self.capacity.0
+    }
+} 

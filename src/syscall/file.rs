@@ -146,7 +146,7 @@ fn sys_unlinkat(dirfd: i32, pathname: *const u8, _flags: i32) -> SysCallResult {
             let mut fs = filesystem::FILESYSTEM.lock();
             match fs.delete_file(filename) {
                 Ok(()) => SysCallResult::Success(0),
-                Err(e) => SysCallResult::Error(e),
+                Err(_) => SysCallResult::Error("Failed to delete file"),
             }
         } else {
             SysCallResult::Error("Invalid filename")
@@ -166,7 +166,7 @@ fn sys_getdents64(fd: i32, buf: *mut u8, buflen: usize) -> SysCallResult {
                 for (name, size) in files {
                     // Manual string formatting instead of format! macro
                     let mut entry_str = heapless::String::<128>::new();
-                    let _ = write!(entry_str, "{} {} bytes\n", name.as_str(), size);
+                    let _ = write!(entry_str, "{} {} bytes\n", name.as_str(), size.0);
                     let entry_bytes = entry_str.as_bytes();
                     
                     if written + entry_bytes.len() >= buflen {

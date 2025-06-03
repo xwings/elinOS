@@ -1,8 +1,67 @@
-use core::fmt::Write;
 use spin::Mutex;
 use heapless::Vec;
-use crate::{UART, console_println, virtio_block};
-use lazy_static::lazy_static;
+use crate::{console_println, virtio_block};
+
+// === PROPER RUST ERROR TYPES ===
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FilesystemError {
+    NotInitialized,
+    NotMounted,
+    InvalidMagic(u16),
+    FileNotFound,
+    FilenameeTooLong,
+    FilesystemFull,
+    IoError,
+    FileAlreadyExists,
+    DirectoryNotFound,
+    InvalidSuperblock,
+    DeviceError,
+}
+
+impl core::fmt::Display for FilesystemError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            FilesystemError::NotInitialized => write!(f, "Filesystem not initialized"),
+            FilesystemError::NotMounted => write!(f, "Filesystem not mounted"),
+            FilesystemError::InvalidMagic(magic) => write!(f, "Invalid filesystem magic: 0x{:x}", magic),
+            FilesystemError::FileNotFound => write!(f, "File not found"),
+            FilesystemError::FilenameeTooLong => write!(f, "Filename too long"),
+            FilesystemError::FilesystemFull => write!(f, "Filesystem full"),
+            FilesystemError::IoError => write!(f, "I/O error"),
+            FilesystemError::FileAlreadyExists => write!(f, "File already exists"),
+            FilesystemError::DirectoryNotFound => write!(f, "Directory not found"),
+            FilesystemError::InvalidSuperblock => write!(f, "Invalid superblock"),
+            FilesystemError::DeviceError => write!(f, "Device error"),
+        }
+    }
+}
+
+// Type alias for cleaner Result types
+pub type FilesystemResult<T> = Result<T, FilesystemError>;
+
+// === NEWTYPE PATTERNS FOR TYPE SAFETY ===
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct InodeNumber(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BlockAddress(pub u64);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FileSize(pub usize);
+
+// === TRAITS FOR BETTER ABSTRACTION ===
+pub trait Filesystem {
+    type Error;
+    
+    fn init(&mut self) -> Result<(), Self::Error>;
+    fn mount(&mut self) -> Result<(), Self::Error>;
+    fn is_mounted(&self) -> bool;
+    fn list_files(&self) -> Result<Vec<(heapless::String<64>, FileSize), 32>, Self::Error>;
+    fn read_file(&self, filename: &str) -> Result<Vec<u8, 4096>, Self::Error>;
+    fn create_file(&mut self, filename: &str, content: &[u8]) -> Result<(), Self::Error>;
+    fn delete_file(&mut self, filename: &str) -> Result<(), Self::Error>;
+    fn file_exists(&self, filename: &str) -> bool;
+}
 
 // === REAL EXT4 FILESYSTEM WITH VIRTIO BLOCK ===
 // Uses VirtIO block device for actual disk I/O
@@ -20,16 +79,25 @@ const SECTOR_SIZE: usize = 512;
 pub struct FileEntry {
     pub name: heapless::String<64>,
     pub is_directory: bool,
-    pub size: usize,
-    pub inode: u32,
-    pub parent_inode: u32,
-    pub block_addr: u64, // Block address on disk
+    pub size: FileSize,
+    pub inode: InodeNumber,
+    pub parent_inode: InodeNumber,
+    pub block_addr: BlockAddress,
 }
 
 impl FileEntry {
-    pub fn new_file(name: &str, inode: u32, parent_inode: u32, size: usize, block_addr: u64) -> Result<Self, &'static str> {
+    pub fn new_file(
+        name: &str, 
+        inode: InodeNumber, 
+        parent_inode: InodeNumber, 
+        size: FileSize, 
+        block_addr: BlockAddress
+    ) -> FilesystemResult<Self> {
+        let filename = heapless::String::try_from(name)
+            .map_err(|_| FilesystemError::FilenameeTooLong)?;
+            
         Ok(FileEntry {
-            name: heapless::String::try_from(name).map_err(|_| "Filename too long")?,
+            name: filename,
             is_directory: false,
             size,
             inode,
@@ -38,14 +106,21 @@ impl FileEntry {
         })
     }
     
-    pub fn new_directory(name: &str, inode: u32, parent_inode: u32) -> Result<Self, &'static str> {
+    pub fn new_directory(
+        name: &str, 
+        inode: InodeNumber, 
+        parent_inode: InodeNumber
+    ) -> FilesystemResult<Self> {
+        let dirname = heapless::String::try_from(name)
+            .map_err(|_| FilesystemError::FilenameeTooLong)?;
+            
         Ok(FileEntry {
-            name: heapless::String::try_from(name).map_err(|_| "Directory name too long")?,
+            name: dirname,
             is_directory: true,
-            size: 0,
+            size: FileSize(0),
             inode,
             parent_inode,
-            block_addr: 0,
+            block_addr: BlockAddress(0),
         })
     }
 }
@@ -155,27 +230,30 @@ impl Ext4FileSystem {
         }
     }
     
-    pub fn init(&mut self) -> Result<(), &'static str> {
+    pub fn init(&mut self) -> Result<(), FilesystemError> {
         console_println!("🗂️  Initializing real ext4 filesystem...");
 
         // Get VirtIO block device directly from global
         let mut virtio_device = virtio_block::VIRTIO_BLOCK.lock();
         
         if !virtio_device.is_initialized() {
-            return Err("VirtIO block device not initialized");
+            return Err(FilesystemError::DeviceError);
         }
 
         // Read superblock from disk
         let mut superblock_buffer = [0u8; EXT4_BLOCK_SIZE];
         
         // Read sectors 0 and 1 (superblock is at offset 1024, spans sectors)
-        virtio_device.read_blocks(0, &mut superblock_buffer[0..SECTOR_SIZE])?;
-        virtio_device.read_blocks(1, &mut superblock_buffer[SECTOR_SIZE..2*SECTOR_SIZE])?;
+        virtio_device.read_blocks(0, &mut superblock_buffer[0..SECTOR_SIZE])
+            .map_err(|_| FilesystemError::IoError)?;
+        virtio_device.read_blocks(1, &mut superblock_buffer[SECTOR_SIZE..2*SECTOR_SIZE])
+            .map_err(|_| FilesystemError::IoError)?;
         
         // Continue reading more sectors to get full superblock
         for i in 2..8 {
             let mut sector_buf = [0u8; SECTOR_SIZE];
-            virtio_device.read_blocks(i, &mut sector_buf)?;
+            virtio_device.read_blocks(i, &mut sector_buf)
+                .map_err(|_| FilesystemError::IoError)?;
             let offset = i as usize * SECTOR_SIZE;
             if offset < EXT4_BLOCK_SIZE {
                 let copy_len = if offset + SECTOR_SIZE > EXT4_BLOCK_SIZE {
@@ -205,7 +283,7 @@ impl Ext4FileSystem {
         if magic != EXT4_SUPER_MAGIC {
             console_println!("❌ Invalid ext4 magic: 0x{:x} (expected 0x{:x})", 
                 magic, EXT4_SUPER_MAGIC);
-            return Err("Invalid ext4 filesystem - wrong magic number");
+            return Err(FilesystemError::InvalidMagic(magic));
         }
 
         console_println!("✅ Valid ext4 filesystem detected!");
@@ -229,51 +307,63 @@ impl Ext4FileSystem {
         Ok(())
     }
 
-    fn read_root_directory(&mut self) -> Result<(), &'static str> {
+    fn read_root_directory(&mut self) -> FilesystemResult<()> {
         console_println!("📁 Reading root directory...");
         
         // For now, create some dummy entries to show it's working
         // In a real implementation, you'd read the actual root inode and directory entries
-        let root_dir = FileEntry::new_directory("/", EXT4_ROOT_INODE, EXT4_ROOT_INODE)?;
-        self.files.push(root_dir).map_err(|_| "Failed to add root directory")?;
+        let root_dir = FileEntry::new_directory("/", InodeNumber(EXT4_ROOT_INODE), InodeNumber(EXT4_ROOT_INODE))?;
+        self.files.push(root_dir).map_err(|_| FilesystemError::FilesystemFull)?;
 
         // Add some detected files (these would be read from actual directory blocks)
-        if let Ok(hello) = FileEntry::new_file("hello.txt", 12, EXT4_ROOT_INODE, 1024, 1000) {
-            self.files.push(hello).map_err(|_| "Failed to add file")?;
+        if let Ok(hello) = FileEntry::new_file(
+            "hello.txt", 
+            InodeNumber(12), 
+            InodeNumber(EXT4_ROOT_INODE), 
+            FileSize(1024), 
+            BlockAddress(1000)
+        ) {
+            self.files.push(hello).map_err(|_| FilesystemError::FilesystemFull)?;
         }
         
-        if let Ok(readme) = FileEntry::new_file("README.md", 13, EXT4_ROOT_INODE, 2048, 1001) {
-            self.files.push(readme).map_err(|_| "Failed to add file")?;
+        if let Ok(readme) = FileEntry::new_file(
+            "README.md", 
+            InodeNumber(13), 
+            InodeNumber(EXT4_ROOT_INODE), 
+            FileSize(2048), 
+            BlockAddress(1001)
+        ) {
+            self.files.push(readme).map_err(|_| FilesystemError::FilesystemFull)?;
         }
 
         console_println!("📄 Found {} entries in root directory", self.files.len());
         Ok(())
     }
     
-    pub fn list_files(&self) -> Result<Vec<(heapless::String<64>, usize), 32>, &'static str> {
+    pub fn list_files(&self) -> Result<Vec<(heapless::String<64>, FileSize), 32>, FilesystemError> {
         if !self.is_mounted() {
-            return Err("Filesystem not mounted");
+            return Err(FilesystemError::NotMounted);
         }
 
         let mut result = Vec::new();
         for file in &self.files {
             result.push((file.name.clone(), file.size))
-                .map_err(|_| "Too many files")?;
+                .map_err(|_| FilesystemError::FilesystemFull)?;
         }
         Ok(result)
     }
     
-    pub fn read_file(&self, filename: &str) -> Result<Vec<u8, 4096>, &'static str> {
+    pub fn read_file(&self, filename: &str) -> Result<Vec<u8, 4096>, FilesystemError> {
         if !self.is_mounted() {
-            return Err("Filesystem not mounted");
+            return Err(FilesystemError::NotMounted);
         }
 
         // Find file
         let file_entry = self.files.iter()
             .find(|f| f.name.as_str() == filename && !f.is_directory)
-            .ok_or("File not found")?;
+            .ok_or(FilesystemError::FileNotFound)?;
 
-        console_println!("📖 Reading file '{}' from disk block {}", filename, file_entry.block_addr);
+        console_println!("📖 Reading file '{}' from disk block {}", filename, file_entry.block_addr.0);
 
         // Read file content from disk
         let mut file_content = Vec::new();
@@ -282,24 +372,24 @@ impl Ext4FileSystem {
         let mut virtio_device = virtio_block::VIRTIO_BLOCK.lock();
         
         if !virtio_device.is_initialized() {
-            return Err("VirtIO block device not available");
+            return Err(FilesystemError::DeviceError);
         }
 
         // Read a few sectors worth of data
-        let sectors_to_read = ((file_entry.size + SECTOR_SIZE - 1) / SECTOR_SIZE).max(1);
+        let sectors_to_read = ((file_entry.size.0 + SECTOR_SIZE - 1) / SECTOR_SIZE).max(1);
         for i in 0..sectors_to_read.min(8) { // Limit to 8 sectors = 4KB max
             let mut sector_buf = [0u8; SECTOR_SIZE];
-            match virtio_device.read_blocks(file_entry.block_addr + i as u64, &mut sector_buf) {
+            match virtio_device.read_blocks(file_entry.block_addr.0 + i as u64, &mut sector_buf) {
                 Ok(()) => {
                     for &byte in &sector_buf {
-                        if file_content.len() >= file_entry.size || file_content.len() >= 4096 {
+                        if file_content.len() >= file_entry.size.0 || file_content.len() >= 4096 {
                             break;
                         }
-                        file_content.push(byte).map_err(|_| "File too large")?;
+                        file_content.push(byte).map_err(|_| FilesystemError::FilesystemFull)?;
                     }
                 }
-                Err(e) => {
-                    console_println!("⚠️  Error reading sector {}: {}", i, e);
+                Err(_) => {
+                    console_println!("⚠️  Error reading sector {}", i);
                     break;
                 }
             }
@@ -317,30 +407,36 @@ impl Ext4FileSystem {
                 if file_content.len() >= 4096 {
                     break;
                 }
-                file_content.push(byte).map_err(|_| "File too large")?;
+                file_content.push(byte).map_err(|_| FilesystemError::FilesystemFull)?;
             }
         }
 
         Ok(file_content)
     }
     
-    pub fn create_file(&mut self, filename: &str, content: &[u8]) -> Result<(), &'static str> {
+    pub fn create_file(&mut self, filename: &str, content: &[u8]) -> Result<(), FilesystemError> {
         if !self.is_mounted() {
-            return Err("Filesystem not mounted");
+            return Err(FilesystemError::NotMounted);
         }
 
         // Check if file already exists
         for file in &self.files {
             if file.name.as_str() == filename {
-                return Err("File already exists");
+                return Err(FilesystemError::FileAlreadyExists);
             }
         }
 
         // For now, just add to memory cache (real implementation would write to disk)
         let new_inode = 100 + self.files.len() as u32;
-        let new_file = FileEntry::new_file(filename, new_inode, EXT4_ROOT_INODE, content.len(), 2000 + new_inode as u64)?;
+        let new_file = FileEntry::new_file(
+            filename, 
+            InodeNumber(new_inode), 
+            InodeNumber(EXT4_ROOT_INODE), 
+            FileSize(content.len()), 
+            BlockAddress(2000 + new_inode as u64)
+        )?;
         
-        self.files.push(new_file).map_err(|_| "Filesystem full")?;
+        self.files.push(new_file).map_err(|_| FilesystemError::FilesystemFull)?;
         
         console_println!("✅ Created file: {} ({} bytes, inode: {})", 
             filename, content.len(), new_inode);
@@ -350,15 +446,15 @@ impl Ext4FileSystem {
         Ok(())
     }
     
-    pub fn delete_file(&mut self, filename: &str) -> Result<(), &'static str> {
+    pub fn delete_file(&mut self, filename: &str) -> Result<(), FilesystemError> {
         if !self.is_mounted() {
-            return Err("Filesystem not mounted");
+            return Err(FilesystemError::NotMounted);
         }
 
         // Find and remove the file
         for (i, file) in self.files.iter().enumerate() {
             if file.name.as_str() == filename && !file.is_directory {
-                console_println!("🗑️  Deleting file: {} (inode: {})", filename, file.inode);
+                console_println!("🗑️  Deleting file: {} (inode: {})", filename, file.inode.0);
                 self.files.swap_remove(i);
                 
                 // TODO: Actually delete from disk via VirtIO
@@ -367,7 +463,7 @@ impl Ext4FileSystem {
             }
         }
         
-        Err("File not found")
+        Err(FilesystemError::FileNotFound)
     }
     
     pub fn file_exists(&self, filename: &str) -> bool {
@@ -390,13 +486,56 @@ impl Ext4FileSystem {
 // Global filesystem instance
 pub static FILESYSTEM: Mutex<Ext4FileSystem> = Mutex::new(Ext4FileSystem::new());
 
-pub fn init_filesystem() -> Result<(), &'static str> {
+// Implement the Filesystem trait for Ext4FileSystem
+impl Filesystem for Ext4FileSystem {
+    type Error = FilesystemError;
+    
+    fn init(&mut self) -> Result<(), Self::Error> {
+        self.init()
+    }
+    
+    fn mount(&mut self) -> Result<(), Self::Error> {
+        if self.initialized {
+            self.read_root_directory()?;
+            self.mounted = true;
+            Ok(())
+        } else {
+            Err(FilesystemError::NotInitialized)
+        }
+    }
+    
+    fn is_mounted(&self) -> bool {
+        self.mounted
+    }
+    
+    fn list_files(&self) -> Result<Vec<(heapless::String<64>, FileSize), 32>, Self::Error> {
+        self.list_files()
+    }
+    
+    fn read_file(&self, filename: &str) -> Result<Vec<u8, 4096>, Self::Error> {
+        self.read_file(filename)
+    }
+    
+    fn create_file(&mut self, filename: &str, content: &[u8]) -> Result<(), Self::Error> {
+        self.create_file(filename, content)
+    }
+    
+    fn delete_file(&mut self, filename: &str) -> Result<(), Self::Error> {
+        self.delete_file(filename)
+    }
+    
+    fn file_exists(&self, filename: &str) -> bool {
+        self.file_exists(filename)
+    }
+}
+
+pub fn init_filesystem() -> Result<(), FilesystemError> {
     let mut fs = FILESYSTEM.lock();
     fs.init()
 }
 
 // Convenience functions for commands
-pub fn list_files() -> Result<(), &'static str> {
+pub fn list_files() -> Result<(), FilesystemError> {
     let fs = FILESYSTEM.lock();
     
     console_println!("📁 Filesystem contents (mounted from disk.qcow2):");
@@ -410,14 +549,14 @@ pub fn list_files() -> Result<(), &'static str> {
     for file in fs.files.iter() {
         let file_type = if file.is_directory { "DIR " } else { "FILE" };
         console_println!("  {} {:>8} bytes  {} (inode: {}, disk_block: {})", 
-            file_type, file.size, file.name.as_str(), file.inode, file.block_addr);
+            file_type, file.size.0, file.name.as_str(), file.inode.0, file.block_addr.0);
     }
     
     console_println!("\nTotal files: {} (real ext4 on VirtIO)", fs.files.len());
     Ok(())
 }
 
-pub fn read_file(filename: &str) -> Result<(), &'static str> {
+pub fn read_file(filename: &str) -> Result<(), FilesystemError> {
     let fs = FILESYSTEM.lock();
     
     match fs.read_file(filename) {
@@ -439,17 +578,17 @@ pub fn read_file(filename: &str) -> Result<(), &'static str> {
     }
 }
 
-pub fn create_file(filename: &str, content: &str) -> Result<(), &'static str> {
+pub fn create_file(filename: &str, content: &str) -> Result<(), FilesystemError> {
     let mut fs = FILESYSTEM.lock();
     fs.create_file(filename, content.as_bytes())
 }
 
-pub fn delete_file(filename: &str) -> Result<(), &'static str> {
+pub fn delete_file(filename: &str) -> Result<(), FilesystemError> {
     let mut fs = FILESYSTEM.lock();
     fs.delete_file(filename)
 }
 
-pub fn check_filesystem() -> Result<(), &'static str> {
+pub fn check_filesystem() -> Result<(), FilesystemError> {
     let fs = FILESYSTEM.lock();
     
     console_println!("🔍 Real ext4 Filesystem Check:");
