@@ -13,8 +13,6 @@ heapless = "0.8"
 lazy_static = { version = "1.4", features = ["spin_no_std"] }
 # Memory allocator
 linked_list_allocator = "0.10"
-# C runtime functions
-rlibc = "1.0"
 
 [features]
 default = ["development"]

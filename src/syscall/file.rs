@@ -3,8 +3,15 @@
 
 use crate::UART;
 use crate::filesystem;
+use crate::console_println;
 use core::fmt::Write;
 use super::{SysCallResult, SyscallArgs, STDOUT_FD, STDERR_FD};
+use spin::Mutex;
+use heapless::FnvIndexMap;
+
+// Simple file descriptor table
+static FILE_TABLE: Mutex<FnvIndexMap<i32, heapless::String<64>, 16>> = Mutex::new(FnvIndexMap::new());
+static NEXT_FD: Mutex<i32> = Mutex::new(10); // File descriptors start at 10
 
 // === LINUX COMPATIBLE FILE I/O SYSTEM CALL CONSTANTS ===
 pub const SYS_OPENAT: usize = 56;     // Linux: openat
@@ -84,49 +91,150 @@ fn sys_write(fd: i32, buf: *const u8, count: usize) -> SysCallResult {
     }
 }
 
-fn sys_read(_fd: i32, _buf: *mut u8, _count: usize) -> SysCallResult {
-    // TODO: Implement file/stdin reading
-    SysCallResult::Error("Read not implemented")
-}
-
-fn sys_openat(dirfd: i32, pathname: *const u8, flags: i32, _mode: u32) -> SysCallResult {
-    // For now, ignore dirfd and treat as regular open
-    let _ = dirfd;
-    unsafe {
-        // Convert C string to Rust string
-        let mut len = 0;
-        let mut ptr = pathname;
-        while *ptr != 0 && len < 256 {
-            len += 1;
-            ptr = ptr.add(1);
-        }
+fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
+    console_println!("🔍 SYSCALL: sys_read(fd={}, buf={:p}, count={})", fd, buf, count);
+    
+    if fd == 0 { // stdin
+        // TODO: Implement stdin reading
+        SysCallResult::Error("Stdin read not implemented")
+    } else if fd >= 10 { // File descriptors start at 10
+        console_println!("📂 SYSCALL: Looking up file descriptor {}", fd);
         
-        let slice = core::slice::from_raw_parts(pathname, len);
-        if let Ok(filename) = core::str::from_utf8(slice) {
-            let fs = filesystem::FILESYSTEM.lock();
-            if fs.file_exists(filename) {
-                // Return a fake file descriptor (just index + 10)
-                SysCallResult::Success(10)
-            } else if flags & O_CREAT != 0 {
-                // Create file if O_CREAT flag is set
-                drop(fs); // Release lock before mutable access
-                let mut fs = filesystem::FILESYSTEM.lock();
-                match fs.create_file(filename, b"") {
-                    Ok(_) => SysCallResult::Success(10),
-                    Err(_) => SysCallResult::Error("Failed to create file")
-                }
-            } else {
-                SysCallResult::Error("File not found")
+        // Look up filename from file descriptor table
+        let file_table = FILE_TABLE.lock();
+        let filename = match file_table.get(&fd) {
+            Some(name) => {
+                console_println!("✅ SYSCALL: Found filename '{}' for fd {}", name.as_str(), fd);
+                name.clone()
+            },
+            None => {
+                console_println!("❌ SYSCALL: Invalid file descriptor {}", fd);
+                drop(file_table);
+                return SysCallResult::Error("Invalid file descriptor");
             }
-        } else {
-            SysCallResult::Error("Invalid filename")
+        };
+        drop(file_table);
+        
+        console_println!("📖 SYSCALL: Reading file '{}'", filename.as_str());
+        
+        // Read the file content using the filename
+        let fs = filesystem::FILESYSTEM.lock();
+        match fs.read_file(filename.as_str()) {
+            Ok(content) => {
+                console_println!("✅ SYSCALL: File read successful, {} bytes", content.len());
+                drop(fs); // Release lock before operations
+                
+                if count == 0 {
+                    console_println!("⚠️ SYSCALL: Zero-length read requested");
+                    return SysCallResult::Success(0);
+                }
+                
+                let bytes_to_copy = core::cmp::min(count, content.len());
+                console_println!("📏 SYSCALL: Will output {} bytes (requested={}, available={})", 
+                    bytes_to_copy, count, content.len());
+                
+                // For educational OS: if buffer is null, just print to console
+                // In production OS, this would be an error, but here it's convenient for cat command
+                if buf.is_null() {
+                    console_println!("📄 SYSCALL: Null buffer - printing to console:");
+                } else {
+                    console_println!("📄 SYSCALL: Copying to user buffer and printing to console:");
+                    // Copy to user buffer
+                    unsafe {
+                        core::ptr::copy_nonoverlapping(
+                            content.as_ptr(),
+                            buf,
+                            bytes_to_copy
+                        );
+                    }
+                }
+                
+                // Always print to console so user can see the file contents
+                let uart = crate::UART.lock();
+                for &byte in &content[..bytes_to_copy] {
+                    uart.putchar(byte);
+                }
+                drop(uart);
+                
+                console_println!("✅ SYSCALL: File output complete");
+                SysCallResult::Success(bytes_to_copy as isize)
+            }
+            Err(e) => {
+                drop(fs);
+                console_println!("❌ SYSCALL: Failed to read file: {:?}", e);
+                // Print error message
+                let mut uart = crate::UART.lock();
+                let _ = write!(uart, "Error reading file: {:?}\n", e);
+                SysCallResult::Error("Failed to read file")
+            }
         }
+    } else {
+        console_println!("❌ SYSCALL: Invalid file descriptor {}", fd);
+        SysCallResult::Error("Invalid file descriptor")
     }
 }
 
-fn sys_close(_fd: i32) -> SysCallResult {
-    // TODO: Implement proper file descriptor management
-    SysCallResult::Success(0)
+fn sys_openat(dirfd: i32, pathname: *const u8, flags: i32, mode: u32) -> SysCallResult {
+    // For now, just handle opening files in current directory (ignore dirfd)
+    // Get filename from pathname pointer
+    let filename = unsafe {
+        let mut len = 0;
+        let mut ptr = pathname;
+        
+        // Find null terminator
+        while len < 256 && *ptr != 0 {
+            ptr = ptr.add(1);
+            len += 1;
+        }
+        
+        // Convert to string slice
+        core::str::from_utf8(core::slice::from_raw_parts(pathname, len))
+            .unwrap_or("")
+    };
+    
+    // Check if file exists in filesystem
+    let fs = filesystem::FILESYSTEM.lock();
+    if !fs.file_exists(filename) {
+        drop(fs);
+        return SysCallResult::Error("File not found");
+    }
+    drop(fs);
+    
+    // Allocate new file descriptor
+    let mut next_fd = NEXT_FD.lock();
+    let fd = *next_fd;
+    *next_fd += 1;
+    drop(next_fd);
+    
+    // Store filename in file table
+    let mut file_table = FILE_TABLE.lock();
+    if let Ok(filename_string) = heapless::String::try_from(filename) {
+        if file_table.insert(fd, filename_string).is_ok() {
+            drop(file_table);
+            SysCallResult::Success(fd as isize)
+        } else {
+            drop(file_table);
+            SysCallResult::Error("File table full")
+        }
+    } else {
+        drop(file_table);
+        SysCallResult::Error("Filename too long")
+    }
+}
+
+fn sys_close(fd: i32) -> SysCallResult {
+    if fd >= 10 {
+        let mut file_table = FILE_TABLE.lock();
+        if file_table.remove(&fd).is_some() {
+            drop(file_table);
+            SysCallResult::Success(0)
+        } else {
+            drop(file_table);
+            SysCallResult::Error("Invalid file descriptor")
+        }
+    } else {
+        SysCallResult::Error("Cannot close system file descriptors")
+    }
 }
 
 fn sys_unlinkat(dirfd: i32, pathname: *const u8, _flags: i32) -> SysCallResult {
@@ -156,36 +264,25 @@ fn sys_unlinkat(dirfd: i32, pathname: *const u8, _flags: i32) -> SysCallResult {
 
 fn sys_getdents64(fd: i32, buf: *mut u8, buflen: usize) -> SysCallResult {
     let _ = fd; // Ignore fd for now, just list all files
-    unsafe {
-        let fs = filesystem::FILESYSTEM.lock();
-        let mut written = 0;
-        let mut ptr = buf;
-        
-        match fs.list_files() {
-            Ok(files) => {
-                for (name, size) in files {
-                    // Manual string formatting instead of format! macro
-                    let mut entry_str = heapless::String::<128>::new();
-                    let _ = write!(entry_str, "{} {} bytes\n", name.as_str(), size.0);
-                    let entry_bytes = entry_str.as_bytes();
-                    
-                    if written + entry_bytes.len() >= buflen {
-                        break;
-                    }
-                    
-                    core::ptr::copy_nonoverlapping(
-                        entry_bytes.as_ptr(),
-                        ptr,
-                        entry_bytes.len()
-                    );
-                    
-                    ptr = ptr.add(entry_bytes.len());
-                    written += entry_bytes.len();
-                }
-                
-                SysCallResult::Success(written as isize)
+    let _ = buf; // We'll output directly to console instead
+    let _ = buflen;
+    
+    // Print directory listing to console
+    let mut uart = UART.lock();
+    let _ = write!(uart, "Directory listing:\n");
+    
+    let fs = filesystem::FILESYSTEM.lock();
+    match fs.list_files() {
+        Ok(files) => {
+            let files_len = files.len();
+            for (name, size) in &files {
+                let _ = write!(uart, "{:<20} {:>8} bytes\n", name.as_str(), size);
             }
-            Err(_) => SysCallResult::Error("Failed to list files")
+            SysCallResult::Success(files_len as isize)
+        }
+        Err(_) => {
+            let _ = write!(uart, "Failed to list files\n");
+            SysCallResult::Error("Failed to list files")
         }
     }
 }

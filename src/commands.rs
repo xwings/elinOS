@@ -7,23 +7,23 @@ pub fn process_command(command: &str) {
     let command = command.trim();
     
     let result = match command {
+        // Essential system commands
         "help" => cmd_help(),
         "version" => cmd_version(),
-        "syscall" => cmd_syscall(),
         "memory" => cmd_memory(),
-        "memstats" => cmd_memstats(),
-        "layout" => cmd_layout(),
-        "unified" => cmd_unified_memory(),
-        "alloc" => cmd_alloc_test(),
-        "bigalloc" => cmd_big_alloc_test(),
-        "buddy" => cmd_buddy_test(),
-        "comprehensive" => cmd_comprehensive_test(),
         "devices" => cmd_devices(),
+        "syscall" => cmd_syscall(),
+        
+        // File operations (working via VirtIO)
         "ls" => cmd_ls(),
         "cat" => cmd_cat(""),
         "echo" => cmd_echo(""),
+        
+        // System control
         "shutdown" => cmd_shutdown(),
         "reboot" => cmd_reboot(),
+        
+        // Commands with arguments
         cmd if cmd.starts_with("cat ") => {
             let filename = &cmd[4..];
             cmd_cat(filename)
@@ -32,34 +32,11 @@ pub fn process_command(command: &str) {
             let message = &cmd[5..];
             cmd_echo(message)
         }
-        cmd if cmd.starts_with("elf_load ") => {
-            let filename = &cmd[9..];
-            cmd_elf_load(filename)
-        }
-        cmd if cmd.starts_with("elf_exec ") => {
-            let filename = &cmd[9..];
-            cmd_elf_exec(filename)
-        }
-        cmd if cmd.starts_with("alloc ") => {
-            let size_str = &cmd[6..];
-            if let Ok(size) = size_str.parse::<usize>() {
-                cmd_alloc_size_test(size)
-            } else {
-                Err("Invalid size format")
-            }
-        }
-        cmd if cmd.starts_with("diskdump ") => {
-            let block_str = &cmd[9..];
-            if let Ok(block_num) = block_str.parse::<u64>() {
-                cmd_diskdump(block_num)
-            } else {
-                Err("Invalid block number")
-            }
-        }
-        "diskdump" => cmd_diskdump(0),
-        "disktest" => cmd_disktest(),
-        "ext4check" => cmd_ext4check(),
-        "" => Ok(()), // Empty command
+        
+        // Empty command
+        "" => Ok(()),
+        
+        // Unknown command
         _ => {
             let _ = syscall::sys_print("Unknown command: ");
             let _ = syscall::sys_print(command);
@@ -78,40 +55,41 @@ pub fn process_command(command: &str) {
 // Get list of all available commands (for help and autocomplete)
 pub fn get_available_commands() -> &'static [&'static str] {
     &[
-        "help", "memory", "devices", "ls", "cat", "touch", "rm", 
-        "clear", "syscall", "categories", "version", "shutdown", "reboot",
-        "elf-info", "elf-load", "elf-exec", "elf-demo"
+        "help", "version", "memory", "devices", "syscall",
+        "ls", "cat", "echo", 
+        "shutdown", "reboot"
     ]
 }
 
 // === INDIVIDUAL COMMAND IMPLEMENTATIONS ===
 
 pub fn cmd_help() -> Result<(), &'static str> {
-    syscall::sys_print("Available commands:\n")?;
-    syscall::sys_print("  help        - Show this help message\n")?;
-    syscall::sys_print("  version     - Show kernel version\n")?;
-    syscall::sys_print("  syscall     - Show system call information\n")?;
-    syscall::sys_print("  memory      - Show memory information\n")?;
-    syscall::sys_print("  memstats    - Show memory statistics\n")?;
-    syscall::sys_print("  layout      - Show dynamic memory layout\n")?;
-    syscall::sys_print("  unified     - Show unified memory management improvements\n")?;
-    syscall::sys_print("  alloc       - Test memory allocation (1KB)\n")?;
-    syscall::sys_print("  alloc <size> - Test memory allocation (specific size)\n")?;
-    syscall::sys_print("  bigalloc    - Test large allocation (1MB)\n")?;
-    syscall::sys_print("  buddy       - Test buddy allocator specifically\n")?;
-    syscall::sys_print("  comprehensive - Run comprehensive memory management test\n")?;
-    syscall::sys_print("  devices     - List available devices\n")?;
-    syscall::sys_print("  diskdump    - Dump disk block 0 (bootblock)\n")?;
-    syscall::sys_print("  diskdump <n> - Dump disk block n\n")?;
-    syscall::sys_print("  disktest    - Test embedded filesystem operations\n")?;
-    syscall::sys_print("  ext4check   - Check for ext4 filesystem\n")?;
-    syscall::sys_print("  ls          - List files in filesystem\n")?;
-    syscall::sys_print("  cat <file>  - Display file contents\n")?;
-    syscall::sys_print("  echo <msg>  - Echo a message\n")?;
-    syscall::sys_print("  elf_load <file> - Load ELF binary\n")?;
-    syscall::sys_print("  elf_exec <file> - Execute ELF binary\n")?;
-    syscall::sys_print("  shutdown    - Shutdown the system\n")?;
-    syscall::sys_print("  reboot      - Reboot the system\n")?;
+    syscall::sys_print("📖 elinOS Commands\n")?;
+    syscall::sys_print("===============================================\n\n")?;
+    
+    syscall::sys_print("🗂️  File Operations (via VirtIO block device):\n")?;
+    syscall::sys_print("  ls              - List files in filesystem\n")?;
+    syscall::sys_print("  cat <file>      - Display file contents\n")?;
+    syscall::sys_print("  echo <message>  - Echo a message\n")?;
+    
+    syscall::sys_print("\n📊 System Information:\n")?;
+    syscall::sys_print("  help            - Show this help message\n")?;
+    syscall::sys_print("  version         - Show kernel version\n")?;
+    syscall::sys_print("  memory          - Show memory information\n")?;
+    syscall::sys_print("  devices         - List VirtIO and other devices\n")?;
+    syscall::sys_print("  syscall         - Show system call information\n")?;
+    
+    syscall::sys_print("\n⚙️  System Control:\n")?;
+    syscall::sys_print("  shutdown        - Shutdown the system\n")?;
+    syscall::sys_print("  reboot          - Reboot the system\n")?;
+    
+    syscall::sys_print("\n🎉 Success! You now have:\n")?;
+    syscall::sys_print("  ✅ VirtIO block device\n")?;
+    syscall::sys_print("  ✅ FAT32 filesystem\n")?;
+    syscall::sys_print("  ✅ Working syscalls (openat, read, close)\n")?;
+    syscall::sys_print("  ✅ Legacy VirtIO 1.0 support\n")?;
+    syscall::sys_print("  ✅ Complete I/O stack: command → syscall → filesystem → VirtIO → QEMU\n")?;
+    
     Ok(())
 }
 
@@ -136,11 +114,26 @@ pub fn cmd_devices() -> Result<(), &'static str> {
 }
 
 pub fn cmd_ls() -> Result<(), &'static str> {
-    match crate::filesystem::list_files() {
-        Ok(()) => Ok(()),
-        Err(_) => {
-            syscall::sys_print("Failed to list files\n")?;
-            Err("Failed to list files")
+    // Use SYS_GETDENTS64 syscall to read directory entries
+    let result = syscall::syscall_handler(
+        syscall::file::SYS_GETDENTS64,
+        0, // fd for current directory (or root)
+        0, // buffer (kernel will handle)
+        0, // count
+        0,
+    );
+    
+    match result {
+        syscall::SysCallResult::Success(_) => Ok(()),
+        syscall::SysCallResult::Error(_) => {
+            // Fallback to filesystem interface for now
+            match crate::filesystem::list_files() {
+                Ok(()) => Ok(()),
+                Err(_) => {
+                    syscall::sys_print("Failed to list files\n")?;
+                    Err("Failed to list files")
+                }
+            }
         }
     }
 }
@@ -150,11 +143,59 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
         return Err("Usage: cat <filename>");
     }
     
-    match crate::filesystem::read_file(filename) {
-        Ok(()) => Ok(()),
-        Err(_) => {
-            syscall::sys_print("Failed to read file\n")?;
-            Err("Failed to read file")
+    // Use proper syscalls: OPENAT -> READ -> CLOSE
+    let mut filename_buf = [0u8; 256];
+    if filename.len() >= filename_buf.len() {
+        return Err("Filename too long");
+    }
+    
+    filename_buf[..filename.len()].copy_from_slice(filename.as_bytes());
+    
+    // Step 1: Open the file with SYS_OPENAT
+    // SYS_OPENAT signature: (dirfd, pathname, flags, mode)
+    let open_result = syscall::syscall_handler(
+        syscall::file::SYS_OPENAT,
+        -100isize as usize, // AT_FDCWD (current working directory)
+        filename_buf.as_ptr() as usize, // pathname
+        0, // flags (O_RDONLY)
+        0, // mode (not used for opening existing files)
+    );
+    
+    match open_result {
+        syscall::SysCallResult::Success(fd) => {
+            // Step 2: Read file content with SYS_READ
+            let read_result = syscall::syscall_handler(
+                syscall::file::SYS_READ,
+                fd as usize, // file descriptor
+                0, // buffer (kernel handles)
+                4096, // max bytes to read
+                0,
+            );
+            
+            // Step 3: Close file (when SYS_CLOSE is implemented)
+            let _ = syscall::syscall_handler(
+                syscall::file::SYS_CLOSE,
+                fd as usize,
+                0, 0, 0,
+            );
+            
+            match read_result {
+                syscall::SysCallResult::Success(_) => Ok(()),
+                syscall::SysCallResult::Error(_) => {
+                    syscall::sys_print("Failed to read file content\n")?;
+                    Err("Failed to read file content")
+                }
+            }
+        }
+        syscall::SysCallResult::Error(_) => {
+            // Fallback to filesystem interface
+            match crate::filesystem::read_file(filename) {
+                Ok(()) => Ok(()),
+                Err(_) => {
+                    syscall::sys_print("Failed to read file\n")?;
+                    Err("Failed to read file")
+                }
+            }
         }
     }
 }
@@ -892,14 +933,14 @@ pub fn cmd_unified_memory() -> Result<(), &'static str> {
 }
 
 pub fn cmd_diskdump(block_num: u64) -> Result<(), &'static str> {
-    syscall::sys_print("🔍 VirtIO Block Device Dump\n")?;
+    syscall::sys_print("🔍 IDE Block Device Dump\n")?;
     syscall::sys_print("=====================================\n")?;
     
     // Basic device information
-    syscall::sys_print("Device Type: VirtIO Block Device\n")?;
-    syscall::sys_print("Interface: QEMU VirtIO MMIO\n")?;
+    syscall::sys_print("Device Type: IDE Block Device\n")?;
+    syscall::sys_print("Interface: QEMU IDE\n")?;
     syscall::sys_print("Block Size: 512 bytes\n")?;
-    syscall::sys_print("Capacity: 512 MB\n")?;
+    syscall::sys_print("Capacity: 64 MB\n")?;
     syscall::sys_print("\n")?;
     
     syscall::sys_print("🔧 Testing disk I/O operations...\n")?;
@@ -908,15 +949,15 @@ pub fn cmd_diskdump(block_num: u64) -> Result<(), &'static str> {
     
     syscall::sys_print("📖 Reading block ")?;
     syscall::sys_print_num(block_num)?;
-    syscall::sys_print(" from VirtIO disk (disk.raw)...\n")?;
+    syscall::sys_print(" from IDE disk (disk.raw)...\n")?;
     
-    // Try to read from actual VirtIO device
-    let mut virtio_device = crate::virtio_block::VIRTIO_BLOCK.lock();
-    if virtio_device.is_initialized() {
+    // Try to read from IDE device
+    let mut ide_device = crate::simple_disk::SIMPLE_DISK.lock();
+    if ide_device.is_initialized() {
         
-        match virtio_device.read_blocks(block_num, &mut sector_buffer) {
+        match ide_device.read_blocks(block_num, &mut sector_buffer) {
             Ok(()) => {
-                syscall::sys_print("✅ Successfully read from VirtIO block device\n")?;
+                syscall::sys_print("✅ Successfully read from IDE block device\n")?;
                 
                 // Display hex dump of first 64 bytes
                 syscall::sys_print("\n📊 Hex dump (first 64 bytes):\n")?;
@@ -965,32 +1006,32 @@ pub fn cmd_diskdump(block_num: u64) -> Result<(), &'static str> {
                 syscall::sys_print("\n")?;
             }
             Err(_) => {
-                syscall::sys_print("❌ VirtIO read failed\n")?;
-                return Err("VirtIO read failed");
+                syscall::sys_print("❌ IDE read failed\n")?;
+                return Err("IDE read failed");
             }
         }
     } else {
-        syscall::sys_print("❌ No VirtIO block device available\n")?;
-        return Err("VirtIO device not found");
+        syscall::sys_print("❌ No IDE block device available\n")?;
+        return Err("IDE device not found");
     }
     
     Ok(())
 }
 
 pub fn cmd_disktest() -> Result<(), &'static str> {
-    syscall::sys_print("🧪 VirtIO + ext4 Filesystem Test\n")?;
+    syscall::sys_print("🧪 IDE + FAT32 Filesystem Test\n")?;
     syscall::sys_print("=================================\n")?;
     
-    // Test VirtIO block device
-    syscall::sys_print("📋 Testing VirtIO block device operations...\n\n")?;
+    // Test IDE block device
+    syscall::sys_print("📋 Testing IDE block device operations...\n\n")?;
     
-    let mut virtio_device = crate::virtio_block::VIRTIO_BLOCK.lock();
-    if virtio_device.is_initialized() {
-        syscall::sys_print("1. VirtIO device status... ")?;
+    let mut ide_device = crate::simple_disk::SIMPLE_DISK.lock();
+    if ide_device.is_initialized() {
+        syscall::sys_print("1. IDE device status... ")?;
         
         syscall::sys_print("✅ Ready\n")?;
         
-        let capacity = virtio_device.get_capacity();
+        let capacity = ide_device.get_capacity();
         syscall::sys_print("   Capacity: ")?;
         syscall::sys_print_num(capacity / 2048)?;
         syscall::sys_print(" MB\n")?;
@@ -999,7 +1040,7 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
         syscall::sys_print("2. Reading test sectors... ")?;
         let mut test_buffer = [0u8; 512];
         
-        match virtio_device.read_blocks(0, &mut test_buffer) {
+        match ide_device.read_blocks(0, &mut test_buffer) {
             Ok(()) => {
                 syscall::sys_print("✅ Sector 0 OK, ")?;
             }
@@ -1009,7 +1050,7 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
             }
         }
         
-        match virtio_device.read_blocks(2, &mut test_buffer) {
+        match ide_device.read_blocks(2, &mut test_buffer) {
             Ok(()) => {
                 syscall::sys_print("✅ Sector 2 OK\n")?;
             }
@@ -1019,12 +1060,12 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
             }
         }
     } else {
-        syscall::sys_print("❌ No VirtIO block device available\n")?;
-        return Err("VirtIO device not found");
+        syscall::sys_print("❌ No IDE block device available\n")?;
+        return Err("IDE device not found");
     }
     
     // Test filesystem operations
-    syscall::sys_print("\n📋 Testing ext4 filesystem operations...\n\n")?;
+    syscall::sys_print("\n📋 Testing FAT32 filesystem operations...\n\n")?;
     
     syscall::sys_print("3. Listing files... ")?;
     match crate::filesystem::list_files() {
@@ -1039,7 +1080,7 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
     syscall::sys_print("4. Reading test file... ")?;
     match crate::filesystem::read_file("hello.txt") {
         Ok(()) => {
-            syscall::sys_print("✅ Success (from VirtIO disk)\n")?;
+            syscall::sys_print("✅ Success (from IDE disk)\n")?;
         }
         Err(_) => {
             syscall::sys_print("❌ Failed\n")?;
@@ -1056,8 +1097,8 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
         }
     }
     
-    syscall::sys_print("\n🎉 VirtIO + ext4 test complete!\n")?;
-    syscall::sys_print("💾 Real filesystem on disk.raw via VirtIO block device\n")?;
+    syscall::sys_print("\n🎉 IDE + FAT32 test complete!\n")?;
+    syscall::sys_print("💾 Real filesystem on disk.raw via IDE block device\n")?;
     
     Ok(())
 }

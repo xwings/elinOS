@@ -13,6 +13,8 @@ kernel.bin
 qemu.log
 disk.qcow2
 disk.raw
+rootfs/
+fs/
 
 # IDE files
 .vscode/

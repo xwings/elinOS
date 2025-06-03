@@ -2,8 +2,6 @@
 #![no_main]
 #![feature(panic_info_message)]
 
-extern crate rlibc;
-
 use core::panic::PanicInfo;
 use core::fmt::Write;
 use core::arch::asm;
@@ -18,7 +16,7 @@ pub mod memory;
 pub mod filesystem;
 pub mod elf;
 pub mod syscall;
-pub mod virtio_block;
+pub mod simple_disk;
 
 use crate::uart::Uart;
 
@@ -27,44 +25,54 @@ pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    // Try to use console first, fallback to UART
+    // Print the panic message
+    println!("KERNEL PANIC: {}", info.message());
+    
     if let Some(location) = info.location() {
-        console_println!("💥 KERNEL PANIC!");
-        console_println!("Location: {}:{}", location.file(), location.line());
-    } else {
-        console_println!("💥 KERNEL PANIC at unknown location!");
+        println!("  at {}:{}:{}", location.file(), location.line(), location.column());
     }
     
-    let message = info.message();
-    console_println!("Message: {}", message);
-    
-    console_println!("System halted.");
-    
-    // Fallback to UART if console fails
-    {
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "💥 KERNEL PANIC!");
-        if let Some(location) = info.location() {
-            let _ = writeln!(uart, "Location: {}:{}", location.file(), location.line());
-        }
-        let _ = writeln!(uart, "Message: {}", message);
-        let _ = writeln!(uart, "System halted.");
-    }
-    
-    // Halt the system
     loop {
         unsafe {
-            core::arch::asm!("wfi");  // Wait for interrupt
+            asm!("wfi");
         }
     }
 }
 
-// Add missing panic_nounwind handler
+// Add missing panic functions for no_std environment
 #[no_mangle]
-extern "C" fn panic_nounwind_fmt() -> ! {
+extern "C" fn rust_begin_unwind(_info: &PanicInfo) -> ! {
+    panic(_info)
+}
+
+#[no_mangle]
+pub extern "C" fn _Unwind_Resume() -> ! {
+    loop {}
+}
+
+#[no_mangle]
+pub extern "C" fn __rust_start_panic(_payload: usize) -> u32 {
+    0
+}
+
+// Add the missing panic_nounwind_fmt function
+#[no_mangle]
+extern "C" fn rust_panic_nounwind_fmt() -> ! {
+    println!("KERNEL PANIC: panic_nounwind_fmt called");
     loop {
         unsafe {
-            core::arch::asm!("wfi");
+            asm!("wfi");
+        }
+    }
+}
+
+// Add the specific function that the linker is looking for
+#[no_mangle]
+pub extern "C" fn _ZN4core9panicking19panic_nounwind_fmt17h53f76bdb9f05922fE() -> ! {
+    println!("KERNEL PANIC: core::panicking::panic_nounwind_fmt");
+    loop {
+        unsafe {
+            asm!("wfi");
         }
     }
 }
@@ -110,26 +118,132 @@ pub extern "C" fn main() -> ! {
     }
     console_println!("✅ Memory management ready");
 
-    // Initialize VirtIO block devices
-    console_println!("🔌 Initializing VirtIO block devices...");
+    // Initialize VirtIO disk interface
+    console_println!("💾 Initializing VirtIO disk...");
+    if let Err(e) = simple_disk::init_simple_disk() {
+        console_println!("❌ VirtIO disk initialization failed: {}", e);
+    } else {
+        console_println!("✅ VirtIO disk ready");
+    }
+
+    // SKIP filesystem initialization for now to isolate the hang
+    console_println!("⚠️ Skipping filesystem initialization to debug hang");
+    
+    // But let's try a minimal test to see where exactly it hangs
+    console_println!("🧪 Testing minimal filesystem operations...");
+    
+    // Test 1: Try to read boot sector (we know this works)
+    console_println!("🔍 Test 1: Reading boot sector...");
     {
-        let mut virtio_mgr = virtio_block::VIRTIO_MANAGER.lock();
-        if let Err(e) = virtio_mgr.init() {
-            console_println!("❌ VirtIO initialization failed: {}", e);
-        } else {
-            console_println!("✅ VirtIO devices ready");
+        let mut disk_device = simple_disk::SIMPLE_DISK.lock();
+        let mut buffer = [0u8; 512];
+        match disk_device.read_blocks(0, &mut buffer) {
+            Ok(()) => {
+                console_println!("✅ Boot sector read successful");
+            }
+            Err(e) => {
+                console_println!("❌ Boot sector read failed: {:?}", e);
+            }
         }
     }
-
-    // Initialize filesystem
-    console_println!("🗂️  Initializing filesystem...");
-    if let Err(e) = filesystem::init_filesystem() {
-        console_println!("❌ Filesystem initialization failed: {}", e);
-        panic!("💥 CRITICAL: Filesystem initialization failed - {}", e);
-    } else {
-        console_println!("✅ Filesystem ready");
+    
+    // Test 2: Try to read root directory sector (this might hang)
+    console_println!("🔍 Test 2: Reading root directory sector 2080...");
+    {
+        let mut disk_device = simple_disk::SIMPLE_DISK.lock();
+        let mut buffer = [0u8; 512];
+        match disk_device.read_blocks(2080, &mut buffer) {
+            Ok(()) => {
+                console_println!("✅ Root directory sector read successful");
+                console_println!("🔍 First 16 bytes: {:02x?}", &buffer[0..16]);
+                
+                // Let's check if there's any non-zero data in this sector
+                let mut has_data = false;
+                for i in 0..512 {
+                    if buffer[i] != 0 {
+                        has_data = true;
+                        break;
+                    }
+                }
+                console_println!("🔍 Sector 2080 has data: {}", has_data);
+                
+                // Let's also check the boot sector to understand the FAT32 layout
+                match disk_device.read_blocks(0, &mut buffer) {
+                    Ok(()) => {
+                        console_println!("📊 Boot sector analysis:");
+                        console_println!("  Signature: 0x{:02x}{:02x}", buffer[511], buffer[510]);
+                        
+                        // Parse key FAT32 fields
+                        let sectors_per_cluster = buffer[13];
+                        let reserved_sectors = u16::from_le_bytes([buffer[14], buffer[15]]);
+                        let num_fats = buffer[16];
+                        let sectors_per_fat = u32::from_le_bytes([buffer[36], buffer[37], buffer[38], buffer[39]]);
+                        let root_cluster = u32::from_le_bytes([buffer[44], buffer[45], buffer[46], buffer[47]]);
+                        
+                        console_println!("  Sectors per cluster: {}", sectors_per_cluster);
+                        console_println!("  Reserved sectors: {}", reserved_sectors);
+                        console_println!("  Number of FATs: {}", num_fats);
+                        console_println!("  Sectors per FAT: {}", sectors_per_fat);
+                        console_println!("  Root cluster: {}", root_cluster);
+                        
+                        // Calculate the actual root directory sector
+                        let fat_start = reserved_sectors as u32;
+                        let data_start = fat_start + (num_fats as u32 * sectors_per_fat);
+                        let actual_root_sector = data_start + ((root_cluster - 2) * sectors_per_cluster as u32);
+                        
+                        console_println!("  FAT starts at sector: {}", fat_start);
+                        console_println!("  Data starts at sector: {}", data_start);
+                        console_println!("  Calculated root sector: {} (was using {})", actual_root_sector, 2080);
+                        
+                        // Try reading the calculated root directory
+                        if actual_root_sector != 2080 {
+                            match disk_device.read_blocks(actual_root_sector as u64, &mut buffer) {
+                                Ok(()) => {
+                                    console_println!("✅ Actual root directory sector read successful");
+                                    console_println!("🔍 First 32 bytes: {:02x?}", &buffer[0..32]);
+                                    
+                                    // Check for directory entries
+                                    if buffer[0] != 0 && buffer[0] != 0xE5 {
+                                        console_println!("🎉 Found potential directory entry!");
+                                        let name_bytes = &buffer[0..8];
+                                        let ext_bytes = &buffer[8..11];
+                                        console_println!("  Name: {:?}", name_bytes);
+                                        console_println!("  Ext: {:?}", ext_bytes);
+                                        console_println!("  Attributes: 0x{:02x}", buffer[11]);
+                                    }
+                                }
+                                Err(e) => {
+                                    console_println!("❌ Failed to read calculated root sector: {:?}", e);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        console_println!("❌ Failed to read boot sector: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                console_println!("❌ Root directory sector read failed: {:?}", e);
+            }
+        }
     }
-
+    
+    console_println!("✅ Minimal filesystem tests complete");
+    
+    // Now let's try a minimal filesystem initialization that just does the essentials
+    console_println!("🔍 Testing minimal filesystem initialization...");
+    
+    // Try to do filesystem init with minimal logging to avoid potential console buffer issues
+    match filesystem::init_filesystem() {
+        Ok(()) => {
+            console_println!("✅ Filesystem initialization successful!");
+        }
+        Err(e) => {
+            console_println!("❌ Filesystem initialization failed: {:?}", e);
+        }
+    }
+    
     console_println!("🎉 elinOS initialization complete!");
     console_println!();
     
