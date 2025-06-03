@@ -3,7 +3,8 @@
 
 use crate::sbi;
 use core::fmt::Write;
-use crate::UART;
+use crate::{UART, console_println};
+use heapless::Vec;
 
 // Linker-provided symbols (defined in linker script)
 extern "C" {
@@ -20,7 +21,7 @@ extern "C" {
 }
 
 /// Memory layout information calculated from linker symbols
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct MemoryLayout {
     pub kernel_start: usize,
     pub kernel_end: usize,
@@ -40,91 +41,92 @@ pub struct MemoryLayout {
     // Safety margins
     pub kernel_guard_size: usize,
     pub stack_guard_size: usize,
+    
+    // Memory regions
+    pub regions: Vec<crate::memory::MemoryRegion, 8>,
+    pub heap_size: usize,
+    pub available_memory: usize,
 }
 
 impl MemoryLayout {
     /// Calculate memory layout dynamically from linker symbols
     pub fn detect() -> Self {
-        // Safe fallback values in case linker symbols are invalid
-        let mut kernel_start = 0x80200000;  // Standard RISC-V kernel start
-        let mut kernel_end = 0x80400000;    // Conservative 2MB kernel
-        let mut kernel_size = 2 * 1024 * 1024;
+        console_println!("🔍 Detecting memory layout via OpenSBI...");
         
-        let mut stack_start = 0x80400000;
-        let mut stack_end = 0x80500000;
-        let mut stack_size = 1024 * 1024;
+        // Calculate kernel boundaries
+        let kernel_start = unsafe { &__text_start as *const _ as usize };
+        let kernel_end = unsafe { &__bss_end as *const _ as usize };
+        let kernel_size = kernel_end - kernel_start;
         
-        // Try to get real linker symbols, but use fallbacks if they're invalid
-        unsafe {
-            let text_start = &__text_start as *const u8 as usize;
-            let bss_end = &__bss_end as *const u8 as usize;
-            let stack_bottom = &__stack_bottom as *const u8 as usize;
-            let stack_top = &__stack_top as *const u8 as usize;
-            
-            // Validate linker symbols are reasonable
-            if text_start >= 0x80000000 && text_start < 0x90000000 && 
-               bss_end > text_start && bss_end < 0x90000000 {
-                kernel_start = text_start;
-                kernel_end = bss_end;
-                kernel_size = kernel_end - kernel_start;
-            }
-            
-            if stack_bottom >= 0x80000000 && stack_bottom < 0x90000000 &&
-               stack_top > stack_bottom && stack_top < 0x90000000 {
-                stack_start = stack_bottom;
-                stack_end = stack_top;
-                stack_size = stack_end - stack_start;
-            }
-        }
+        let stack_start = unsafe { &__stack_bottom as *const _ as usize };
+        let stack_end = unsafe { &__stack_top as *const _ as usize };
+        let stack_size = stack_end - stack_start;
         
-        // Calculate safety margins (16KB each for safety)
-        let kernel_guard_size = 16 * 1024;  // 16KB guard after kernel
-        let stack_guard_size = 16 * 1024;   // 16KB guard after stack
-        
-        // Total kernel footprint including guards
-        let total_kernel_footprint = kernel_size + stack_size + kernel_guard_size + stack_guard_size;
-        
-        // Align to page boundaries (4KB)
-        let aligned_footprint = (total_kernel_footprint + 4095) & !4095;
-        
-        // Calculate heap layout based on available memory
-        let memory_regions = sbi::get_memory_regions();
-        let mut heap_start = 0x80400000;  // Fallback heap start
-        let mut total_available = 120 * 1024 * 1024;  // Fallback 120MB
-        
-        // Try to get real memory info
-        if memory_regions.count > 0 {
-            for i in 0..memory_regions.count {
-                let region = &memory_regions.regions[i];
-                if (region.flags & 1) != 0 && region.size > aligned_footprint { // RAM region
-                    heap_start = region.start + aligned_footprint;
-                    total_available = region.size - aligned_footprint;
-                    break;
-                }
-            }
-        }
-        
-        // Distribute memory intelligently based on available space
-        let (buddy_size, small_size) = Self::calculate_heap_distribution(total_available);
-        
-        let buddy_heap_start = heap_start;
-        let small_heap_start = buddy_heap_start + buddy_size;
-        
-        MemoryLayout {
+        let mut layout = MemoryLayout {
             kernel_start,
             kernel_end,
             kernel_size,
             stack_start,
-            stack_end, 
+            stack_end,
             stack_size,
-            total_kernel_footprint: aligned_footprint,
-            heap_start,
-            buddy_heap_start,
-            buddy_heap_size: buddy_size,
-            small_heap_start,
-            small_heap_size: small_size,
-            kernel_guard_size,
-            stack_guard_size,
+            total_kernel_footprint: kernel_size + stack_size,
+            heap_start: 0,
+            buddy_heap_start: 0,
+            buddy_heap_size: 0,
+            small_heap_start: 0,
+            small_heap_size: 0,
+            kernel_guard_size: 4096,
+            stack_guard_size: 4096,
+            regions: Vec::new(),
+            heap_size: 0,
+            available_memory: 0,
+        };
+        
+        // Use OpenSBI to get memory information
+        let (base, size) = sbi::get_memory_info();
+        
+        if size > 0 {
+            layout.add_region(base, size, true, crate::memory::MemoryZone::Normal);
+            console_println!("✅ Detected {} MB RAM at 0x{:x}", size / (1024 * 1024), base);
+        } else {
+            // Fallback to default QEMU layout
+            layout.add_region(0x80000000, 128 * 1024 * 1024, true, crate::memory::MemoryZone::Normal);
+            console_println!("⚠️  Using fallback memory layout: 128MB at 0x80000000");
+        }
+        
+        // Add standard MMIO regions
+        layout.add_region(0x10000000, 0x1000, false, crate::memory::MemoryZone::DMA); // UART
+        layout.add_region(0x02000000, 0x10000, false, crate::memory::MemoryZone::DMA); // CLINT
+        layout.add_region(0x0c000000, 0x400000, false, crate::memory::MemoryZone::DMA); // PLIC
+        
+        // Set up heap areas after kernel
+        let heap_start = kernel_end + layout.kernel_guard_size;
+        layout.heap_start = heap_start;
+        layout.buddy_heap_start = heap_start;
+        layout.buddy_heap_size = 256 * 1024; // 256KB for buddy allocator
+        layout.small_heap_start = layout.buddy_heap_start + layout.buddy_heap_size;
+        layout.small_heap_size = 64 * 1024; // 64KB for small allocator
+        layout.heap_size = layout.buddy_heap_size + layout.small_heap_size;
+        
+        layout
+    }
+    
+    /// Add a memory region to the layout
+    pub fn add_region(&mut self, start: usize, size: usize, is_ram: bool, zone_type: crate::memory::MemoryZone) {
+        let region = crate::memory::MemoryRegion {
+            start,
+            size,
+            is_ram,
+            zone_type,
+        };
+        
+        if self.regions.push(region).is_err() {
+            // Handle error - regions vector is full
+            return;
+        }
+        
+        if is_ram {
+            self.available_memory += size;
         }
     }
     

@@ -1,84 +1,62 @@
 #![no_std]
 #![no_main]
+#![feature(panic_info_message)]
+
+extern crate rlibc;
 
 use core::panic::PanicInfo;
 use core::fmt::Write;
 use core::arch::asm;
 use spin::Mutex;
 
-mod memory;
-mod sbi;
-mod filesystem;
-mod syscall;
-mod commands;
-mod elf;
+// Module declarations
+pub mod console;
+pub mod uart;
+pub mod commands;
+pub mod sbi;
+pub mod memory;
+pub mod filesystem;
+pub mod elf;
+pub mod syscall;
+pub mod virtio_block;
 
-// Memory layout constants (fallback values)
-const UART0: usize = 0x10000000;
-const KERNEL_START: usize = 0x80200000;
+use crate::uart::Uart;
 
-struct Uart {
-    base_addr: usize,
-}
-
-impl Uart {
-    const fn new() -> Self {
-        Uart { base_addr: UART0 }
-    }
-
-    fn init(&self) {
-        unsafe {
-            let ptr = self.base_addr as *mut u8;
-            // Disable interrupts
-            ptr.add(1).write_volatile(0x00);
-            // Enable FIFO, clear them, with 14-byte threshold
-            ptr.add(2).write_volatile(0xC7);
-            // Enable interrupts
-            ptr.add(1).write_volatile(0x01);
-            // Set baud rate divisor
-            ptr.add(3).write_volatile(0x80);
-            ptr.add(0).write_volatile(0x01);
-            ptr.add(1).write_volatile(0x00);
-            ptr.add(3).write_volatile(0x03);
-        }
-    }
-
-    fn putchar(&self, c: u8) {
-        unsafe {
-            let ptr = self.base_addr as *mut u8;
-            // Wait until UART is ready to receive a byte
-            while ptr.add(5).read_volatile() & 0x20 == 0 {}
-            ptr.write_volatile(c);
-        }
-    }
-
-    fn getchar(&self) -> Option<u8> {
-        unsafe {
-            let ptr = self.base_addr as *mut u8;
-            let status = ptr.add(5).read_volatile();
-            if status & 1 != 0 {
-                Some(ptr.read_volatile())
-            } else {
-                None
-            }
-        }
-    }
-}
-
-impl Write for Uart {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for c in s.bytes() {
-            self.putchar(c);
-        }
-        Ok(())
-    }
-}
-
+// Global UART instance
 pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+fn panic(info: &PanicInfo) -> ! {
+    // Try to use console first, fallback to UART
+    if let Some(location) = info.location() {
+        console_println!("💥 KERNEL PANIC!");
+        console_println!("Location: {}:{}", location.file(), location.line());
+    } else {
+        console_println!("💥 KERNEL PANIC at unknown location!");
+    }
+    
+    let message = info.message();
+    console_println!("Message: {}", message);
+    
+    console_println!("System halted.");
+    
+    // Fallback to UART if console fails
+    {
+        let mut uart = UART.lock();
+        let _ = writeln!(uart, "💥 KERNEL PANIC!");
+        if let Some(location) = info.location() {
+            let _ = writeln!(uart, "Location: {}:{}", location.file(), location.line());
+        }
+        let _ = writeln!(uart, "Message: {}", message);
+        let _ = writeln!(uart, "System halted.");
+    }
+    
+    // Halt the system
+    loop {
+        unsafe {
+            core::arch::asm!("wfi");  // Wait for interrupt
+        }
+    }
 }
 
 #[link_section = ".text.boot"]
@@ -97,98 +75,140 @@ pub extern "C" fn _start() -> ! {
     }
 }
 
-fn process_command(command: &str) {
-    // Delegate all command processing to the commands module
-    commands::process_command(command);
-}
-
 #[no_mangle]
 pub extern "C" fn main() -> ! {
-    // Initialize UART
-    let mut uart = UART.lock();
-    uart.init();
+    // Initialize UART first (for debugging output)
+    {
+        let mut uart = UART.lock();
+        uart.init();
+        let _ = writeln!(uart, "\n🚀 elinOS Starting...");
+    }
+
+    // Initialize console system
+    if let Err(e) = console::init_console() {
+        panic!("Failed to initialize console: {}", e);
+    }
     
-    // Send test message
-    let _ = write!(uart, "\n\n");
-    drop(uart);
+    // Now use console macros for output
+    console_println!("✅ Console system initialized");
     
     // Initialize memory management
+    console_println!("🧠 Initializing memory management...");
     {
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "🔧 Initializing memory management...");
-        drop(uart);
-        
-        let mut mem_mgr = memory::MEMORY_MANAGER.lock();
-        mem_mgr.init();
-        
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "✅ Memory management ready!");
+        let mut memory_mgr = memory::MEMORY_MANAGER.lock();
+        memory_mgr.init();
     }
-    
+    console_println!("✅ Memory management ready");
+
+    // Initialize VirtIO block devices
+    console_println!("🔌 Initializing VirtIO block devices...");
+    {
+        let mut virtio_mgr = virtio_block::VIRTIO_MANAGER.lock();
+        if let Err(e) = virtio_mgr.init() {
+            console_println!("❌ VirtIO initialization failed: {}", e);
+        } else {
+            console_println!("✅ VirtIO devices ready");
+        }
+    }
+
     // Initialize filesystem
-    match filesystem::init_filesystem() {
-        Ok(()) => {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "🎉 All systems ready!");
-        }
-        Err(e) => {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "⚠️  Warning: Filesystem error: {}", e);
-            let _ = writeln!(uart, "   Continuing with limited functionality...");
-        }
+    console_println!("🗂️  Initializing filesystem...");
+    if let Err(e) = filesystem::init_filesystem() {
+        console_println!("❌ Filesystem initialization failed: {}", e);
+        panic!("💥 CRITICAL: Filesystem initialization failed - {}", e);
+    } else {
+        console_println!("✅ Filesystem ready");
     }
+
+    console_println!("🎉 elinOS initialization complete!");
+    console_println!();
     
-    {
-        let mut uart = UART.lock();
-        let _ = write!(uart, "\n\nWelcome to elinOS\n");
-        let _ = write!(uart, "Type 'help' for commands or 'syscall' for system call info.\n\n");
-        drop(uart);
-    }
-    
-    // Initialize command buffer
-    let mut buffer = [0u8; 256];
+    // Show welcome message and enter shell
+    show_welcome();
+    shell_loop();
+}
+
+// === WELCOME MESSAGE ===
+fn show_welcome() {
+    console_println!("=====================================");
+    console_println!("       🦀 Welcome to elinOS! 🦀      ");
+    console_println!("=====================================");
+    console_println!("A RISC-V64 Educational Operating System");
+    console_println!("Written in Rust for learning purposes");
+    console_println!();
+    console_println!("Type 'help' for available commands");
+    console_println!("Type 'version' for system information");
+    console_println!("Type 'memory' for memory layout");
+    console_println!("Type 'shutdown' to exit");
+    console_println!();
+}
+
+// === INTERACTIVE SHELL ===
+fn shell_loop() -> ! {
+    let mut command_buffer = [0u8; 256];
+    let mut buffer_pos = 0;
     
     loop {
-        // Simple shell loop
-        let mut uart = UART.lock();
-        let _ = write!(uart, "elinOS> ");
-        drop(uart);
+        // Show prompt
+        console_print!("elinOS> ");
         
-        let mut i = 0;
-        
-        while i < buffer.len() {
-            let mut uart = UART.lock();
-            if let Some(c) = uart.getchar() {
-                if c == b'\r' || c == b'\n' {
-                    uart.putchar(b'\n');
-                    drop(uart);
+        // Read command character by character
+        buffer_pos = 0;
+        loop {
+            let ch = read_char();
+            
+            match ch {
+                b'\r' | b'\n' => {
+                    console_println!();
                     break;
                 }
-                if c == b'\x08' || c == b'\x7f' { // Backspace
-                    if i > 0 {
-                        i -= 1;
-                        uart.putchar(b'\x08');
-                        uart.putchar(b' ');
-                        uart.putchar(b'\x08');
+                b'\x08' | b'\x7f' => {  // Backspace or DEL
+                    if buffer_pos > 0 {
+                        buffer_pos -= 1;
+                        console_print!("\x08 \x08");  // Move back, print space, move back
                     }
-                    drop(uart);
-                    continue;
                 }
-                uart.putchar(c);
-                buffer[i] = c;
-                i += 1;
-                drop(uart);
-            } else {
-                drop(uart);
+                b' '..=b'~' => {  // Printable ASCII
+                    if buffer_pos < command_buffer.len() - 1 {
+                        command_buffer[buffer_pos] = ch;
+                        buffer_pos += 1;
+                        console_print!("{}", ch as char);
+                    }
+                }
+                _ => {
+                    // Ignore other characters
+                }
             }
         }
         
-        // Process the command
-        if i > 0 {
-            let command = core::str::from_utf8(&buffer[..i]).unwrap_or("");
-            process_command(command);
+        // Null-terminate the command
+        command_buffer[buffer_pos] = 0;
+        
+        // Convert to string and execute
+        if buffer_pos > 0 {
+            let command_str = core::str::from_utf8(&command_buffer[..buffer_pos])
+                .unwrap_or("invalid");
+            
+            execute_command(command_str);
         }
+        
+        console_println!();
     }
+}
+
+fn read_char() -> u8 {
+    let uart = UART.lock();
+    uart.getc()
+}
+
+fn execute_command(command: &str) {
+    let trimmed = command.trim();
+    
+    if trimmed.is_empty() {
+        return;
+    }
+    
+    commands::process_command(trimmed);
 }
 
 #[macro_export]

@@ -103,7 +103,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  devices     - List available devices\n")?;
     syscall::sys_print("  diskdump    - Dump disk block 0 (bootblock)\n")?;
     syscall::sys_print("  diskdump <n> - Dump disk block n\n")?;
-    syscall::sys_print("  disktest    - Test VirtIO block device I/O\n")?;
+    syscall::sys_print("  disktest    - Test embedded filesystem operations\n")?;
     syscall::sys_print("  ext4check   - Check for ext4 filesystem\n")?;
     syscall::sys_print("  ls          - List files in filesystem\n")?;
     syscall::sys_print("  cat <file>  - Display file contents\n")?;
@@ -942,87 +942,150 @@ pub fn cmd_unified_memory() -> Result<(), &'static str> {
 }
 
 pub fn cmd_diskdump(block_num: u64) -> Result<(), &'static str> {
-    syscall::sys_print("🔍 Filesystem Block Dump\n")?;
-    syscall::sys_print("========================\n\n")?;
+    syscall::sys_print("🔍 VirtIO Block Device Dump\n")?;
+    syscall::sys_print("=====================================\n")?;
+    
+    // Basic device information
+    syscall::sys_print("Device Type: VirtIO Block Device\n")?;
+    syscall::sys_print("Interface: QEMU VirtIO MMIO\n")?;
+    syscall::sys_print("Block Size: 512 bytes\n")?;
+    syscall::sys_print("Capacity: 512 MB\n")?;
+    syscall::sys_print("\n")?;
+    
+    syscall::sys_print("🔧 Testing disk I/O operations...\n")?;
+    
+    let mut sector_buffer = [0u8; 512];
     
     syscall::sys_print("📖 Reading block ")?;
+    syscall::sys_print_num(block_num)?;
+    syscall::sys_print(" from VirtIO disk (disk.raw)...\n")?;
     
-    // Convert block number to string for display
-    let mut num_str = [0u8; 20];
-    let mut temp = block_num;
-    let mut pos = 0;
-    if temp == 0 {
-        num_str[0] = b'0';
-        pos = 1;
+    // Try to read from actual VirtIO device
+    let mut virtio_device = crate::virtio_block::VIRTIO_BLOCK.lock();
+    if virtio_device.is_initialized() {
+        
+        match virtio_device.read_blocks(block_num, &mut sector_buffer) {
+            Ok(()) => {
+                syscall::sys_print("✅ Successfully read from VirtIO block device\n")?;
+                
+                // Display hex dump of first 64 bytes
+                syscall::sys_print("\n📊 Hex dump (first 64 bytes):\n")?;
+                syscall::sys_print("Offset  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F\n")?;
+                syscall::sys_print("------  ---- ---- ---- ----  ---- ---- ---- ----\n")?;
+                
+                for row in 0..4 {
+                    let offset = row * 16;
+                    
+                    // Print offset
+                    syscall::sys_print_hex(offset as u32, 4)?;
+                    syscall::sys_print("   ")?;
+                    
+                    // Print hex bytes
+                    for col in 0..16 {
+                        if col == 8 {
+                            syscall::sys_print(" ")?;
+                        }
+                        let byte_idx = offset + col;
+                        if byte_idx < sector_buffer.len() {
+                            syscall::sys_print_hex(sector_buffer[byte_idx] as u32, 2)?;
+                            syscall::sys_print(" ")?;
+                        } else {
+                            syscall::sys_print("   ")?;
+                        }
+                    }
+                    
+                    syscall::sys_print("  ")?;
+                    
+                    // Print ASCII representation
+                    for col in 0..16 {
+                        let byte_idx = offset + col;
+                        if byte_idx < sector_buffer.len() {
+                            let byte = sector_buffer[byte_idx];
+                            if byte >= 32 && byte <= 126 {
+                                syscall::sys_print_char(byte as char)?;
+                            } else {
+                                syscall::sys_print(".")?;
+                            }
+                        }
+                    }
+                    
+                    syscall::sys_print("\n")?;
+                }
+                
+                syscall::sys_print("\n")?;
+            }
+            Err(e) => {
+                syscall::sys_print("❌ VirtIO read failed: ")?;
+                syscall::sys_print(e)?;
+                syscall::sys_print("\n")?;
+                return Err(e);
+            }
+        }
     } else {
-        while temp > 0 {
-            num_str[19-pos] = b'0' + (temp % 10) as u8;
-            temp /= 10;
-            pos += 1;
-        }
-    }
-    let block_str = core::str::from_utf8(&num_str[20-pos..]).unwrap_or("?");
-    syscall::sys_print(block_str)?;
-    syscall::sys_print(" from embedded filesystem...\n")?;
-    
-    // Use filesystem to read block
-    let fs = crate::filesystem::FILESYSTEM.lock();
-    if !fs.is_initialized() {
-        syscall::sys_print("❌ Filesystem not initialized\n")?;
-        return Err("Filesystem not initialized");
-    }
-    
-    // For demonstration, show what kind of data would be in this block
-    match block_num {
-        0 => {
-            syscall::sys_print("✅ Block 0: Contains ext4 superblock at offset 1024\n")?;
-            syscall::sys_print("   📊 Magic: 0xef53, Block size: 4096 bytes\n")?;
-            syscall::sys_print("   📁 Filesystem: elinOS embedded ext4\n")?;
-        },
-        1..=10 => {
-            syscall::sys_print("✅ Block ")?;
-            syscall::sys_print(block_str)?;
-            syscall::sys_print(": Filesystem metadata (group descriptors, bitmaps)\n")?;
-        },
-        _ => {
-            syscall::sys_print("✅ Block ")?;
-            syscall::sys_print(block_str)?;
-            syscall::sys_print(": Data block (file content area)\n")?;
-        }
+        syscall::sys_print("❌ No VirtIO block device available\n")?;
+        return Err("VirtIO device not found");
     }
     
     Ok(())
 }
 
 pub fn cmd_disktest() -> Result<(), &'static str> {
-    syscall::sys_print("🧪 Filesystem Test\n")?;
-    syscall::sys_print("==================\n\n")?;
+    syscall::sys_print("🧪 VirtIO + ext4 Filesystem Test\n")?;
+    syscall::sys_print("=================================\n")?;
     
-    // Test filesystem operations instead of raw disk I/O
-    let fs = crate::filesystem::FILESYSTEM.lock();
+    // Test VirtIO block device
+    syscall::sys_print("📋 Testing VirtIO block device operations...\n\n")?;
     
-    syscall::sys_print("📋 Testing filesystem operations...\n\n")?;
-    
-    // Test 1: Check initialization
-    syscall::sys_print("1. Filesystem status... ")?;
-    if fs.is_initialized() {
-        syscall::sys_print("✅ Initialized\n")?;
+    let mut virtio_device = crate::virtio_block::VIRTIO_BLOCK.lock();
+    if virtio_device.is_initialized() {
+        syscall::sys_print("1. VirtIO device status... ")?;
+        
+        syscall::sys_print("✅ Ready\n")?;
+        
+        let capacity = virtio_device.get_capacity();
+        syscall::sys_print("   Capacity: ")?;
+        syscall::sys_print_num(capacity / 2048)?;
+        syscall::sys_print(" MB\n")?;
+        
+        // Test reading different sectors
+        syscall::sys_print("2. Reading test sectors... ")?;
+        let mut test_buffer = [0u8; 512];
+        
+        match virtio_device.read_blocks(0, &mut test_buffer) {
+            Ok(()) => {
+                syscall::sys_print("✅ Sector 0 OK, ")?;
+            }
+            Err(e) => {
+                syscall::sys_print("❌ Sector 0 failed: ")?;
+                syscall::sys_print(e)?;
+                syscall::sys_print("\n")?;
+                return Err("Sector read failed");
+            }
+        }
+        
+        match virtio_device.read_blocks(2, &mut test_buffer) {
+            Ok(()) => {
+                syscall::sys_print("✅ Sector 2 OK\n")?;
+            }
+            Err(e) => {
+                syscall::sys_print("❌ Sector 2 failed: ")?;
+                syscall::sys_print(e)?;
+                syscall::sys_print("\n")?;
+                return Err("Sector read failed");
+            }
+        }
     } else {
-        syscall::sys_print("❌ Not initialized\n")?;
-        return Err("Filesystem not ready");
+        syscall::sys_print("❌ No VirtIO block device available\n")?;
+        return Err("VirtIO device not found");
     }
     
-    // Test 2: List files
-    syscall::sys_print("2. File listing... ")?;
-    match fs.list_files() {
-        Ok(files) => {
-            syscall::sys_print("✅ Success (")?;
-            let count_str = if files.len() == 0 { "0" } 
-                          else if files.len() == 1 { "1" }
-                          else if files.len() == 2 { "2" }
-                          else { "3+" };
-            syscall::sys_print(count_str)?;
-            syscall::sys_print(" files)\n")?;
+    // Test filesystem operations
+    syscall::sys_print("\n📋 Testing ext4 filesystem operations...\n\n")?;
+    
+    syscall::sys_print("3. Listing files... ")?;
+    match crate::filesystem::list_files() {
+        Ok(()) => {
+            syscall::sys_print("✅ File listing complete\n")?;
         }
         Err(e) => {
             syscall::sys_print("❌ Failed: ")?;
@@ -1031,11 +1094,10 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
         }
     }
     
-    // Test 3: Read a test file
-    syscall::sys_print("3. File reading... ")?;
-    match fs.read_file("hello.txt") {
-        Ok(_content) => {
-            syscall::sys_print("✅ Success\n")?;
+    syscall::sys_print("4. Reading test file... ")?;
+    match crate::filesystem::read_file("hello.txt") {
+        Ok(()) => {
+            syscall::sys_print("✅ Success (from VirtIO disk)\n")?;
         }
         Err(e) => {
             syscall::sys_print("❌ Failed: ")?;
@@ -1044,7 +1106,21 @@ pub fn cmd_disktest() -> Result<(), &'static str> {
         }
     }
     
-    syscall::sys_print("\n🎉 Filesystem test complete!\n")?;
+    syscall::sys_print("5. Filesystem info... ")?;
+    match crate::filesystem::check_filesystem() {
+        Ok(()) => {
+            syscall::sys_print("✅ Complete\n")?;
+        }
+        Err(e) => {
+            syscall::sys_print("❌ Failed: ")?;
+            syscall::sys_print(e)?;
+            syscall::sys_print("\n")?;
+        }
+    }
+    
+    syscall::sys_print("\n🎉 VirtIO + ext4 test complete!\n")?;
+    syscall::sys_print("💾 Real filesystem on disk.raw via VirtIO block device\n")?;
+    
     Ok(())
 }
 

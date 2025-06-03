@@ -1,17 +1,14 @@
 // Memory Management Module for elinOS
-// Implements Maestro-inspired design with MIT-licensed buddy allocator
+// Simple heap-based memory management
 
-pub mod buddy;
-pub mod small_alloc;
-pub mod vmm;
 pub mod layout;
 
 use core::fmt::Write;
 use core::option::Option::{self, Some, None};
 use core::writeln;
 use spin::Mutex;
-use crate::UART;
-use crate::sbi;
+use crate::{UART, sbi, console_println};
+use linked_list_allocator::LockedHeap;
 
 // === MEMORY MANAGER ===
 
@@ -32,20 +29,28 @@ pub enum MemoryZone {
     High,       // High memory zone (if applicable)
 }
 
-// Advanced Memory Manager with hybrid allocation engine
+// Simple heap allocator for kernel
+#[global_allocator]
+static ALLOCATOR: LockedHeap = LockedHeap::empty();
+
+// Heap configuration 
+const HEAP_SIZE: usize = 64 * 1024; // 64KB heap
+static mut HEAP_SPACE: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
+
+// Simplified Memory Manager (heap-only)
 pub struct MemoryManager {
     // Memory region information
     regions: [MemoryRegion; 8],
     region_count: usize,
     
-    // Advanced allocator components
-    buddy_allocator: Option<buddy::BuddyAllocator>,
-    small_allocator: Option<small_alloc::SmallAllocator>,
-    
     // Memory statistics
     allocated_bytes: usize,
-    free_bytes: usize,
     allocation_count: usize,
+    
+    // Heap management
+    heap_start: usize,
+    heap_size: usize,
+    heap_used: usize,
 }
 
 impl MemoryManager {
@@ -60,52 +65,46 @@ impl MemoryManager {
             }; 8],
             region_count: 0,
             
-            // Advanced allocators
-            buddy_allocator: None,
-            small_allocator: None,
-            
             // Statistics
             allocated_bytes: 0,
-            free_bytes: 0,
             allocation_count: 0,
+            
+            // Heap
+            heap_start: 0,
+            heap_size: 0,
+            heap_used: 0,
         }
     }
 
-    /// Initialize memory regions and all allocators
+    /// Initialize memory regions and heap allocator
     pub fn init(&mut self) {
-        {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "🚀 Initializing elinOS Memory Management System...");
+        self.detect_memory_layout();
+        
+        console_println!("🧠 Memory Manager Initialization (heap-only)");
+        console_println!("Memory layout detection complete");
+        
+        if self.region_count > 0 {
+            let total_ram = self.regions[..self.region_count].iter()
+                .filter(|r| r.is_ram)
+                .map(|r| r.size)
+                .sum::<usize>();
+            
+            console_println!("Total RAM detected: {} MB", total_ram / (1024 * 1024));
+        } else {
+            console_println!("⚠️  No memory regions detected, using defaults");
         }
         
-        // Initialize memory layout detection
-        self.init_memory_regions();
-        
-        // Initialize all allocators  
-        self.init_buddy_allocator();
-        self.init_small_allocator();
-        
-        {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "✅ Memory management system ready!");
-            let _ = writeln!(uart, "   🚀 Hybrid Allocation Engine: Small → Buddy");
-        }
+        // Initialize heap allocator
+        self.init_heap();
+        console_println!("✅ Heap allocator ready");
+        console_println!("🎉 Memory manager ready!");
     }
     
-    /// Initialize memory regions using dynamic layout
-    fn init_memory_regions(&mut self) {
-        {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "🔍 Detecting memory layout...");
-        }
+    /// Detect memory layout using SBI
+    fn detect_memory_layout(&mut self) {
+        console_println!("🔍 Detecting memory layout...");
         
-        // Get dynamic memory layout (SBI issue now fixed!)
-        let memory_layout = layout::get_memory_layout();
-        
-        // Display the dynamic layout
-        memory_layout.display();
-        
-        // Get memory regions from SBI (now working properly)
+        // Get memory regions from SBI
         let sbi_regions = sbi::get_memory_regions();
         
         // Convert SBI regions to our enhanced format
@@ -127,165 +126,69 @@ impl MemoryManager {
                 zone_type,
             };
             
-            // Print region information
-            {
-                let mut uart = UART.lock();
-                let _ = writeln!(uart, "Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}",
-                    i,
-                    sbi_region.start,
-                    sbi_region.start + sbi_region.size,
-                    sbi_region.size / (1024 * 1024),
-                    if (sbi_region.flags & 1) != 0 { "RAM" } else { "MMIO" },
-                    zone_type
-                );
-            }
-        }
-    }
-    
-    /// Initialize buddy allocator for large allocations
-    fn init_buddy_allocator(&mut self) {
-        // Get dynamic memory layout (SBI issue now fixed!)
-        let memory_layout = layout::get_memory_layout();
-        
-        // Use the calculated buddy allocator region
-        let buddy_start = memory_layout.buddy_heap_start;
-        let buddy_size = memory_layout.buddy_heap_size;
-        
-        {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "🔧 Buddy allocator parameters:");
-            let _ = writeln!(uart, "   Start: 0x{:x}", buddy_start);
-            let _ = writeln!(uart, "   Size: {} bytes ({} KB)", buddy_size, buddy_size / 1024);
-        }
-        
-        if buddy_size >= 4 * 1024 {  // Only if we have at least 4KB (minimum for buddy)
-            match buddy::BuddyAllocator::new(buddy_start, buddy_size) {
-                Ok(allocator) => {
-                    self.buddy_allocator = Some(allocator);
-                    self.free_bytes = buddy_size;
-                    
-                    let mut uart = UART.lock();
-                    let _ = writeln!(uart, "🧩 Buddy allocator ready: 0x{:x} - 0x{:x} ({} KB)",
-                        buddy_start,
-                        buddy_start + buddy_size,
-                        buddy_size / 1024
-                    );
-                }
-                Err(e) => {
-                    let mut uart = UART.lock();
-                    let _ = writeln!(uart, "❌ Buddy allocator failed: {:?}", e);
-                }
-            }
-        } else {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "⚠️  Insufficient memory for buddy allocator: {} KB available", 
-                buddy_size / 1024);
-        }
-    }
-    
-    /// Initialize small allocator for small objects
-    fn init_small_allocator(&mut self) {
-        // Get dynamic memory layout (SBI issue now fixed!)
-        let memory_layout = layout::get_memory_layout();
-        
-        // Use the calculated small allocator region
-        let small_start = memory_layout.small_heap_start;
-        let small_size = memory_layout.small_heap_size;
-        
-        if small_size >= 128 * 1024 {  // Only if we have at least 128KB
-            let allocator = small_alloc::SmallAllocator::new(small_start, small_size);
-            self.small_allocator = Some(allocator);
-            
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "🔍 Small allocator ready: 0x{:x} - 0x{:x} ({} KB)",
-                small_start,
-                small_start + small_size,
-                small_size / 1024
+            console_println!("Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}",
+                i,
+                sbi_region.start,
+                sbi_region.start + sbi_region.size,
+                sbi_region.size / (1024 * 1024),
+                if (sbi_region.flags & 1) != 0 { "RAM" } else { "MMIO" },
+                zone_type
             );
-        } else {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "⚠️  Insufficient memory for small allocator: {} KB available", 
-                small_size / 1024);
         }
     }
 
-    /// Smart allocation using hybrid allocation engine
-    pub fn allocate(&mut self, size: usize) -> Option<usize> {
-        self.allocation_count += 1;
+    fn init_heap(&mut self) {
+        console_println!("Initializing heap allocator...");
         
-        // Hybrid allocation engine strategy
-        if size >= 4096 {
-            // Large allocation (≥4KB): Use buddy allocator
-            if let Some(ref mut buddy) = self.buddy_allocator {
-                if let Some(addr) = buddy.allocate(size) {
-                    self.allocated_bytes += size;
-                    self.free_bytes -= size;
-                    return Some(addr);
-                }
-            }
-        } else {
-            // Small allocation (<4KB): Use small allocator
-            if let Some(ref mut small) = self.small_allocator {
-                if let Some(ptr) = small.allocate(size) {
-                    let addr = ptr as usize;
-                    self.allocated_bytes += size;
-                    return Some(addr);
-                }
-            }
+        unsafe {
+            let heap_start = HEAP_SPACE.as_mut_ptr() as usize;
+            let heap_size = HEAP_SIZE;
+            
+            self.heap_start = heap_start;
+            self.heap_size = heap_size;
+            self.heap_used = 0;
+            
+            console_println!("Heap: 0x{:x} - 0x{:x} ({} KB)", 
+                heap_start, 
+                heap_start + heap_size,
+                heap_size / 1024
+            );
+            
+            ALLOCATOR.lock().init(HEAP_SPACE.as_mut_ptr(), heap_size);
         }
-        
-        // No suitable allocator available
-        None
     }
-    
-    /// Smart deallocation using hybrid allocation engine
-    pub fn deallocate(&mut self, addr: usize, size: usize) {
-        // Try small allocator first for small allocations
-        if size < 4096 {
-            if let Some(ref mut small) = self.small_allocator {
-                if small.owns_address(addr) {
-                    small.deallocate(addr as *mut u8, size);
-                    self.allocated_bytes -= size;
-                    return;
-                }
-            }
-        }
+
+    pub fn show_stats(&self) {
+        let stats = self.get_stats();
+        console_println!("=== Memory Manager Statistics ===");
+        console_println!("Total Memory: {} MB", stats.total_memory / (1024 * 1024));
+        console_println!("Allocated: {} bytes", stats.allocated_bytes);
+        console_println!("Allocations: {}", stats.allocation_count);
         
-        // Try buddy allocator for large allocations
-        if size >= 4096 {
-            if let Some(ref mut buddy) = self.buddy_allocator {
-                if buddy.owns_address(addr) {
-                    buddy.deallocate(addr, size);
-                    self.allocated_bytes -= size;
-                    self.free_bytes += size;
-                    return;
-                }
-            }
+        console_println!("Memory Regions:");
+        for (i, region) in self.get_memory_info().iter().enumerate() {
+            console_println!("  Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}",
+                i,
+                region.start,
+                region.start + region.size,
+                region.size / (1024 * 1024),
+                if region.is_ram { "RAM" } else { "MMIO" },
+                region.zone_type
+            );
         }
-        
-        // For fallback allocations, we can't deallocate (bump allocator limitation)
-        // This is acceptable for kernel allocations that typically live for the system lifetime
     }
 
     /// Get comprehensive memory usage statistics
     pub fn get_stats(&self) -> MemoryStats {
-        let mut small_alloc_stats = None;
-        if let Some(ref small) = self.small_allocator {
-            small_alloc_stats = Some(small.get_stats());
-        }
-        
-        // Calculate total memory from our allocators
-        let memory_layout = layout::get_memory_layout();
-        let total_memory = memory_layout.buddy_heap_size + memory_layout.small_heap_size;
+        let total_memory = self.regions[..self.region_count].iter()
+            .filter(|r| r.is_ram)
+            .map(|r| r.size)
+            .sum();
         
         MemoryStats {
             total_memory,
             allocated_bytes: self.allocated_bytes,
-            free_bytes: self.free_bytes,
             allocation_count: self.allocation_count,
-            buddy_enabled: self.buddy_allocator.is_some(),
-            small_alloc_enabled: self.small_allocator.is_some(),
-            small_alloc_stats,
         }
     }
 
@@ -300,11 +203,7 @@ impl MemoryManager {
 pub struct MemoryStats {
     pub total_memory: usize,
     pub allocated_bytes: usize,
-    pub free_bytes: usize,
     pub allocation_count: usize,
-    pub buddy_enabled: bool,
-    pub small_alloc_enabled: bool,
-    pub small_alloc_stats: Option<small_alloc::SmallAllocatorStats>,
 }
 
 // Global memory manager instance (unified)
@@ -312,11 +211,35 @@ pub static MEMORY_MANAGER: Mutex<MemoryManager> = Mutex::new(MemoryManager::new(
 
 // Helper functions for easy access
 pub fn allocate_memory(size: usize) -> Option<usize> {
-    MEMORY_MANAGER.lock().allocate(size)
+    let mut manager = MEMORY_MANAGER.lock();
+    manager.allocation_count += 1;
+    
+    unsafe {
+        let layout = core::alloc::Layout::from_size_align(size, 8).ok()?;
+        let ptr = core::alloc::GlobalAlloc::alloc(&ALLOCATOR, layout);
+        
+        if !ptr.is_null() {
+            manager.allocated_bytes += size;
+            let addr = ptr as usize;
+            console_println!("🔍 Small allocation: {} bytes at 0x{:x}", size, addr);
+            Some(addr)
+        } else {
+            console_println!("❌ Allocation failed: {} bytes", size);
+            None
+        }
+    }
 }
 
 pub fn deallocate_memory(addr: usize, size: usize) {
-    MEMORY_MANAGER.lock().deallocate(addr, size);
+    let mut manager = MEMORY_MANAGER.lock();
+    
+    unsafe {
+        if let Ok(layout) = core::alloc::Layout::from_size_align(size, 8) {
+            core::alloc::GlobalAlloc::dealloc(&ALLOCATOR, addr as *mut u8, layout);
+            manager.allocated_bytes = manager.allocated_bytes.saturating_sub(size);
+            console_println!("🔍 Small deallocation: {} bytes at 0x{:x}", size, addr);
+        }
+    }
 }
 
 pub fn get_memory_stats() -> MemoryStats {

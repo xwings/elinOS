@@ -13,22 +13,18 @@ echo "Kernel information:"
 file kernel.bin
 ls -l kernel.bin
 
-# Disk image configuration
-DISK_IMAGE=${DISK_IMAGE:-"disk.qcow2"}
+# Disk image configuration - Use RAW format to avoid encryption
+DISK_IMAGE=${DISK_IMAGE:-"disk.raw"}
 DISK_SIZE=${DISK_SIZE:-"512"}
 
 # Create disk image if it doesn't exist
 if [ ! -f "$DISK_IMAGE" ]; then
-    echo "Creating disk image: $DISK_IMAGE (size: $DISK_SIZE MB)"
+    echo "Creating raw disk image: $DISK_IMAGE (size: $DISK_SIZE MB)"
     # 1. Create raw image
-    dd if=/dev/zero of=disk.raw bs=1M count=$DISK_SIZE
+    dd if=/dev/zero of=$DISK_IMAGE bs=1M count=$DISK_SIZE
     # 2. Format raw image with ext4
-    mkfs.ext4 disk.raw
-    # 3. Convert to qcow2
-    qemu-img convert -f raw -O qcow2 disk.raw $DISK_IMAG
-    # 4. Clean up raw image
-    rm disk.raw    
-    echo "Disk image created successfully"
+    mkfs.ext4 $DISK_IMAGE
+    echo "Raw disk image created successfully"
 else
     echo "Using existing disk image: $DISK_IMAGE"
 fi
@@ -41,7 +37,7 @@ fi
 
 # Run with QEMU - specify memory size (128MB default, can be overridden with MEMORY env var)
 MEMORY_SIZE=${MEMORY:-128M}
-echo "Starting QEMU with ${MEMORY_SIZE} of memory and disk ${DISK_IMAGE}..."
+echo "Starting QEMU with ${MEMORY_SIZE} of memory and SCSI disk ${DISK_IMAGE}..."
 
 qemu-system-riscv64 \
     -machine virt \
@@ -49,8 +45,8 @@ qemu-system-riscv64 \
     -m ${MEMORY_SIZE} \
     -bios /usr/share/qemu/opensbi-riscv64-generic-fw_dynamic.bin \
     -kernel kernel.bin \
-    -drive file=${DISK_IMAGE},format=qcow2,id=hd0,if=none \
+    -drive file=${DISK_IMAGE},format=raw,id=hd0,if=none \
     -device virtio-blk-device,drive=hd0 \
     -serial mon:stdio \
-    -d guest_errors,int,unimp,in_asm \
+    -d guest_errors,int,unimp,trace:virtio*,trace:dma_* \
     -D qemu.log 

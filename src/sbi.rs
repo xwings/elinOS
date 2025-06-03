@@ -1,53 +1,52 @@
+// SBI (Supervisor Binary Interface) calls for RISC-V
+// This provides the interface between the kernel and the SBI firmware
+
 use core::arch::asm;
 
-// Standard SBI function IDs (SBI v0.2+)
-const SBI_BASE_EID: usize = 0x10;
-const SBI_BASE_GET_IMPL_ID: usize = 0x1;
-const SBI_BASE_GET_IMPL_VERSION: usize = 0x2;
+// SBI function IDs
+const SBI_CONSOLE_PUTCHAR: usize = 0x1;
+const SBI_CONSOLE_GETCHAR: usize = 0x2;
+const SBI_SHUTDOWN: usize = 0x8;
 
-// SBI System Reset Extension (EID 0x53525354 "SRST")
-const SBI_SYSTEM_RESET_EID: usize = 0x53525354;
+// SBI extensions
+const SBI_EXT_BASE: usize = 0x10;
+const SBI_EXT_TIMER: usize = 0x54494D45;
+const SBI_EXT_IPI: usize = 0x735049;
+const SBI_EXT_RFENCE: usize = 0x52464E43;
+const SBI_EXT_HSM: usize = 0x48534D;
+const SBI_EXT_SRST: usize = 0x53525354;
 
-// Reset function ID
-const SBI_SYSTEM_RESET_FID: usize = 0x0;
+// SBI reset types
+const SBI_SRST_RESET_TYPE_SHUTDOWN: u32 = 0;
+const SBI_SRST_RESET_TYPE_COLD_REBOOT: u32 = 1;
+const SBI_SRST_RESET_TYPE_WARM_REBOOT: u32 = 2;
 
-// Reset types
-const SBI_RESET_TYPE_SHUTDOWN: usize = 0x0;
-const SBI_RESET_TYPE_COLD_REBOOT: usize = 0x1;
-const SBI_RESET_TYPE_WARM_REBOOT: usize = 0x2;
+// SBI reset reasons
+const SBI_SRST_RESET_REASON_NONE: u32 = 0;
 
-// Reset reasons  
-const SBI_RESET_REASON_NO_REASON: usize = 0x0;
-const SBI_RESET_REASON_SYSTEM_FAILURE: usize = 0x1;
+// SBI return values
+#[derive(Debug, Clone, Copy)]
+pub struct SbiRet {
+    pub error: isize,
+    pub value: isize,
+}
 
-// Memory region structure
-#[repr(C)]
-#[derive(Copy, Clone)]
+// Memory region information
+#[derive(Debug, Clone, Copy)]
 pub struct SbiMemoryRegion {
     pub start: usize,
     pub size: usize,
-    pub flags: usize,
+    pub flags: usize,  // 1 = RAM, 0 = MMIO
 }
 
-// Memory regions container
-#[repr(C)]
-pub struct SbiMemoryRegions {
-    pub count: usize,
+pub struct SbiMemoryInfo {
     pub regions: [SbiMemoryRegion; 8],
+    pub count: usize,
 }
 
-// SBI return value structure
-#[repr(C)]
-struct SbiRet {
-    error: isize,
-    value: usize,
-}
-
-// Make SBI call with proper return value handling
-#[inline(always)]
+// Generic SBI call
 fn sbi_call(eid: usize, fid: usize, arg0: usize, arg1: usize, arg2: usize) -> SbiRet {
-    let error: isize;
-    let value: usize;
+    let (error, value);
     unsafe {
         asm!(
             "ecall",
@@ -56,106 +55,149 @@ fn sbi_call(eid: usize, fid: usize, arg0: usize, arg1: usize, arg2: usize) -> Sb
             in("a2") arg2,
             in("a6") fid,
             in("a7") eid,
-            options(nostack)
         );
     }
     SbiRet { error, value }
 }
 
-// Get memory regions using standard device tree method
-pub fn get_memory_regions() -> SbiMemoryRegions {
-    // Since we can't use custom SBI calls, we'll use a known working configuration
-    // This matches typical QEMU virt machine memory layout
-    
-    let mut regions = SbiMemoryRegions {
-        count: 1,
-        regions: [SbiMemoryRegion { start: 0, size: 0, flags: 0 }; 8],
-    };
-    
-    // QEMU virt machine typically provides:
-    // - 128MB RAM starting at 0x80000000
-    // - We're running at 0x80200000, so available memory starts there
-    
-    regions.regions[0] = SbiMemoryRegion {
-        start: 0x80000000,          // Physical RAM start
-        size: 128 * 1024 * 1024,    // 128MB (typical QEMU default)
-        flags: 1,                   // RAM flag
-    };
-    
-    // Try to detect actual memory size by probing (safely)
-    // This is a simple method that works for most RISC-V systems
-    let detected_size = detect_memory_size();
-    if detected_size > 0 {
-        regions.regions[0].size = detected_size;
-    }
-    
-    regions
+// Console output
+pub fn console_putchar(ch: usize) {
+    sbi_call(SBI_EXT_BASE, SBI_CONSOLE_PUTCHAR, ch, 0, 0);
 }
 
-// Simple memory size detection
-fn detect_memory_size() -> usize {
-    // Start with a conservative base size
-    let base_addr = 0x80000000;
-    let mut test_addr = base_addr + (16 * 1024 * 1024); // Start testing at 16MB
-    let max_addr = base_addr + (1024 * 1024 * 1024);    // Max 1GB
+// Console input (if available)
+pub fn console_getchar() -> Option<usize> {
+    let ret = sbi_call(SBI_EXT_BASE, SBI_CONSOLE_GETCHAR, 0, 0, 0);
+    if ret.error == 0 {
+        Some(ret.value as usize)
+    } else {
+        None
+    }
+}
+
+// System shutdown
+pub fn system_shutdown() -> ! {
+    // Use console print fallback since console_println might not be available here
+    let mut uart = crate::UART.lock();
+    let _ = core::fmt::Write::write_str(&mut *uart, "🔌 Initiating system shutdown via SBI...\n");
+    drop(uart);
     
-    // Simple probe test: try to read/write at different addresses
-    while test_addr < max_addr {
-        // Try to safely probe memory
-        if !probe_memory_address(test_addr) {
-            // Found the limit
-            return test_addr - base_addr;
+    // Try newer SBI system reset extension first
+    let ret = sbi_call(SBI_EXT_SRST, 0, SBI_SRST_RESET_TYPE_SHUTDOWN as usize, SBI_SRST_RESET_REASON_NONE as usize, 0);
+    
+    // If that fails, try legacy shutdown
+    if ret.error != 0 {
+        sbi_call(SBI_EXT_BASE, SBI_SHUTDOWN, 0, 0, 0);
+    }
+    
+    // If SBI shutdown fails, halt manually
+    let mut uart = crate::UART.lock();
+    let _ = core::fmt::Write::write_str(&mut *uart, "SBI shutdown failed, halting manually\n");
+    drop(uart);
+    loop {
+        unsafe {
+            asm!("wfi");
         }
-        test_addr += 32 * 1024 * 1024; // Test in 32MB increments
     }
-    
-    // Default to 128MB if detection fails
-    128 * 1024 * 1024
 }
 
-// Safely probe a memory address
-fn probe_memory_address(addr: usize) -> bool {
-    // This is a simple probe - in a real kernel you'd use proper fault handling
-    // For now, we'll just assume addresses within reasonable bounds are valid
+// System reset/reboot
+pub fn system_reset() -> ! {
+    // Use console print fallback since console_println might not be available here
+    let mut uart = crate::UART.lock();
+    let _ = core::fmt::Write::write_str(&mut *uart, "🔄 Initiating system reboot via SBI...\n");
+    drop(uart);
     
+    // Try SBI system reset extension
+    let ret = sbi_call(SBI_EXT_SRST, 0, SBI_SRST_RESET_TYPE_COLD_REBOOT as usize, SBI_SRST_RESET_REASON_NONE as usize, 0);
+    
+    let mut uart = crate::UART.lock();
+    let _ = core::fmt::Write::write_fmt(&mut *uart, format_args!("SBI reset failed (error: {}), halting\n", ret.error));
+    drop(uart);
+    loop {
+        unsafe {
+            asm!("wfi");
+        }
+    }
+}
+
+// Get memory information
+pub fn get_memory_info() -> (usize, usize) {
+    // For QEMU virt machine, we know the standard memory layout
+    // In a real implementation, this would query the SBI or device tree
+    
+    // Standard QEMU virt memory layout:
+    // RAM: 0x80000000 - varies (usually 128MB)
     let base = 0x80000000;
-    let reasonable_limit = base + (512 * 1024 * 1024); // 512MB max
+    let size = 128 * 1024 * 1024; // 128MB default
     
-    addr >= base && addr < reasonable_limit
+    (base, size)
 }
 
-// Get SBI implementation info (for debugging)
-pub fn get_sbi_info() -> (usize, usize) {
-    let impl_id = sbi_call(SBI_BASE_EID, SBI_BASE_GET_IMPL_ID, 0, 0, 0);
-    let impl_version = sbi_call(SBI_BASE_EID, SBI_BASE_GET_IMPL_VERSION, 0, 0, 0);
+// Get memory regions (for compatibility with memory detection)
+pub fn get_memory_regions() -> SbiMemoryInfo {
+    let mut info = SbiMemoryInfo {
+        regions: [SbiMemoryRegion { start: 0, size: 0, flags: 0 }; 8],
+        count: 0,
+    };
     
-    (impl_id.value, impl_version.value)
+    // Add main RAM region
+    info.regions[0] = SbiMemoryRegion {
+        start: 0x80000000,
+        size: 128 * 1024 * 1024, // 128MB
+        flags: 1, // RAM
+    };
+    info.count = 1;
+    
+    // Add MMIO regions
+    info.regions[1] = SbiMemoryRegion {
+        start: 0x10000000,
+        size: 0x1000, // UART
+        flags: 0, // MMIO
+    };
+    info.count = 2;
+    
+    info.regions[2] = SbiMemoryRegion {
+        start: 0x02000000,
+        size: 0x10000, // CLINT
+        flags: 0, // MMIO
+    };
+    info.count = 3;
+    
+    info.regions[3] = SbiMemoryRegion {
+        start: 0x0c000000,
+        size: 0x400000, // PLIC
+        flags: 0, // MMIO
+    };
+    info.count = 4;
+    
+    info
 }
 
-// Shutdown the system using SBI
-pub fn shutdown() -> ! {
-    unsafe {
-        asm!(
-            "ecall",
-            in("a0") SBI_RESET_TYPE_SHUTDOWN,
-            in("a1") SBI_RESET_REASON_NO_REASON,
-            in("a6") SBI_SYSTEM_RESET_FID,
-            in("a7") SBI_SYSTEM_RESET_EID,
-            options(noreturn)
-        );
-    }
+// Set timer
+pub fn set_timer(stime: u64) {
+    sbi_call(SBI_EXT_TIMER, 0, stime as usize, (stime >> 32) as usize, 0);
 }
 
-// Reboot the system using SBI
-pub fn reboot() -> ! {
-    unsafe {
-        asm!(
-            "ecall",
-            in("a0") SBI_RESET_TYPE_COLD_REBOOT,
-            in("a1") SBI_RESET_REASON_NO_REASON,
-            in("a6") SBI_SYSTEM_RESET_FID,
-            in("a7") SBI_SYSTEM_RESET_EID,
-            options(noreturn)
-        );
-    }
+// Send IPI
+pub fn send_ipi(hart_mask: usize) {
+    sbi_call(SBI_EXT_IPI, 0, hart_mask, 0, 0);
+}
+
+// Get SBI implementation ID
+pub fn get_sbi_impl_id() -> usize {
+    let ret = sbi_call(SBI_EXT_BASE, 1, 0, 0, 0);
+    ret.value as usize
+}
+
+// Get SBI implementation version
+pub fn get_sbi_impl_version() -> usize {
+    let ret = sbi_call(SBI_EXT_BASE, 2, 0, 0, 0);
+    ret.value as usize
+}
+
+// Check if extension is available
+pub fn probe_extension(extension_id: usize) -> bool {
+    let ret = sbi_call(SBI_EXT_BASE, 3, extension_id, 0, 0);
+    ret.value != 0
 } 

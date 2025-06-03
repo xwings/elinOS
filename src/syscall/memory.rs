@@ -1,9 +1,7 @@
 // Memory Management System Calls - Linux Compatible Numbers
 // Following Linux ARM64/RISC-V syscall numbers for compatibility
 
-use crate::memory;
-use crate::UART;
-use core::fmt::Write;
+use crate::{memory, console_println};
 use super::{SysCallResult, SyscallArgs};
 
 // === LINUX COMPATIBLE MEMORY MANAGEMENT SYSTEM CALL CONSTANTS ===
@@ -82,16 +80,12 @@ pub fn handle_memory_syscall(args: &SyscallArgs) -> SysCallResult {
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 fn sys_mmap(addr: usize, length: usize, prot: usize, flags: usize, _fd: usize, _offset: usize) -> SysCallResult {
-    let mut uart = UART.lock();
-    let _ = writeln!(uart, "mmap called: addr=0x{:x}, len={}, prot={}, flags={}", addr, length, prot, flags);
-    drop(uart);
+    console_println!("mmap called: addr=0x{:x}, len={}, prot={}, flags={}", addr, length, prot, flags);
     
     // For anonymous mappings, use our buddy allocator
     if flags & MAP_ANONYMOUS != 0 {
         if let Some(allocated_addr) = memory::allocate_memory(length) {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "mmap allocated: 0x{:x}", allocated_addr);
-            drop(uart);
+            console_println!("mmap allocated: 0x{:x}", allocated_addr);
             return SysCallResult::Success(allocated_addr as isize);
         } else {
             return SysCallResult::Error("Out of memory");
@@ -102,9 +96,7 @@ fn sys_mmap(addr: usize, length: usize, prot: usize, flags: usize, _fd: usize, _
 }
 
 fn sys_munmap(addr: usize, length: usize) -> SysCallResult {
-    let mut uart = UART.lock();
-    let _ = writeln!(uart, "munmap called: addr=0x{:x}, len={}", addr, length);
-    drop(uart);
+    console_println!("munmap called: addr=0x{:x}, len={}", addr, length);
     
     // Use our deallocator
     memory::deallocate_memory(addr, length);
@@ -143,9 +135,7 @@ fn sys_munlockall() -> SysCallResult {
 }
 
 fn sys_brk(addr: usize) -> SysCallResult {
-    let mut uart = UART.lock();
-    let _ = writeln!(uart, "brk called: addr=0x{:x}", addr);
-    drop(uart);
+    console_println!("brk called: addr=0x{:x}", addr);
     
     unsafe {
         if addr == 0 {
@@ -193,26 +183,22 @@ fn sys_mincore(_addr: usize, _length: usize, _vec: usize) -> SysCallResult {
 }
 
 fn sys_getmeminfo() -> SysCallResult {
-    let mut uart = UART.lock();
+    console_println!("=== Memory Management Information ===");
     
-    let _ = writeln!(uart, "=== Memory Management Information ===");
-    
-    // Show advanced memory manager stats
+    // Show simplified memory manager stats
     let stats = memory::get_memory_stats();
-    let _ = writeln!(uart, "Advanced Memory Manager:");
-    let _ = writeln!(uart, "  Total Memory: {} MB", stats.total_memory / (1024 * 1024));
-    let _ = writeln!(uart, "  Allocated: {} bytes", stats.allocated_bytes);
-    let _ = writeln!(uart, "  Free: {} bytes", stats.free_bytes);
-    let _ = writeln!(uart, "  Allocations: {}", stats.allocation_count);
-    let _ = writeln!(uart, "  Buddy Allocator: {}", if stats.buddy_enabled { "Enabled" } else { "Disabled" });
-    let _ = writeln!(uart, "  Small Allocator: {}", if stats.small_alloc_enabled { "Enabled" } else { "Disabled" });
+    console_println!("Simplified Memory Manager:");
+    console_println!("  Total Memory: {} MB", stats.total_memory / (1024 * 1024));
+    console_println!("  Allocated: {} bytes", stats.allocated_bytes);
+    console_println!("  Allocations: {}", stats.allocation_count);
+    console_println!("  Using heap-only allocation");
     
     // Show memory regions
     {
         let mem_mgr = memory::MEMORY_MANAGER.lock();
-        let _ = writeln!(uart, "Memory Regions:");
+        console_println!("Memory Regions:");
         for (i, region) in mem_mgr.get_memory_info().iter().enumerate() {
-            let _ = writeln!(uart, "  Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}",
+            console_println!("  Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}",
                 i,
                 region.start,
                 region.start + region.size,
@@ -224,23 +210,20 @@ fn sys_getmeminfo() -> SysCallResult {
     }
     
     unsafe {
-        let _ = writeln!(uart, "Program Break: 0x{:x}", PROGRAM_BREAK);
+        console_println!("Program Break: 0x{:x}", PROGRAM_BREAK);
     }
     
     SysCallResult::Success(0)
 }
 
 fn sys_alloc_test(size: usize) -> SysCallResult {
-    let mut uart = UART.lock();
-    let _ = writeln!(uart, "=== Allocation Test: {} bytes ===", size);
-    drop(uart);
+    console_println!("=== Allocation Test: {} bytes ===", size);
     
     // Test allocation
     let start_time = 0; // TODO: Add timing
     
     if let Some(addr) = memory::allocate_memory(size) {
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "✅ Allocated {} bytes at 0x{:x}", size, addr);
+        console_println!("✅ Allocated {} bytes at 0x{:x}", size, addr);
         
         // Test writing to the memory
         unsafe {
@@ -248,39 +231,32 @@ fn sys_alloc_test(size: usize) -> SysCallResult {
             *ptr = 0xAA; // Write test pattern
             let read_val = *ptr;
             if read_val == 0xAA {
-                let _ = writeln!(uart, "✅ Memory write/read test passed");
+                console_println!("✅ Memory write/read test passed");
             } else {
-                let _ = writeln!(uart, "❌ Memory write/read test failed: wrote 0xAA, read 0x{:x}", read_val);
+                console_println!("❌ Memory write/read test failed: wrote 0xAA, read 0x{:x}", read_val);
             }
         }
         
         // Show updated stats
         let stats = memory::get_memory_stats();
-        let _ = writeln!(uart, "📊 Updated stats: {} allocations, {} bytes allocated", 
+        console_println!("📊 Updated stats: {} allocations, {} bytes allocated", 
                         stats.allocation_count, stats.allocated_bytes);
         
         SysCallResult::Success(addr as isize)
     } else {
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "❌ Allocation failed");
+        console_println!("❌ Allocation failed");
         SysCallResult::Error("Allocation failed")
     }
 }
 
 fn sys_buddy_stats() -> SysCallResult {
-    let mut uart = UART.lock();
-    let _ = writeln!(uart, "=== Buddy Allocator Statistics ===");
+    console_println!("=== Memory Allocator Statistics ===");
     
     let stats = memory::get_memory_stats();
-    let _ = writeln!(uart, "Buddy Allocator: {}", if stats.buddy_enabled { "Enabled" } else { "Disabled" });
-    let _ = writeln!(uart, "Total Allocations: {}", stats.allocation_count);
-    let _ = writeln!(uart, "Allocated Memory: {} bytes ({} KB)", stats.allocated_bytes, stats.allocated_bytes / 1024);
-    let _ = writeln!(uart, "Free Memory: {} bytes ({} KB)", stats.free_bytes, stats.free_bytes / 1024);
-    
-    if stats.buddy_enabled {
-        let _ = writeln!(uart, "✅ Buddy allocator is managing large allocations (>= 4KB)");
-        let _ = writeln!(uart, "✅ Legacy allocator handles small allocations (< 4KB)");
-    }
+    console_println!("Memory Allocator: Heap-only (simplified)");
+    console_println!("Total Allocations: {}", stats.allocation_count);
+    console_println!("Allocated Memory: {} bytes ({} KB)", stats.allocated_bytes, stats.allocated_bytes / 1024);
+    console_println!("Note: Using simplified heap allocator only");
     
     SysCallResult::Success(0)
 } 

@@ -2,7 +2,7 @@
 
 **Language / 语言**: [English](README.md) | [简体中文](README_zh.md)
 
-An **experimental** RISC-V64 kernel written in Rust, featuring dynamic memory management, well-organized system call architecture, **embedded ext4 filesystem**, and **ELF program execution capability**. Perfect for **learning**, **research**, and **educational purposes**.
+An **experimental** RISC-V64 kernel written in Rust, featuring dynamic memory management, well-organized system call architecture, **embedded ext4 filesystem**, **ELF program execution capability**, and **modern console abstraction**. Perfect for **learning**, **research**, and **educational purposes**.
 
 ## 🚀 Quick Start
 
@@ -18,9 +18,17 @@ make
 - **Embedded ext4 filesystem** with realistic superblock data
 - **Simplified device management** (no complex VirtIO)
 - ELF binary loading and analysis
+- **Multi-device console output** (UART + HDMI support)
 - System information and memory management
 
 ## ✨ Key Features
+
+### 🖥️ **Advanced Console System**
+- **Multi-device output support** - UART, HDMI, framebuffer, network console
+- **Environment-aware configuration** (development, production, headless)
+- **Clean macro interface** - `console_println!()` vs manual UART locking
+- **RISC-V board ready** - designed for real hardware with multiple outputs
+- **Performance optimized** - single lock per operation instead of manual management
 
 ### 🏗 **Clean Architecture**
 - **Range-based syscall organization** (1-50: File I/O, 51-70: Directory, etc.)
@@ -35,7 +43,7 @@ make
 - **Memory-safe operations** with bounds checking
 
 ### 🔧 **Simplified Device Management**
-- **Direct UART communication** for debugging and I/O
+- **Abstracted console output** supporting multiple devices
 - **Clean abstractions** without complex device driver overhead
 - **Educational focus** on filesystem and memory management
 - **Embedded approach** - perfect for learning core OS concepts
@@ -52,6 +60,26 @@ make
 - **Program header analysis** and segment information
 - **Memory-safe ELF processing** using Rust type system
 - **Ready for execution** (foundation for future virtual memory)
+
+## 🖥️ Console System Usage
+
+The new console abstraction supports multiple output devices for real RISC-V boards:
+
+```rust
+// Simple output (goes to default device or all devices)
+console_println!("System message: boot complete");
+
+// Targeted output for specific scenarios  
+console_print_to!(OutputDevice::Uart, "Debug: internal state = {}\n", 42);
+console_print_to!(OutputDevice::Hdmi, "User: Welcome to elinOS GUI\n");
+console_print_to!(OutputDevice::All, "Critical: low memory warning\n");
+```
+
+### Console Configurations
+
+- **Development**: UART for debugging, HDMI for user interface
+- **Production**: Both UART and HDMI for redundancy
+- **Headless**: UART only for remote monitoring
 
 ## 📖 Documentation
 
@@ -91,6 +119,7 @@ elinOS> shutdown                # Graceful system shutdown
 - ✅ **Embedded ext4 filesystem** with realistic superblock and metadata
 - ✅ **File operations** create, read, delete, list files
 - ✅ **ELF binary loading** parse and load RISC-V executables
+- ✅ **Multi-device console** UART + HDMI support for real RISC-V boards
 - ✅ **System information** commands for debugging and monitoring
 - ✅ **Clean shutdown/reboot** via OpenSBI interface
 - ✅ **Educational simplicity** - focus on core OS concepts without device complexity
@@ -101,6 +130,7 @@ elinOS> shutdown                # Graceful system shutdown
 - **Complete syscall implementation** (SYS_READ, directory operations)
 - **Enhanced memory management** (mmap, memory protection)
 - **Extended filesystem commands** (mkdir, file permissions)
+- **HDMI framebuffer implementation** for visual output
 
 ### Phase 2: Execution (Medium Term)
 - **Virtual memory management** (RISC-V Sv39 page tables)
@@ -109,6 +139,7 @@ elinOS> shutdown                # Graceful system shutdown
 
 ### Phase 3: Advanced Features (Long Term)
 - **Real ext4 filesystem** with actual disk I/O (if needed)
+- **Network console** (remote debugging/management)
 - **Network stack** (simple TCP/IP implementation)
 - **Multi-core support** (SMP)
 
@@ -142,6 +173,12 @@ elinOS> shutdown                # Graceful system shutdown
 - **Clean abstractions** for academic use
 - **Well-documented interfaces** for modification
 
+### For Real Hardware
+- **Multi-device console** supporting UART + HDMI output
+- **Environment-aware** configuration for different deployment scenarios
+- **Performance optimized** console operations
+- **RISC-V board ready** architecture
+
 ## 🤝 Contributing
 
 We welcome contributions! Areas of focus:
@@ -150,6 +187,7 @@ We welcome contributions! Areas of focus:
 - **User applications** - shell commands, utilities
 - **Testing & QA** - test cases, quality assurance
 - **Documentation** - guides, tutorials, API docs
+- **Hardware support** - HDMI framebuffer, additional RISC-V boards
 
 *See [Development Guide](docs/en/development.md) for contribution details.*
 
@@ -161,6 +199,6 @@ This project is free and open source software, allowing unrestricted use, modifi
 
 ---
 
-**elinOS** demonstrates **educational-quality** kernel development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development.
+**elinOS** demonstrates **educational-quality** kernel development in Rust, providing an excellent **learning platform** and **experimental foundation** for RISC-V system development with **modern console abstraction** ready for real hardware deployment.
 
 **🎮 Try it now:** `make && ./run.sh`

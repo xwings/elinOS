@@ -219,14 +219,7 @@ pub fn syscall_handler(
 
 // Utility function for user programs to print using SYS_WRITE
 pub fn sys_print(s: &str) -> Result<(), &'static str> {
-    let result = syscall_handler(
-        file::SYS_WRITE,
-        STDOUT_FD as usize,
-        s.as_ptr() as usize,
-        s.len(),
-        0,
-    );
-    
+    let result = syscall_handler(SYS_WRITE, 1, s.as_ptr() as usize, s.len(), 0);
     match result {
         SysCallResult::Success(_) => Ok(()),
         SysCallResult::Error(e) => Err(e),
@@ -281,4 +274,47 @@ pub fn sys_show_categories() -> Result<(), &'static str> {
     sys_print("  elinOS-Specific Operations:\n")?;
     sys_print("    900-999: debug/version/shutdown/load_elf/exec_elf/etc\n")?;
     Ok(())
+}
+
+// Utility functions for printing numbers and formatting
+pub fn sys_print_num(num: u64) -> Result<(), &'static str> {
+    // Convert number to string
+    let mut buffer = [0u8; 20];
+    let mut temp = num;
+    let mut pos = 0;
+    
+    if temp == 0 {
+        buffer[0] = b'0';
+        pos = 1;
+    } else {
+        while temp > 0 {
+            buffer[19 - pos] = b'0' + (temp % 10) as u8;
+            temp /= 10;
+            pos += 1;
+        }
+    }
+    
+    let num_str = core::str::from_utf8(&buffer[20 - pos..]).unwrap_or("?");
+    sys_print(num_str)
+}
+
+pub fn sys_print_hex(num: u32, digits: usize) -> Result<(), &'static str> {
+    // Convert number to hex string with specified number of digits
+    let mut buffer = [0u8; 8];
+    let mut temp = num;
+    
+    for i in 0..digits.min(8) {
+        let digit = (temp % 16) as u8;
+        buffer[digits - 1 - i] = if digit < 10 { b'0' + digit } else { b'a' + digit - 10 };
+        temp /= 16;
+    }
+    
+    let hex_str = core::str::from_utf8(&buffer[..digits]).unwrap_or("?");
+    sys_print(hex_str)
+}
+
+pub fn sys_print_char(c: char) -> Result<(), &'static str> {
+    let mut buffer = [0u8; 4];
+    let s = c.encode_utf8(&mut buffer);
+    sys_print(s)
 } 

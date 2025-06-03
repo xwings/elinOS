@@ -12,6 +12,7 @@ kernel.bin
 # QEMU
 qemu.log
 disk.qcow2
+disk.raw
 
 # IDE files
 .vscode/

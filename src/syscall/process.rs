@@ -1,7 +1,7 @@
 // Process Management System Calls - Linux Compatible Numbers
 // Following Linux ARM64/RISC-V syscall numbers for compatibility
 
-use crate::{UART, elf::{ElfLoader, ElfError}};
+use crate::{UART, elf::{ElfLoader, ElfError}, console_println};
 use core::fmt::Write;
 use super::{SysCallResult, SyscallArgs};
 
@@ -108,16 +108,14 @@ pub fn handle_process_syscall(args: &SyscallArgs) -> SysCallResult {
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 fn sys_exit(status: i32) -> SysCallResult {
-    let mut uart = UART.lock();
-    let _ = writeln!(uart, "Process exited with status: {}", status);
+    console_println!("Process exited with status: {}", status);
     // In a real OS, this would terminate the process
     // For now, we just return success
     SysCallResult::Success(status as isize)
 }
 
 fn sys_exit_group(status: i32) -> SysCallResult {
-    let mut uart = UART.lock();
-    let _ = writeln!(uart, "Process group exited with status: {}", status);
+    console_println!("Process group exited with status: {}", status);
     // In a real OS, this would terminate the entire process group
     SysCallResult::Success(status as isize)
 }
@@ -190,7 +188,7 @@ fn sys_rt_sigaction(_signum: i32, _act: usize, _oldact: usize) -> SysCallResult 
 
 // === ELF LOADING SYSTEM CALLS ===
 
-fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
+pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     if data_ptr.is_null() || size == 0 {
         return SysCallResult::Error("Invalid ELF data pointer or size");
     }
@@ -204,17 +202,15 @@ fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     
     match loader.load_elf(elf_data) {
         Ok(loaded_elf) => {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "ELF loaded successfully with {} segments", loaded_elf.segments.len());
-            let _ = writeln!(uart, "Entry point: 0x{:x}", loaded_elf.entry_point);
+            console_println!("ELF loaded successfully with {} segments", loaded_elf.segments.len());
+            console_println!("Entry point: 0x{:x}", loaded_elf.entry_point);
             
             // Display segment information
             for (i, segment) in loaded_elf.segments.iter().enumerate() {
                 let perms = crate::elf::segment_permissions(segment.flags);
-                let _ = writeln!(uart, "  Segment {}: 0x{:x} ({} bytes) [{}]", 
+                console_println!("  Segment {}: 0x{:x} ({} bytes) [{}]", 
                     i, segment.vaddr, segment.memsz, perms);
             }
-            drop(uart);
             
             // Return entry point as success value
             SysCallResult::Success(loaded_elf.entry_point as isize)
@@ -234,21 +230,19 @@ fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     }
 }
 
-fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
+pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     // First load the ELF
     match sys_load_elf(data_ptr, size) {
         SysCallResult::Success(entry_point) => {
-            let mut uart = UART.lock();
-            let _ = writeln!(uart, "Would execute ELF at entry point: 0x{:x}", entry_point);
-            let _ = writeln!(uart, "NOTE: Actual execution requires virtual memory and process isolation");
-            drop(uart);
+            console_println!("Would execute ELF at entry point: 0x{:x}", entry_point);
+            console_println!("NOTE: Actual execution requires virtual memory and process isolation");
             
-            // TODO: In a real OS, we would:
-            // 1. Create a new process context
-            // 2. Set up virtual memory mappings
-            // 3. Copy segments to the new address space
-            // 4. Set up stack and heap
-            // 5. Jump to the entry point
+            // TODO: In a real OS, we would use syscalls to:
+            // 1. SYS_CLONE - Create a new process context  
+            // 2. SYS_MMAP - Set up virtual memory mappings
+            // 3. SYS_MMAP - Copy segments to the new address space
+            // 4. SYS_MMAP/SYS_BRK - Set up stack and heap
+            // 5. Architecture-specific - Jump to the entry point
             
             SysCallResult::Success(entry_point)
         }
@@ -256,7 +250,7 @@ fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     }
 }
 
-fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
+pub fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
     if data_ptr.is_null() || size == 0 {
         return SysCallResult::Error("Invalid ELF data pointer or size");
     }
