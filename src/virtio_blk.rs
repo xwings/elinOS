@@ -849,8 +849,8 @@ impl RustVmmVirtIOBlock {
     }
 }
 
-// Global rust-vmm style VirtIO block device
-pub static SIMPLE_DISK: Mutex<RustVmmVirtIOBlock> = Mutex::new(RustVmmVirtIOBlock::new());
+// Global VirtIO block device instance
+pub static VIRTIO_BLK: Mutex<RustVmmVirtIOBlock> = Mutex::new(RustVmmVirtIOBlock::new());
 
 // Static buffers for VirtIO operations (device-accessible memory)
 static mut VIRTIO_REQUEST_BUFFER: VirtioBlkReq = VirtioBlkReq { type_: 0, reserved: 0, sector: 0 };
@@ -858,7 +858,8 @@ static mut VIRTIO_DATA_BUFFER: [u8; 512] = [0; 512];
 static mut VIRTIO_STATUS_BUFFER: u8 = 0;
 
 /// Initialize the VirtIO block device
-pub fn init_simple_disk() -> DiskResult<()> {
-    let mut device = SIMPLE_DISK.lock();
+/// This function should be called during kernel initialization
+pub fn init_virtio_blk() -> DiskResult<()> {
+    let mut device = VIRTIO_BLK.lock();
     device.init()
 } 

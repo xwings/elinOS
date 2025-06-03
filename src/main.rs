@@ -16,7 +16,7 @@ pub mod memory;
 pub mod filesystem;
 pub mod elf;
 pub mod syscall;
-pub mod simple_disk;
+pub mod virtio_blk;
 
 use crate::uart::Uart;
 
@@ -120,7 +120,7 @@ pub extern "C" fn main() -> ! {
 
     // Initialize VirtIO disk interface
     console_println!("💾 Initializing VirtIO disk...");
-    if let Err(e) = simple_disk::init_simple_disk() {
+    if let Err(e) = virtio_blk::init_virtio_blk() {
         console_println!("❌ VirtIO disk initialization failed: {}", e);
     } else {
         console_println!("✅ VirtIO disk ready");
@@ -135,7 +135,7 @@ pub extern "C" fn main() -> ! {
     // Test 1: Try to read boot sector (we know this works)
     console_println!("🔍 Test 1: Reading boot sector...");
     {
-        let mut disk_device = simple_disk::SIMPLE_DISK.lock();
+        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         let mut buffer = [0u8; 512];
         match disk_device.read_blocks(0, &mut buffer) {
             Ok(()) => {
@@ -150,7 +150,7 @@ pub extern "C" fn main() -> ! {
     // Test 2: Try to read root directory sector (this might hang)
     console_println!("🔍 Test 2: Reading root directory sector 2080...");
     {
-        let mut disk_device = simple_disk::SIMPLE_DISK.lock();
+        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         let mut buffer = [0u8; 512];
         match disk_device.read_blocks(2080, &mut buffer) {
             Ok(()) => {

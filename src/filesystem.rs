@@ -1,6 +1,6 @@
 use spin::Mutex;
 use heapless::Vec;
-use crate::{console_println, simple_disk};
+use crate::{console_println, virtio_blk};
 use heapless::String;
 use core::{
     result::Result::{Ok, Err},
@@ -166,7 +166,7 @@ impl Fat32FileSystem {
         console_println!("🗂️  Initializing FAT32 filesystem...");
 
         // Get IDE disk device
-        let mut disk_device = simple_disk::SIMPLE_DISK.lock();
+        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         
         if !disk_device.is_initialized() {
             return Err(FilesystemError::DeviceError);
@@ -237,7 +237,7 @@ impl Fat32FileSystem {
         // Clear existing entries
         self.files.clear();
         
-        let mut disk_device = simple_disk::SIMPLE_DISK.lock();
+        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         if !disk_device.is_initialized() {
             return Err(FilesystemError::DeviceError);
         }
@@ -406,7 +406,7 @@ impl Fat32FileSystem {
         let mut file_content = Vec::new();
         
         {
-            let mut disk_device = simple_disk::SIMPLE_DISK.lock();
+            let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
             
             if !disk_device.is_initialized() {
                 return Err(FilesystemError::DeviceError);
