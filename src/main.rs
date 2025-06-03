@@ -59,6 +59,16 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
+// Add missing panic_nounwind handler
+#[no_mangle]
+extern "C" fn panic_nounwind_fmt() -> ! {
+    loop {
+        unsafe {
+            core::arch::asm!("wfi");
+        }
+    }
+}
+
 #[link_section = ".text.boot"]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {

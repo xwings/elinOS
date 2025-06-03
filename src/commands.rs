@@ -924,9 +924,13 @@ pub fn cmd_unified_memory() -> Result<(), &'static str> {
         if kb_saved < 1000 {
             // Less than 1000 KB - show in KB
             syscall::sys_print("~")?;
-            if kb_saved > 100 { syscall::sys_print("100s"); }
-            else if kb_saved > 10 { syscall::sys_print("10s"); }
-            else { syscall::sys_print("few"); }
+            if kb_saved > 100 { 
+                let _ = syscall::sys_print("100s"); 
+            } else if kb_saved > 10 { 
+                let _ = syscall::sys_print("10s"); 
+            } else { 
+                let _ = syscall::sys_print("few"); 
+            }
             syscall::sys_print(" KB (was wasted in hardcoded allocation)\n")?;
         } else {
             // 1000+ KB - show in MB

@@ -48,14 +48,12 @@ const VIRTIO_BLK_T_IN: u32 = 0;      // Read
 const VIRTIO_BLK_T_OUT: u32 = 1;     // Write
 const VIRTIO_BLK_T_FLUSH: u32 = 4;   // Flush
 
-// VirtIO Block Status
+// VirtIO Block Status (keep only the ones we use)
 const VIRTIO_BLK_S_OK: u8 = 0;
-const VIRTIO_BLK_S_IOERR: u8 = 1;
-const VIRTIO_BLK_S_UNSUPP: u8 = 2;
 
-// Descriptor Flags
-const VIRTQ_DESC_F_NEXT: u16 = 1;
-const VIRTQ_DESC_F_WRITE: u16 = 2;
+// Descriptor Flags (remove unused ones)
+// const VIRTQ_DESC_F_NEXT: u16 = 1;    // Unused - removing
+// const VIRTQ_DESC_F_WRITE: u16 = 2;   // Unused - removing
 
 // Simple VirtIO Block Request
 #[repr(C)]
@@ -113,9 +111,9 @@ pub struct SimpleVirtIOBlock {
     avail: VirtqAvail,
     used: VirtqUsed,
     
-    // Simple state tracking
-    next_desc: u16,
-    last_used_idx: u16,
+    // Simple state tracking (removed unused fields)
+    // next_desc: u16,     // Unused - removing
+    // last_used_idx: u16, // Unused - removing
 }
 
 impl SimpleVirtIOBlock {
@@ -137,8 +135,6 @@ impl SimpleVirtIOBlock {
                 ring: [VirtqUsedElem { id: 0, len: 0 }; 16],
                 avail_event: 0,
             },
-            next_desc: 0,
-            last_used_idx: 0,
         }
     }
 
