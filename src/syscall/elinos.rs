@@ -31,10 +31,31 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
 
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
-fn sys_elinos_version() -> SysCallResult {
-    console_println!("elinOS Version 0.1.0");
-    console_println!("RISC-V Educational Operating System");
-    console_println!("Built with Rust for learning and research");
+pub fn sys_elinos_version() -> SysCallResult {
+    syscall::sys_print("elinOS Version Information:\n")?;
+    syscall::sys_print("===============================================\n\n")?;
+    
+    syscall::sys_print("🦀 elinOS v0.1.0\n")?;
+    syscall::sys_print("RISC-V Experimental Operating System\n")?;
+    syscall::sys_print("Written in Rust for research and development\n\n")?;
+    
+    syscall::sys_print("Architecture:\n")?;
+    syscall::sys_print("  Target: riscv64gc-unknown-none-elf\n")?;
+    syscall::sys_print("  Memory Model: sv39 (future)\n")?;
+    syscall::sys_print("  Privilege Level: Machine Mode\n\n")?;
+    
+    syscall::sys_print("Features:\n")?;
+    syscall::sys_print("  ✅ VirtIO Block Device Support\n")?;
+    syscall::sys_print("  ✅ FAT32 Filesystem\n")?;
+    syscall::sys_print("  ✅ Linux-Compatible System Calls\n")?;
+    syscall::sys_print("  ✅ Memory Management\n")?;
+    syscall::sys_print("  ✅ Interactive Shell\n\n")?;
+    
+    syscall::sys_print("Build Information:\n")?;
+    syscall::sys_print("  Compiler: rustc (nightly)\n")?;
+    syscall::sys_print("  Built: [compile time]\n")?;
+    syscall::sys_print("  Kernel: elinOS\n")?;
+    
     SysCallResult::Success(0)
 }
 

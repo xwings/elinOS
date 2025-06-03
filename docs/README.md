@@ -1,56 +1,69 @@
 # elinOS Documentation
 
-This directory contains documentation organized by language:
+Documentation for the RISC-V64 experimental operating system featuring VirtIO block device, FAT32 filesystem, and Linux-compatible system calls.
 
 ## 📁 Structure
 
 ```
 docs/
-├── en/           # English Documentation
-│   ├── getting-started.md
-│   ├── commands.md
-│   ├── architecture.md
-│   ├── development.md
-│   ├── debugging.md
-│   └── roadmap.md
-└── zh/           # Chinese Documentation (Coming Soon)
-    └── (Planned for future translations)
+├── en/           # English Documentation  
+│   ├── getting-started.md   # Setup and compilation
+│   ├── commands.md          # System command reference
+│   ├── architecture.md      # Technical architecture
+│   ├── development.md       # Development guide
+│   ├── debugging.md         # Debugging techniques
+│   └── syscalls.md          # System call interface
+└── zh/           # Chinese Documentation
+    ├── getting-started.md   # 安装与编译指南
+    ├── commands.md          # 系统命令参考
+    ├── architecture.md      # 技术架构文档
+    └── development.md       # 开发指南
 ```
 
 ## 🌐 Languages
 
-### English (Complete) ✅
-All documentation is currently available in English in the `en/` folder.
+### English Documentation ✅
+Comprehensive documentation available in the `en/` folder covering:
+- VirtIO block device architecture
+- FAT32 filesystem implementation
+- Linux-compatible system call interface
+- Memory management strategies
+- Development and debugging workflows
 
-### Chinese (In Progress) 🚧
-Chinese translations are being added to the `zh/` folder:
-- ✅ **getting-started.md** - Basic setup guide (placeholder created)
-- ✅ **commands.md** - Basic command reference (placeholder created)
-- ✅ **architecture.md** - Basic architecture overview (placeholder created)
-- ✅ **development.md** - Basic development guide (placeholder created)
-- ✅ **debugging.md** - Basic debugging guide (placeholder created)
-- ✅ **roadmap.md** - Basic roadmap overview (placeholder created)
+### Chinese Documentation 🚧
+Chinese documentation available in the `zh/` folder:
+- ✅ **getting-started.md** - Setup and basic usage
+- ✅ **commands.md** - Command reference
+- ✅ **architecture.md** - System architecture overview
+- 🚧 **development.md** - Development guide (in progress)
 
-*All Chinese documents are currently placeholders with basic content. Full translations are welcome!*
+## 📖 Key Topics Covered
 
-## 📖 Documentation Status
+### System Architecture
+- RISC-V64 kernel implementation
+- VirtIO MMIO transport layer
+- Legacy and modern VirtIO support
+- Memory layout and management
 
-| Document | English | Chinese | 
-|----------|---------|---------|
-| **getting-started.md** | ✅ Complete | 🚧 Placeholder |
-| **commands.md** | ✅ Complete | 🚧 Placeholder |
-| **architecture.md** | ✅ Complete | 🚧 Placeholder |
-| **development.md** | ✅ Complete | 🚧 Placeholder |
-| **debugging.md** | ✅ Complete | 🚧 Placeholder |
-| **roadmap.md** | ✅ Complete | 🚧 Placeholder |
+### Storage & Filesystem
+- VirtIO block device integration
+- FAT32 filesystem implementation
+- File I/O operations
+- System call interface
 
-## 🤝 Contributing Translations
+### Development
+- Rust cross-compilation setup
+- QEMU virtual machine configuration
+- Debugging techniques
+- Testing strategies
 
-We welcome contributions for Chinese documentation! If you'd like to help translate:
+## 🤝 Contributing
 
-1. Create corresponding files in `docs/zh/`
-2. Maintain the same structure as English docs
-3. Update README files to reference translated docs
-4. Submit a pull request
+We welcome contributions to improve documentation:
 
-For more information, see the main [README](../README.md) files. 
+1. **Updates**: Keep docs current with code changes
+2. **Translations**: Expand Chinese documentation
+3. **Examples**: Add practical usage examples
+4. **Clarifications**: Improve technical explanations
+
+For development contributions, see the main [README](../README.md). 

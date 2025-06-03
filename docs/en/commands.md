@@ -93,7 +93,7 @@ Filesystem Test
 ```
 
 ### `diskdump [block_num]`
-Display information about filesystem blocks (educational purposes).
+Display information about filesystem blocks (experimental purposes).
 
 **Usage:**
 ```

@@ -4,7 +4,7 @@ This document provides detailed technical information about elinOS architecture,
 
 ## Design Philosophy
 
-elinOS prioritizes **educational clarity** over production complexity:
+elinOS prioritizes **experimental clarity** over production complexity:
 
 - **Embedded Filesystem**: Simple ext4 implementation without complex device drivers
 - **Direct Hardware Access**: UART communication without VirtIO overhead  
@@ -202,176 +202,95 @@ pub struct ElfHeader {
 
 ### Embedded ext4 Filesystem
 
-**Educational Implementation:**
-```rust
-// src/filesystem.rs
-struct EmbeddedBlockDevice {
-    // Simple in-memory block device
-}
+**Experimental Implementation:**
+- Real ext4 superblock with correct magic numbers and metadata
+- In-memory filesystem with POSIX-like operations
+- File management commands (ls, cat, touch, rm)
+- Experimental ext4 implementation demonstrating filesystem concepts
+- No complex block device drivers - focus on filesystem logic
 
-impl EmbeddedBlockDevice {
-    fn read_block(&mut self, block_num: u64, buffer: &mut [u8]) -> Result<(), &'static str> {
-        match block_num {
-            0 => {
-                // Block 0: Contains ext4 superblock at offset 1024
-                let superblock = Ext4Superblock {
-                    s_magic: EXT4_SUPER_MAGIC,
-                    s_inodes_count: 65536,
-                    s_blocks_count_lo: 65536,
-                    // ... realistic ext4 metadata
-                };
-                // Write to buffer at correct offset
-            },
-            _ => {
-                // Other blocks: metadata or data blocks
-            }
-        }
-    }
-}
-```
-
-**Benefits:**
-- **Educational Focus**: Learn ext4 structure without device complexity
-- **Realistic Data**: Proper ext4 superblock with correct magic numbers
+**Advantages:**
+- **Experimental Focus**: Learn ext4 structure without device complexity
+- **Real Data**: Correct ext4 superblock and magic numbers
 - **Simple Architecture**: No VirtIO, MMIO, or complex device protocols
 - **Easy Debugging**: All data in memory, no hardware dependencies
 
-### Memory Management
-
-**Dynamic Configuration:**
-```rust
-// src/memory.rs
-pub fn configure_memory(total_ram: usize) -> MemoryLayout {
-    let kernel_size = 2 * 1024 * 1024; // 2MB
-    let stack_per_hart = 2 * 1024 * 1024; // 2MB
-    let max_harts = 4;
-    let heap_size = total_ram - kernel_size - (stack_per_hart * max_harts);
-    
-    MemoryLayout {
-        kernel: 0x80000000..0x80200000,
-        heap: 0x80200000..(0x80200000 + heap_size),
-        stacks: calculate_stack_regions(max_harts),
-    }
-}
-```
-
-### System Control
-
-**OpenSBI Integration:**
-```rust
-// src/sbi.rs
-pub fn shutdown() -> ! {
-    sbi_call(SBI_SHUTDOWN, 0, 0, 0, 0, 0, 0);
-    loop {}
-}
-
-pub fn reboot() -> ! {
-    sbi_call(SBI_RESET, RESET_TYPE_COLD_REBOOT, RESET_REASON_NO_REASON, 0, 0, 0, 0);
-    loop {}
-}
-```
-
-## Boot Process
-
-1. **OpenSBI Firmware** initializes platform and loads kernel
-2. **Kernel Entry** starts at `_start` symbol in `main.rs`
-3. **Memory Detection** via OpenSBI calls to discover RAM layout
-4. **Memory Configuration** sets up heap, stacks, and kernel regions
-5. **Device Probing** scans for VirtIO devices at known MMIO addresses
-6. **Filesystem Initialization** creates in-memory filesystem with test files
-7. **System Call Interface** activates all categories and handlers
-8. **Shell Startup** begins interactive user session
-
-## Safety and Correctness
-
-### Rust Safety Features
-
-- **Memory Safety**: No null pointer dereferences or buffer overflows
-- **Type Safety**: Compile-time guarantees about data types
-- **Concurrency Safety**: Send/Sync traits prevent data races
-- **Bounds Checking**: Array and vector access validated at runtime
-
-### Minimal Unsafe Code
-
-```rust
-// Only hardware access requires unsafe
-unsafe {
-    // MMIO register access
-    ptr::read_volatile(addr as *const u32)
-}
-```
-
-### System Call Boundary
-
-- **Input Validation**: All parameters checked before use
-- **Boundary Enforcement**: User/kernel memory separation
-- **Error Propagation**: Consistent error handling throughout
-
-### Synchronization
-
-- **Spin Locks**: Simple but effective for single-core operation
-- **Atomic Operations**: Where needed for device interactions
-- **No Heap Allocation**: Kernel uses stack and static storage only
-
 ## Design Principles
 
-### Clean Architecture
-- **Scalable Organization**: Easy to add new features within categories
-- **Maintainable Structure**: Clear ownership and responsibility
-- **Industry Standards**: Follows proven frameworks like Qiling
+### Clear Architecture
+- **Extensible Organization**: Easy to add new features within categories
+- **Maintainable Structure**: Clear ownership and responsibilities
+- **Industry Standards**: Follows mature frameworks like Qiling
 
 ### Type Safety
-- **Leverages Rust**: Full advantage of Rust's type system
-- **Compile-time Guarantees**: Prevents entire classes of bugs
+- **Leverage Rust**: Full utilization of Rust's type system
+- **Compile-Time Guarantees**: Prevents entire classes of bugs
 - **Safe Abstractions**: Hardware access wrapped in safe interfaces
 
-### Modular Design
-- **Loose Coupling**: Components interact through well-defined interfaces
-- **High Cohesion**: Related functionality grouped together
-- **Easy Extension**: Adding features doesn't require architectural changes
+## Development Patterns
 
-### Clear Boundaries
-- **Kernel/User Separation**: System calls provide controlled interface
-- **Category Isolation**: System call categories are independent
-- **Component Interfaces**: Well-defined APIs between major components
+### Adding New System Calls
 
-## Performance Characteristics
+1. **Choose Category**: Determine appropriate numerical range
+2. **Implement Handler**: Add function in category file
+3. **Update Dispatcher**: Add case in central router
+4. **Add Command**: Optional user space command in `commands.rs`
+5. **Document**: Update help and documentation
 
-### System Call Overhead
-- **O(1) Dispatch**: Range-based routing is constant time
-- **Minimal Copying**: Parameters passed by reference where possible
-- **Zero Allocations**: No heap allocations in critical paths
+### Adding New Commands
 
-### Memory Efficiency
-- **Static Sizing**: Most data structures have compile-time bounds
-- **Stack Allocation**: Kernel operations use stack memory
-- **Efficient Collections**: `heapless` provides zero-allocation data structures
+1. **Implement Function**: Add `cmd_name()` function in `commands.rs`
+2. **Update Dispatcher**: Add match case in `process_command()`
+3. **Update Help**: Add to help command output
+4. **Test**: Command immediately available in shell
 
-### Boot Time
-- **Fast Detection**: Memory and device discovery is efficient
-- **Minimal Initialization**: Only essential components initialized
-- **Direct Boot**: No complex initialization sequences
+### Memory Management
 
-## Future Architecture Considerations
+**Safe Allocation:**
+```rust
+// Memory-safe heap allocation
+let memory = memory::allocate_aligned(size, alignment)?;
+defer! { memory::deallocate(memory, size); }
+```
 
-### Virtual Memory
-- **Page Tables**: RISC-V Sv39 virtual memory support
-- **Address Spaces**: Separate user and kernel address spaces
-- **Memory Protection**: Hardware-enforced access controls
+**Stack Management:**
+- Per-hart stacks prevent interference
+- 2MB size supports deep call chains
+- Automatic overflow detection
 
-### Multiprocessing
-- **SMP Support**: Symmetric multiprocessing with proper synchronization
-- **Load Balancing**: Work distribution across multiple harts
-- **NUMA Awareness**: Non-uniform memory access optimization
+## Testing and Debugging
 
-### Advanced I/O
-- **DMA Support**: Direct memory access for high-performance I/O
-- **Interrupt Handling**: Asynchronous device notifications
-- **I/O Scheduling**: Efficient ordering of device operations
+### Built-in Debugging
+- Memory layout visualization with `memory` command
+- System call tracing capabilities
+- Real-time system information
 
-### Security Framework
-- **Capabilities**: Fine-grained access control
-- **Sandboxing**: Process isolation and resource limits
-- **Secure Boot**: Verified boot process with cryptographic signatures
+### QEMU Integration
+- Native RISC-V 64-bit execution
+- GDB debugging support
+- Console output for development
 
-This architecture provides a solid foundation for an educational kernel while maintaining the simplicity and safety that makes elinOS an excellent learning and development platform. 
+### Error Handling
+- Comprehensive error messages
+- Graceful failure modes
+- Recovery mechanisms
+
+## Future Architecture
+
+### Planned Extensions
+- **Virtual Memory**: RISC-V Sv39 page tables
+- **Process Isolation**: User/kernel mode separation
+- **Network Stack**: TCP/IP implementation
+- **Device Drivers**: Additional hardware support
+
+### Scalability Considerations
+- **Multi-core Support**: SMP-safe data structures
+- **Performance**: Lock-free algorithms where possible
+- **Modularity**: Plugin architecture for extensions
+
+This architecture provides a solid foundation for an experimental kernel while maintaining the simplicity and safety that makes elinOS an excellent learning and development platform.
+
+For implementation details and code examples, see:
+- [Getting Started Guide](getting-started.md)
+- [Development Guide](development.md)
+- [Command Reference](commands.md) 

@@ -119,55 +119,54 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         
         // Read the file content using the filename
         let fs = filesystem::FILESYSTEM.lock();
-        match fs.read_file(filename.as_str()) {
-            Ok(content) => {
-                console_println!("✅ SYSCALL: File read successful, {} bytes", content.len());
-                drop(fs); // Release lock before operations
+        let buffer_ptr = buf as *mut u8;
+        
+        if buffer_ptr.is_null() {
+            // For experimental OS: if buffer is null, just print to console
+            let file_entry = fs.files.iter()
+                .find(|f| f.name.as_str() == filename && !f.is_directory);
                 
-                if count == 0 {
-                    console_println!("⚠️ SYSCALL: Zero-length read requested");
-                    return SysCallResult::Success(0);
-                }
-                
-                let bytes_to_copy = core::cmp::min(count, content.len());
-                console_println!("📏 SYSCALL: Will output {} bytes (requested={}, available={})", 
-                    bytes_to_copy, count, content.len());
-                
-                // For educational OS: if buffer is null, just print to console
-                // In production OS, this would be an error, but here it's convenient for cat command
-                if buf.is_null() {
-                    console_println!("📄 SYSCALL: Null buffer - printing to console:");
-                } else {
-                    console_println!("📄 SYSCALL: Copying to user buffer and printing to console:");
-                    // Copy to user buffer
-                    unsafe {
-                        core::ptr::copy_nonoverlapping(
-                            content.as_ptr(),
-                            buf,
-                            bytes_to_copy
-                        );
-                    }
-                }
-                
-                // Always print to console so user can see the file contents
-                let uart = crate::UART.lock();
-                for &byte in &content[..bytes_to_copy] {
-                    uart.putchar(byte);
-                }
-                drop(uart);
-                
-                console_println!("✅ SYSCALL: File output complete");
-                SysCallResult::Success(bytes_to_copy as isize)
-            }
-            Err(e) => {
-                drop(fs);
-                console_println!("❌ SYSCALL: Failed to read file: {:?}", e);
-                // Print error message
-                let mut uart = crate::UART.lock();
-                let _ = write!(uart, "Error reading file: {:?}\n", e);
-                SysCallResult::Error("Failed to read file")
+            if let Some(file) = file_entry {
+                console_println!("📖 File content preview: {}", file.name.as_str());
+                // Could implement actual content reading here
+                return SysCallResult::Success(file.size as i64);
+            } else {
+                console_println!("❌ File not found: {}", filename);
+                return SysCallResult::Error("File not found");
             }
         }
+        
+        let bytes_to_copy = core::cmp::min(count, fs.files.iter()
+            .find(|f| f.name.as_str() == filename && !f.is_directory)
+            .map(|f| f.size as usize)
+            .unwrap_or(0));
+        console_println!("📏 SYSCALL: Will output {} bytes (requested={}, available={})", 
+            bytes_to_copy, count, bytes_to_copy);
+        
+        // Copy to user buffer
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                fs.files.iter()
+                    .find(|f| f.name.as_str() == filename && !f.is_directory)
+                    .map(|f| f.data.as_ptr())
+                    .unwrap_or(core::ptr::null()),
+                buffer_ptr,
+                bytes_to_copy
+            );
+        }
+        
+        // Always print to console so user can see the file contents
+        let uart = crate::UART.lock();
+        for &byte in &fs.files.iter()
+            .find(|f| f.name.as_str() == filename && !f.is_directory)
+            .map(|f| f.data.as_slice())
+            .unwrap_or_default()[..bytes_to_copy] {
+            uart.putchar(byte);
+        }
+        drop(uart);
+        
+        console_println!("✅ SYSCALL: File output complete");
+        SysCallResult::Success(bytes_to_copy as isize)
     } else {
         console_println!("❌ SYSCALL: Invalid file descriptor {}", fd);
         SysCallResult::Error("Invalid file descriptor")

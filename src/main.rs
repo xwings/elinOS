@@ -257,7 +257,7 @@ fn show_welcome() {
     console_println!("=====================================");
     console_println!("       🦀 Welcome to elinOS! 🦀      ");
     console_println!("=====================================");
-    console_println!("A RISC-V64 Educational Operating System");
+    console_println!("A RISC-V64 Experimental Operating System");
     console_println!("Written in Rust for learning purposes");
     console_println!();
     console_println!("Type 'help' for available commands");

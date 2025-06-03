@@ -243,7 +243,7 @@ impl VirtioBlkReq {
 }
 
 /// VirtIO Queue implementation based on rust-vmm
-/// Simplified for educational kernel but following the same patterns
+/// Simplified for experimental kernel but following the same patterns
 pub struct VirtioQueue {
     /// Queue size (must be power of 2)
     size: u16,
@@ -416,7 +416,7 @@ pub struct RustVmmVirtIOBlock {
     device_features: u64,
     /// Driver features
     driver_features: u64,
-    /// Legacy VirtIO flag (educational extension)
+    /// Legacy VirtIO flag (experimental extension)
     is_legacy: bool,
 }
 
@@ -487,7 +487,7 @@ impl RustVmmVirtIOBlock {
                 return Ok(false);
             }
             
-            // Check version (we want modern VirtIO, but accept legacy for educational purposes)
+            // Check version (we want modern VirtIO, but accept legacy for experimental purposes)
             let version = core::ptr::read_volatile((base + VIRTIO_MMIO_VERSION) as *const u32);
             
             // Check device ID (2 = block device)
@@ -501,7 +501,7 @@ impl RustVmmVirtIOBlock {
             if version >= 2 {
                 console_println!("📱 Modern VirtIO block device: version={}, vendor=0x{:x}", version, vendor_id);
             } else if version == 1 {
-                console_println!("📱 Legacy VirtIO block device: version={}, vendor=0x{:x} (educational extension)", version, vendor_id);
+                console_println!("📱 Legacy VirtIO block device: version={}, vendor=0x{:x} (experimental extension)", version, vendor_id);
                 self.is_legacy = true;
             } else {
                 console_println!("⚠️  Unknown VirtIO version {} at 0x{:x}, skipping", version, base);
@@ -530,7 +530,7 @@ impl RustVmmVirtIOBlock {
                 VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER);
             
             if self.is_legacy {
-                console_println!("🔧 Initializing Legacy VirtIO (educational extension)");
+                console_println!("🔧 Initializing Legacy VirtIO (experimental extension)");
                 
                 // Legacy VirtIO: Read features directly
                 self.device_features = core::ptr::read_volatile((base + VIRTIO_MMIO_DEVICE_FEATURES) as *const u32) as u64;
