@@ -39,14 +39,30 @@ fi
 MEMORY_SIZE=${MEMORY:-128M}
 echo "Starting QEMU with ${MEMORY_SIZE} of memory and SCSI disk ${DISK_IMAGE}..."
 
-qemu-system-riscv64 \
-    -machine virt \
-    -nographic \
-    -m ${MEMORY_SIZE} \
-    -bios /usr/share/qemu/opensbi-riscv64-generic-fw_dynamic.bin \
-    -kernel kernel.bin \
-    -drive file=${DISK_IMAGE},format=raw,id=hd0,if=none \
-    -device virtio-blk-device,drive=hd0 \
-    -serial mon:stdio \
-    -d guest_errors,int,unimp,trace:virtio*,trace:dma_* \
-    -D qemu.log 
+
+if [ -z "$DISPLAY" ]; then
+    echo "Running in terminal mode (no graphics)"
+    qemu-system-riscv64 \
+        -machine virt \
+        -nographic \
+        -m ${MEMORY_SIZE} \
+        -bios /usr/share/qemu/opensbi-riscv64-generic-fw_dynamic.bin \
+        -kernel kernel.bin \
+        -drive file=${DISK_IMAGE},format=raw,id=hd0,if=none \
+        -device virtio-blk-device,drive=hd0 \
+        -d guest_errors,int,unimp,trace:virtio*,trace:dma_* \
+        -D qemu.log 
+elif [ "$DISPLAY" == "gtk" ]; then
+    echo "Running in graphics mode (QEMU window)"
+    qemu-system-riscv64 \
+        -machine virt \
+        -display gtk \
+        -serial mon:vc \
+        -m ${MEMORY_SIZE} \
+        -bios /usr/share/qemu/opensbi-riscv64-generic-fw_dynamic.bin \
+        -kernel kernel.bin \
+        -drive file=${DISK_IMAGE},format=raw,id=hd0,if=none \
+        -device virtio-blk-device,drive=hd0 \
+        -d guest_errors,int,unimp,trace:virtio*,trace:dma_* \
+        -D qemu.log
+fi
