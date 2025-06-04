@@ -252,8 +252,15 @@ fat32-disk: ## Create a FAT32 test disk image
 ext4-disk: ## Create an ext4 test disk image
 	@echo -e "$(COLOR_BLUE)Creating ext4 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
 	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
-	@mkfs.ext4 -O ^metadata_csum,^64bit -F  $(DISK_IMAGE) >/dev/null 2>&1
+	@mkfs.ext4 -O ^metadata_csum,^64bit -F $(DISK_IMAGE) >/dev/null 2>&1
 	@echo -e "$(COLOR_GREEN)✓ ext4 disk image created: $(DISK_IMAGE)$(COLOR_RESET)"
+
+.PHONY: ext2-disk
+ext2-disk: ## Create an ext4 test disk image
+	@echo -e "$(COLOR_BLUE)Creating ext4 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
+	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
+	@mkfs.ext2 $(DISK_IMAGE) >/dev/null 2>&1
+	@echo -e "$(COLOR_GREEN)✓ ext2 disk image created: $(DISK_IMAGE)$(COLOR_RESET)"
 
 .PHONY: populate-disk
 populate-disk: $(DISK_IMAGE) ## Add test files to disk image
