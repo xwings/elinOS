@@ -20,6 +20,8 @@ pub enum DiskError {
     IoError,
     QueueFull,
     InvalidDescriptor,
+    DeviceNotReady,
+    InvalidParameter,
 }
 
 impl core::fmt::Display for DiskError {
@@ -35,6 +37,8 @@ impl core::fmt::Display for DiskError {
             DiskError::IoError => write!(f, "I/O error"),
             DiskError::QueueFull => write!(f, "VirtIO queue full"),
             DiskError::InvalidDescriptor => write!(f, "Invalid descriptor"),
+            DiskError::DeviceNotReady => write!(f, "Device not ready"),
+            DiskError::InvalidParameter => write!(f, "Invalid parameter"),
         }
     }
 }
@@ -95,6 +99,8 @@ const VIRTIO_BLK_T_FLUSH: u32 = 4;  // Flush
 const VIRTIO_BLK_S_OK: u8 = 0;      // Success
 const VIRTIO_BLK_S_IOERR: u8 = 1;   // I/O error
 const VIRTIO_BLK_S_UNSUPP: u8 = 2;  // Unsupported
+
+const VIRTIO_BLK_REQUEST_QUEUE_IDX: u16 = 0; // Added definition
 
 // Descriptor flags (from virtio-queue)
 const VIRTQ_DESC_F_NEXT: u16 = 1;       // This descriptor continues via next field
@@ -273,42 +279,34 @@ impl VirtioQueue {
             used_ring: 0,
             next_avail: 0,
             last_used_idx: 0,
-            queue_index: 0,
+            queue_index: 0, // default queue index, can be set in init
         }
     }
     
     /// Initialize the queue with given parameters
-    pub fn init(&mut self, size: u16, desc_table: usize, avail_ring: usize, used_ring: usize) -> DiskResult<()> {
-        if !size.is_power_of_two() || size == 0 || size > 256 {
-            return Err(DiskError::VirtIOError);
+    pub fn init(&mut self, size: u16, queue_idx: u16, desc_table: usize, avail_ring: usize, used_ring: usize) -> DiskResult<()> {
+        if !size.is_power_of_two() || size == 0 || size > 256 { // Max size constraint from array lengths
+            console_println!("VirtioQueue init: Invalid size {}", size);
+            return Err(DiskError::InvalidParameter); // Or specific error
         }
-        
         self.size = size;
         self.desc_table = desc_table;
         self.avail_ring = avail_ring;
         self.used_ring = used_ring;
         self.next_avail = 0;
         self.last_used_idx = 0;
-        self.ready = true;
-        
-        // Initialize memory structures
-        unsafe {
-            // Clear descriptor table
-            let desc_ptr = self.desc_table as *mut VirtqDesc;
-            for i in 0..self.size {
-                *desc_ptr.offset(i as isize) = VirtqDesc::new();
-            }
-            
-            // Initialize available ring
-            let avail_ptr = self.avail_ring as *mut VirtqAvail;
-            *avail_ptr = VirtqAvail::new();
-            
-            // Initialize used ring
-            let used_ptr = self.used_ring as *mut VirtqUsed;
-            *used_ptr = VirtqUsed::new();
-        }
-        
+        self.ready = false; // Set to true by device/driver handshake later
+        self.queue_index = queue_idx;
         Ok(())
+    }
+    
+    /// Acknowledges that the driver has processed descriptors up to `last_used_idx`.
+    /// This is a stub and might need more complex logic depending on the virtio library being emulated.
+    pub fn ack_used_desc(&mut self) {
+        // In a more complete implementation, this might update a shared memory region
+        // or internal counters to inform the device about processed descriptors.
+        // For now, it does nothing as the current `get_used_elem` advances `last_used_idx`.
+        // console_println!("VirtioQueue [{}]: ack_used_desc called (last_used_idx: {})", self.queue_index, self.last_used_idx);
     }
     
     /// Add a descriptor chain to the available ring
@@ -520,14 +518,13 @@ impl RustVmmVirtIOBlock {
             let base = self.mmio_base;
             
             // Step 1: Reset the device
-            core::ptr::write_volatile((base + VIRTIO_MMIO_STATUS) as *mut u32, 0);
+            self.write_reg_u32(VIRTIO_MMIO_STATUS, 0);
             
             // Step 2: Set ACKNOWLEDGE status bit
-            core::ptr::write_volatile((base + VIRTIO_MMIO_STATUS) as *mut u32, VIRTIO_STATUS_ACKNOWLEDGE);
+            self.set_status(VIRTIO_STATUS_ACKNOWLEDGE as u8);
             
             // Step 3: Set DRIVER status bit
-            core::ptr::write_volatile((base + VIRTIO_MMIO_STATUS) as *mut u32, 
-                VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER);
+            self.set_status(VIRTIO_STATUS_DRIVER as u8);
             
             if self.is_legacy {
                 console_println!("🔧 Initializing Legacy VirtIO (experimental extension)");
@@ -538,45 +535,41 @@ impl RustVmmVirtIOBlock {
                 
                 // Legacy VirtIO: Set driver features directly
                 self.driver_features = 0; // Minimal features for simplicity
-                core::ptr::write_volatile((base + VIRTIO_MMIO_DRIVER_FEATURES) as *mut u32, 
-                    self.driver_features as u32);
+                self.write_reg_u32(VIRTIO_MMIO_DRIVER_FEATURES, self.driver_features as u32);
                 
                 // Legacy VirtIO: Skip FEATURES_OK step
             } else {
                 console_println!("🔧 Initializing Modern VirtIO");
                 
                 // Step 4: Read device features (modern VirtIO)
-                core::ptr::write_volatile((base + VIRTIO_MMIO_DEVICE_FEATURES_SEL) as *mut u32, 0);
-                let features_low = core::ptr::read_volatile((base + VIRTIO_MMIO_DEVICE_FEATURES) as *const u32);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_DEVICE_FEATURES_SEL) as *mut u32, 1);
-                let features_high = core::ptr::read_volatile((base + VIRTIO_MMIO_DEVICE_FEATURES) as *const u32);
+                self.write_reg_u32(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 0);
+                let features_lo = self.read_reg_u32(VIRTIO_MMIO_DEVICE_FEATURES);
+                self.write_reg_u32(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 1);
+                let features_hi = self.read_reg_u32(VIRTIO_MMIO_DEVICE_FEATURES);
                 
-                self.device_features = ((features_high as u64) << 32) | (features_low as u64);
+                self.device_features = ((features_hi as u64) << 32) | (features_lo as u64);
                 console_println!("🔍 Device features: 0x{:x}", self.device_features);
                 
                 // Step 5: Set driver features (accept basic features only)
                 self.driver_features = 0; // Minimal features for simplicity
-                core::ptr::write_volatile((base + VIRTIO_MMIO_DRIVER_FEATURES_SEL) as *mut u32, 0);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_DRIVER_FEATURES) as *mut u32, 
-                    self.driver_features as u32);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_DRIVER_FEATURES_SEL) as *mut u32, 1);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_DRIVER_FEATURES) as *mut u32, 
-                    (self.driver_features >> 32) as u32);
+                self.write_reg_u32(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 0);
+                self.write_reg_u32(VIRTIO_MMIO_DRIVER_FEATURES, self.driver_features as u32);
+                self.write_reg_u32(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 1);
+                self.write_reg_u32(VIRTIO_MMIO_DRIVER_FEATURES, (self.driver_features >> 32) as u32);
                 
                 // Step 6: Set FEATURES_OK status bit
-                core::ptr::write_volatile((base + VIRTIO_MMIO_STATUS) as *mut u32, 
-                    VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER | VIRTIO_STATUS_FEATURES_OK);
+                self.set_status(VIRTIO_STATUS_FEATURES_OK as u8);
                 
                 // Step 7: Verify FEATURES_OK is still set
-                let status = core::ptr::read_volatile((base + VIRTIO_MMIO_STATUS) as *const u32);
+                let status = self.read_reg_u32(VIRTIO_MMIO_STATUS);
                 if (status & VIRTIO_STATUS_FEATURES_OK) == 0 {
                     return Err(DiskError::VirtIOError);
                 }
             }
             
             // Step 8: Read device configuration
-            let capacity_low = core::ptr::read_volatile((base + VIRTIO_MMIO_CONFIG) as *const u32);
-            let capacity_high = core::ptr::read_volatile((base + VIRTIO_MMIO_CONFIG + 4) as *const u32);
+            let capacity_low = self.read_reg_u32(VIRTIO_MMIO_CONFIG);
+            let capacity_high = self.read_reg_u32(VIRTIO_MMIO_CONFIG + 4);
             self.capacity_sectors = ((capacity_high as u64) << 32) | (capacity_low as u64);
             
             console_println!("💽 Device capacity: {} sectors ({} MB)", 
@@ -594,10 +587,10 @@ impl RustVmmVirtIOBlock {
             let base = self.mmio_base;
             
             // Select queue 0
-            core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_SEL) as *mut u32, 0);
+            self.write_reg_u32(VIRTIO_MMIO_QUEUE_SEL, 0);
             
             // Get maximum queue size
-            let max_queue_size = core::ptr::read_volatile((base + VIRTIO_MMIO_QUEUE_NUM_MAX) as *const u32);
+            let max_queue_size = self.read_reg_u32(VIRTIO_MMIO_QUEUE_NUM_MAX);
             console_println!("📊 Max queue size: {}", max_queue_size);
             
             // Set queue size (use smaller size for simplicity)
@@ -606,13 +599,13 @@ impl RustVmmVirtIOBlock {
                 return Err(DiskError::VirtIOError);
             }
             
-            core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_NUM) as *mut u32, queue_size as u32);
+            self.write_reg_u32(VIRTIO_MMIO_QUEUE_NUM, queue_size as u32);
             
             if self.is_legacy {
                 console_println!("🔧 Legacy VirtIO queue setup (following rcore-os implementation)");
                 
                 // Step 1: Set guest page size (REQUIRED for legacy VirtIO)
-                core::ptr::write_volatile((base + VIRTIO_MMIO_GUEST_PAGE_SIZE) as *mut u32, PAGE_SIZE as u32);
+                self.write_reg_u32(VIRTIO_MMIO_GUEST_PAGE_SIZE, PAGE_SIZE as u32);
                 console_println!("📏 Set guest page size: {} bytes", PAGE_SIZE);
                 
                 // Step 2: Calculate memory layout following VirtIO spec
@@ -648,21 +641,26 @@ impl RustVmmVirtIOBlock {
                 console_println!("  Available:   0x{:x}", avail_ring_addr);
                 console_println!("  Used:        0x{:x}", used_ring_addr);
                 
+                // Zero out the queue memory region before use
+                unsafe {
+                    core::ptr::write_bytes(desc_table_addr as *mut u8, 0, total_size);
+                }
+                
                 // Initialize queue structures
-                self.queue.init(queue_size, desc_table_addr, avail_ring_addr, used_ring_addr)?;
+                self.queue.init(queue_size, VIRTIO_BLK_REQUEST_QUEUE_IDX, desc_table_addr, avail_ring_addr, used_ring_addr)?;
                 
                 // Step 3: Set queue alignment (power of 2, typically page size)
                 let queue_align = PAGE_SIZE as u32;
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_ALIGN) as *mut u32, queue_align);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_ALIGN, queue_align);
                 console_println!("📏 Set queue alignment: {} bytes", queue_align);
                 
                 // Step 4: Set queue PFN (Page Frame Number)
                 let pfn = (desc_table_addr / PAGE_SIZE) as u32;
                 console_println!("📄 Setting queue PFN: {} (addr=0x{:x})", pfn, desc_table_addr);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_PFN) as *mut u32, pfn);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_PFN, pfn);
                 
                 // Verify the PFN was accepted
-                let read_pfn = core::ptr::read_volatile((base + VIRTIO_MMIO_QUEUE_PFN) as *const u32);
+                let read_pfn = self.read_reg_u32(VIRTIO_MMIO_QUEUE_PFN);
                 console_println!("📄 Queue PFN read back: {} (expected: {})", read_pfn, pfn);
                 
             } else {
@@ -677,46 +675,56 @@ impl RustVmmVirtIOBlock {
                 let avail_ring_addr = desc_table_addr + desc_table_size;
                 let used_ring_addr = (avail_ring_addr + avail_ring_size + 3) & !3; // 4-byte aligned
                 
-                // Initialize queue
-                self.queue.init(queue_size, desc_table_addr, avail_ring_addr, used_ring_addr)?;
+                // Calculate the total span of memory used by the modern queue setup
+                // Used ring actual size: header (flags u16, idx u16) + elements (id u32, len u32)
+                let modern_used_ring_content_size = 4 + (8 * queue_size as usize);
+                // The used_ring_addr is the start. The end is used_ring_addr + modern_used_ring_content_size.
+                // The total span is from desc_table_addr to the end of the used ring.
+                let modern_queue_memory_end_addr = used_ring_addr + modern_used_ring_content_size;
+                let modern_total_span = modern_queue_memory_end_addr - desc_table_addr;
+
+                // Zero out the queue memory region before use
+                unsafe {
+                    core::ptr::write_bytes(desc_table_addr as *mut u8, 0, modern_total_span);
+                }
+                
+                // Initialize the queue structure
+                self.queue.init(queue_size, VIRTIO_BLK_REQUEST_QUEUE_IDX, desc_table_addr, avail_ring_addr, used_ring_addr)?;
                 
                 // Modern VirtIO uses separate registers for each ring
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_DESC_LOW) as *mut u32, desc_table_addr as u32);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_DESC_HIGH) as *mut u32, (desc_table_addr >> 32) as u32);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_DESC_LOW, desc_table_addr as u32);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_DESC_HIGH, (desc_table_addr >> 32) as u32);
                 
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_DRIVER_LOW) as *mut u32, avail_ring_addr as u32);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_DRIVER_HIGH) as *mut u32, (avail_ring_addr >> 32) as u32);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_DRIVER_LOW, avail_ring_addr as u32);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_DRIVER_HIGH, (avail_ring_addr >> 32) as u32);
                 
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_DEVICE_LOW) as *mut u32, used_ring_addr as u32);
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_DEVICE_HIGH) as *mut u32, (used_ring_addr >> 32) as u32);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_DEVICE_LOW, used_ring_addr as u32);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_DEVICE_HIGH, (used_ring_addr >> 32) as u32);
                 
                 // Mark queue as ready (modern VirtIO only)
-                core::ptr::write_volatile((base + VIRTIO_MMIO_QUEUE_READY) as *mut u32, 1);
+                self.write_reg_u32(VIRTIO_MMIO_QUEUE_READY, 1);
             }
             
             console_println!("✅ VirtIO queue ready");
         }
         
+        self.queue.ready = true; // Mark the queue object as ready for driver operations
         Ok(())
     }
     
     /// Set DRIVER_OK status bit to complete initialization
     fn set_driver_ok(&mut self) -> DiskResult<()> {
-        unsafe {
-            let base = self.mmio_base;
+        let base = self.mmio_base;
             
-            if self.is_legacy {
-                // Legacy VirtIO: Don't set FEATURES_OK
-                core::ptr::write_volatile((base + VIRTIO_MMIO_STATUS) as *mut u32, 
-                    VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER | VIRTIO_STATUS_DRIVER_OK);
-            } else {
-                // Modern VirtIO: Include FEATURES_OK
-                core::ptr::write_volatile((base + VIRTIO_MMIO_STATUS) as *mut u32, 
-                    VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER | VIRTIO_STATUS_FEATURES_OK | VIRTIO_STATUS_DRIVER_OK);
-            }
-            
-            console_println!("✅ VirtIO device ready");
+        if self.is_legacy {
+            // Legacy VirtIO: Don't set FEATURES_OK
+            self.write_reg_u32(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE as u32 | VIRTIO_STATUS_DRIVER as u32 | VIRTIO_STATUS_DRIVER_OK as u32);
+        } else {
+            // Modern VirtIO: Include FEATURES_OK
+            self.write_reg_u32(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE as u32 | VIRTIO_STATUS_DRIVER as u32 | VIRTIO_STATUS_FEATURES_OK as u32 | VIRTIO_STATUS_DRIVER_OK as u32);
         }
+            
+        console_println!("✅ VirtIO device ready");
         Ok(())
     }
     
@@ -783,12 +791,12 @@ impl RustVmmVirtIOBlock {
             
             // Notify device
             console_println!("🔔 Notifying VirtIO device at queue 0");
-            core::ptr::write_volatile((self.mmio_base + VIRTIO_MMIO_QUEUE_NOTIFY) as *mut u32, 0);
+            self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, 0);
             
             console_println!("📤 VirtIO request submitted, waiting for completion...");
             
             // Check initial device state
-            let interrupt_status = core::ptr::read_volatile((self.mmio_base + VIRTIO_MMIO_INTERRUPT_STATUS) as *const u32);
+            let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
             console_println!("🔍 Initial interrupt status: 0x{:x}", interrupt_status);
             
             // Wait for completion with timeout
@@ -797,7 +805,7 @@ impl RustVmmVirtIOBlock {
             while timeout > 0 {
                 // Check interrupt status periodically
                 if poll_count % 100000 == 0 {
-                    let interrupt_status = core::ptr::read_volatile((self.mmio_base + VIRTIO_MMIO_INTERRUPT_STATUS) as *const u32);
+                    let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
                     console_println!("🔍 Poll {}: interrupt status: 0x{:x}", poll_count / 100000, interrupt_status);
                     
                     // Check queue state
@@ -831,8 +839,90 @@ impl RustVmmVirtIOBlock {
     }
     
     /// Write a sector (placeholder for future implementation)
-    pub fn write_sector(&mut self, _sector: u64, _buffer: &[u8; 512]) -> DiskResult<()> {
-        Err(DiskError::WriteError)
+    pub fn write_sector(&mut self, sector: u64, buffer: &[u8; 512]) -> DiskResult<()> {
+        if !self.initialized {
+            console_println!("Attempted to write to uninitialized VirtIO block device");
+            return Err(DiskError::NotInitialized);
+        }
+        // Call the helper function that contains the actual VirtIO logic
+        self.virtio_write_sector(sector, buffer)
+    }
+
+    // Helper function for the actual VirtIO write logic
+    fn virtio_write_sector(&mut self, sector: u64, buffer: &[u8; 512]) -> DiskResult<()> {
+        // console_println!("virtio_write_sector: s={}, buf_len={}", sector, buffer.len());
+        let req_header = VirtioBlkReq::new_write(sector);
+        let mut status: u8 = 0xFF; // Status byte, device writes here. Initialize to a non-OK value.
+
+        // Descriptor for the request header (device reads this)
+        let desc_req = VirtqDesc {
+            addr: &req_header as *const _ as u64,
+            len: core::mem::size_of::<VirtioBlkReq>() as u32,
+            flags: VIRTQ_DESC_F_NEXT, // This descriptor is followed by the data descriptor
+            next: 1, // Index of data descriptor in our chain (relative to start of chain)
+        };
+
+        // Descriptor for the data buffer (device reads this)
+        // For a write operation, the VIRTQ_DESC_F_WRITE flag is NOT set on the data buffer, 
+        // as the device is reading from this buffer, not writing to it.
+        let desc_data = VirtqDesc {
+            addr: buffer.as_ptr() as u64, 
+            len: buffer.len() as u32,
+            flags: VIRTQ_DESC_F_NEXT, // This descriptor is followed by the status descriptor
+            next: 2, // Index of status descriptor
+        };
+        
+        // Descriptor for the status byte (device writes to this)
+        let desc_status = VirtqDesc {
+            addr: &status as *const _ as u64,
+            len: core::mem::size_of::<u8>() as u32,
+            flags: VIRTQ_DESC_F_WRITE, // Device WRITES to this status byte
+            next: 0, // End of chain, no next descriptor
+        };
+
+        // The chain of descriptors to be added to the queue
+        let chain = [desc_req, desc_data, desc_status];
+        
+        let head_idx = self.queue.add_descriptor_chain(&chain)?;
+        self.queue.ack_used_desc();
+
+        // Step 5: Notify the device about the new descriptors in the queue
+        // Corrected based on previous successful compilation attempts with `notify` and `u32` queue index.
+        self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, VIRTIO_BLK_REQUEST_QUEUE_IDX as u32);
+
+        // Wait for the device to process the request (simplified: spin on used ring change)
+        // A real driver would use interrupts or a more robust polling mechanism.
+        let mut used_elem_opt = None;
+        for _ in 0..200000 { // Timeout loop (can be adjusted)
+            if let Some(elem) = self.queue.get_used_elem() {
+                if elem.id as u16 == head_idx {
+                    used_elem_opt = Some(elem);
+                    break;
+                }
+            }
+            core::hint::spin_loop();
+        }
+
+        if used_elem_opt.is_none() {
+            console_println!("Timeout waiting for VirtIO write completion for sector {}", sector);
+            return Err(DiskError::IoError);
+        }
+
+        match status {
+            VIRTIO_BLK_S_OK => Ok(()),
+            VIRTIO_BLK_S_IOERR => {
+                console_println!("VirtIO write to sector {} failed: I/O Error from device", sector);
+                Err(DiskError::WriteError)
+            },
+            VIRTIO_BLK_S_UNSUPP => {
+                console_println!("VirtIO write to sector {} failed: Unsupported request by device", sector);
+                Err(DiskError::VirtIOError)
+            }
+            _ => {
+                console_println!("VirtIO write to sector {} completed with unknown status: {}", sector, status);
+                Err(DiskError::VirtIOError)
+            }
+        }
     }
     
     pub fn is_initialized(&self) -> bool {
@@ -844,12 +934,78 @@ impl RustVmmVirtIOBlock {
     }
     
     /// Compatibility method for filesystem
-    pub fn read_blocks(&mut self, sector: u64, buffer: &mut [u8; 512]) -> DiskResult<()> {
-        self.read_sector(sector, buffer)
+    pub fn read_blocks(&mut self, start_sector: u64, buffer: &mut [u8]) -> DiskResult<()> {
+        if buffer.len() == 0 {
+            return Ok(()); // Nothing to read
+        }
+        if buffer.len() % 512 != 0 {
+            console_println!("read_blocks: buffer length {} is not a multiple of 512", buffer.len());
+            return Err(DiskError::BufferTooSmall); 
+        }
+        let num_sectors = buffer.len() / 512;
+        for i in 0..num_sectors {
+            let sector = start_sector + i as u64;
+            let offset = i * 512;
+            let sector_buffer_slice = &mut buffer[offset..offset + 512];
+            let sector_buffer_array: &mut [u8; 512] = sector_buffer_slice.try_into()
+                .expect("Slice to array conversion failed in read_blocks despite checks");
+            self.read_sector(sector, sector_buffer_array)?;
+        }
+        Ok(())
+    }
+
+    pub fn write_blocks(&mut self, start_sector: u64, buffer: &[u8]) -> DiskResult<()> {
+        if buffer.len() == 0 {
+            return Ok(()); // Nothing to write
+        }
+        if buffer.len() % 512 != 0 {
+            console_println!("write_blocks: buffer length {} is not a multiple of 512", buffer.len());
+            return Err(DiskError::BufferTooSmall);
+        }
+        let num_sectors = buffer.len() / 512;
+        // console_println!("write_blocks: Writing {} sectors starting from {}", num_sectors, start_sector);
+        for i in 0..num_sectors {
+            let sector = start_sector + i as u64;
+            let offset = i * 512;
+            let sector_buffer_slice = &buffer[offset..offset + 512];
+            let sector_buffer_array: &[u8; 512] = sector_buffer_slice.try_into()
+                .expect("Slice to array conversion failed in write_blocks despite checks");
+            // console_println!("write_blocks: Calling write_sector for sector {}", sector);
+            self.write_sector(sector, sector_buffer_array)?;
+        }
+        // console_println!("write_blocks: Completed writing {} sectors", num_sectors);
+        Ok(())
+    }
+
+    fn process_used_ring_entry(&mut self, used_ring_entry: &VirtqUsedElem) {
+        let desc_idx = used_ring_entry.id as u16;
+        let len = used_ring_entry.len;
+        console_println!(
+            "Processing used ring entry: desc_idx={}, len={}",
+            desc_idx,
+            len
+        );
+    }
+
+    fn read_reg_u32(&self, offset: usize) -> u32 {
+        let ptr = (self.mmio_base + offset) as *const u32;
+        unsafe { core::ptr::read_volatile(ptr) }
+    }
+
+    fn write_reg_u32(&mut self, offset: usize, value: u32) {
+        let ptr = (self.mmio_base + offset) as *mut u32;
+        unsafe { core::ptr::write_volatile(ptr, value) }
+    }
+
+    fn set_status(&mut self, status_val: u8) {
+        let current_status = self.read_reg_u32(VIRTIO_MMIO_STATUS);
+        // Ensure status_val is u32 before ORing
+        self.write_reg_u32(VIRTIO_MMIO_STATUS, current_status | (status_val as u32));
     }
 }
 
-// Global VirtIO block device instance
+// Global instance of the VirtIO Block device
+// Create a global, mutable static instance of the VirtIO block device driver.
 pub static VIRTIO_BLK: Mutex<RustVmmVirtIOBlock> = Mutex::new(RustVmmVirtIOBlock::new());
 
 // Static buffers for VirtIO operations (device-accessible memory)

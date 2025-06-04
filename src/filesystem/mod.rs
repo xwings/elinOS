@@ -156,65 +156,133 @@ impl FileSystem for UnifiedFileSystem {
             Filesystem::None => false,
         }
     }
+
+    // TODO: Implement these methods for UnifiedFileSystem by dispatching to the active FS
+    fn create_file(&mut self, path: &str) -> FilesystemResult<FileEntry> {
+        match &mut self.filesystem {
+            Filesystem::Fat32(fs) => fs.create_file(path),
+            Filesystem::Ext4(fs) => fs.create_file(path),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+
+    fn create_directory(&mut self, path: &str) -> FilesystemResult<FileEntry> {
+        match &mut self.filesystem {
+            Filesystem::Fat32(fs) => fs.create_directory(path),
+            Filesystem::Ext4(fs) => fs.create_directory(path),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+
+    fn write_file(&mut self, file: &FileEntry, offset: u64, data: &[u8]) -> FilesystemResult<usize> {
+        match &mut self.filesystem {
+            Filesystem::Fat32(fs) => fs.write_file(file, offset, data),
+            Filesystem::Ext4(fs) => fs.write_file(file, offset, data),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+
+    fn delete_file(&mut self, path: &str) -> FilesystemResult<()> {
+        match &mut self.filesystem {
+            Filesystem::Fat32(fs) => fs.delete_file(path),
+            Filesystem::Ext4(fs) => fs.delete_file(path),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+
+    fn delete_directory(&mut self, path: &str) -> FilesystemResult<()> {
+        match &mut self.filesystem {
+            Filesystem::Fat32(fs) => fs.delete_directory(path),
+            Filesystem::Ext4(fs) => fs.delete_directory(path),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+
+    fn truncate_file(&mut self, file: &FileEntry, new_size: u64) -> FilesystemResult<()> {
+        match &mut self.filesystem {
+            Filesystem::Fat32(fs) => fs.truncate_file(file, new_size),
+            Filesystem::Ext4(fs) => fs.truncate_file(file, new_size),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+
+    fn sync(&mut self) -> FilesystemResult<()> {
+        match &mut self.filesystem {
+            Filesystem::Fat32(fs) => fs.sync(),
+            Filesystem::Ext4(fs) => fs.sync(),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
 }
 
-/// Detect filesystem type by examining disk magic numbers
+/// Detect filesystem type by reading specific disk locations
 pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
-    console_println!("🔍 Detecting filesystem type...");
-    
+    console_println!("filesystem::detect_filesystem_type: Starting detection...");
     let mut disk_device = crate::virtio_blk::VIRTIO_BLK.lock();
-    
+
     if !disk_device.is_initialized() {
+        console_println!("filesystem::detect_filesystem_type: VirtIO disk not initialized.");
         return Err(FilesystemError::DeviceError);
     }
 
-    // First, check for FAT32 in boot sector (sector 0)
-    let mut boot_buffer = [0u8; 512];
-    disk_device.read_blocks(0, &mut boot_buffer)
-        .map_err(|_| FilesystemError::IoError)?;
-    
-    let boot_signature = u16::from_le_bytes([boot_buffer[510], boot_buffer[511]]);
-    
-    if boot_signature == 0xAA55 {
-        console_println!("✅ Boot signature found: 0x{:04x}", boot_signature);
-        
-        // Check for FAT32 filesystem type string
-        let fs_type = &boot_buffer[82..90];
-        if fs_type.starts_with(b"FAT32") {
-            console_println!("✅ Confirmed FAT32 filesystem");
-            drop(disk_device);
-            return Ok(FilesystemType::Fat32);
+    // Try FAT32 detection (check Boot Sector Signature)
+    console_println!("filesystem::detect_filesystem_type: Attempting to read sector 0 for FAT32 check...");
+    let mut sector0_buf = [0u8; 512];
+    match disk_device.read_blocks(0, &mut sector0_buf) {
+        Ok(_) => {
+            console_println!("filesystem::detect_filesystem_type: Successfully read sector 0.");
+            // Check for FAT32 signature 0x55AA at offset 510
+            if sector0_buf[510] == 0x55 && sector0_buf[511] == 0xAA {
+                // Further checks for FAT32 (e.g., filesystem type string)
+                // For now, assume FAT32 if signature matches
+                console_println!("filesystem::detect_filesystem_type: FAT32 signature found.");
+                return Ok(FilesystemType::Fat32);
+            }
+        }
+        Err(e) => {
+            console_println!("filesystem::detect_filesystem_type: Failed to read sector 0 for FAT32 check: {:?}", e);
+            // Don't return error yet, try ext4
         }
     }
-    
-    // Check for ext4 superblock (at offset 1024 bytes = sector 2)
-    let mut superblock_buffer = [0u8; 1024];  // Read 2 sectors
-    
+
+    // Try ext4 detection (check Superblock Magic)
+    console_println!("filesystem::detect_filesystem_type: Attempting to read sectors for ext4 superblock check...");
+    const EXT4_SUPERBLOCK_OFFSET: usize = 1024;
+    const SECTOR_SIZE: usize = 512;
+    let start_sector = EXT4_SUPERBLOCK_OFFSET / SECTOR_SIZE; // Should be sector 2
+    let mut sb_buffer = [0u8; 1024];
+
     for i in 0..2 {
-        let mut sector_buf = [0u8; 512];
-        disk_device.read_blocks((2 + i) as u64, &mut sector_buf)
-            .map_err(|_| FilesystemError::IoError)?;
-        superblock_buffer[i * 512..(i + 1) * 512].copy_from_slice(&sector_buf);
+        let current_sector_to_read = (start_sector + i) as u64;
+        console_println!("filesystem::detect_filesystem_type: Reading ext4 SB sector {}", current_sector_to_read);
+        let mut sector_buf = [0u8; SECTOR_SIZE];
+        match disk_device.read_blocks(current_sector_to_read, &mut sector_buf) {
+            Ok(_) => {
+                console_println!("filesystem::detect_filesystem_type: Successfully read ext4 SB sector {}", current_sector_to_read);
+                sb_buffer[i * SECTOR_SIZE..(i + 1) * SECTOR_SIZE].copy_from_slice(&sector_buf);
+            }
+            Err(e) => {
+                console_println!("filesystem::detect_filesystem_type: Failed to read ext4 SB sector {}: {:?}", current_sector_to_read, e);
+                // If we can't read these, it's unlikely ext4, or there's a general disk issue.
+                return Ok(FilesystemType::Unknown); // Return Unknown, don't mask with IoError yet
+            }
+        }
     }
-    
-    drop(disk_device);
-    
-    // Check ext4 magic at offset 56 within the superblock
-    let magic_offset = 56;
-    let ext4_magic = u16::from_le_bytes([
-        superblock_buffer[magic_offset], 
-        superblock_buffer[magic_offset + 1]
-    ]);
-    
-    if ext4_magic == 0xEF53 {
-        console_println!("✅ ext4 magic number found: 0x{:04x}", ext4_magic);
-        return Ok(FilesystemType::Ext4);
+
+    // Parse ext4 superblock magic from sb_buffer
+    // ext4 magic 0xEF53 is at offset 0x38 (56) within the 1024-byte superblock data
+    if sb_buffer.len() >= 56 + 2 {
+        let ext4_magic = u16::from_le_bytes([sb_buffer[56], sb_buffer[57]]);
+        if ext4_magic == 0xEF53 {
+            console_println!("filesystem::detect_filesystem_type: ext4 magic 0xEF53 found.");
+            return Ok(FilesystemType::Ext4);
+        }
+        console_println!("filesystem::detect_filesystem_type: ext4 magic not found (read 0x{:04X}).", ext4_magic);
+    } else {
+        console_println!("filesystem::detect_filesystem_type: Superblock buffer too short for ext4 magic check.");
     }
-    
-    console_println!("❌ No recognized filesystem found");
-    console_println!("   Boot signature: 0x{:04x}", boot_signature);
-    console_println!("   ext4 magic: 0x{:04x} (expected: 0xEF53)", ext4_magic);
-    
+
+    console_println!("filesystem::detect_filesystem_type: No known filesystem type identified.");
     Ok(FilesystemType::Unknown)
 }
 

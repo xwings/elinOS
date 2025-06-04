@@ -7,7 +7,7 @@
 
 # Project metadata
 PROJECT_NAME := elinOS
-KERNEL_NAME := kernel.bin
+KERNEL_NAME := kernel
 VERSION := 0.1.0
 
 # Build configuration
@@ -137,7 +137,7 @@ run: build ## Run the kernel in QEMU (console mode)
 		-m $(QEMU_MEMORY) \
 		-nographic \
 		-bios $(OPENSBI) \
-		-kernel $(KERNEL_NAME) \
+		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0
 
@@ -153,7 +153,7 @@ run-graphics: build ## Run the kernel in QEMU with graphics
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \
 		-bios $(OPENSBI) \
-		-kernel $(KERNEL_NAME) \
+		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0 
 
@@ -168,7 +168,7 @@ run-debug: build ## Run the kernel with GDB debugging enabled
 		-m $(QEMU_MEMORY) \
 		-nographic \
 		-bios $(OPENSBI) \
-		-kernel $(KERNEL_NAME) \
+		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0 \
         -d guest_errors,int,unimp \
@@ -242,7 +242,7 @@ fix-all: format clippy-fix ## Apply all automatic fixes
 # =============================================================================
 
 .PHONY: create-fat32
-create-disk: ## Create a FAT32 test disk image
+create-fat32: ## Create a FAT32 test disk image
 	@echo -e "$(COLOR_BLUE)Creating FAT32 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
 	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
 	@mkfs.fat -F32 $(DISK_IMAGE) >/dev/null 2>&1

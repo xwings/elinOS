@@ -266,39 +266,98 @@ impl MemoryManager {
     fn init_dynamic_heap(&mut self) {
         console_println!("🏗️  Initializing dynamic heap: {} KB", self.heap_size / 1024);
         
-        // Find a suitable memory region for our heap
-        let heap_region = self.detected_regions.iter()
+        // Try to find a suitable "Normal" memory region first
+        let mut heap_region_opt = self.detected_regions.iter()
             .find(|r| r.is_ram && r.zone_type == MemoryZone::Normal && r.size >= self.heap_size);
-            
-        if let Some(region) = heap_region {
-            // Use part of this region for our heap
-            let heap_start = region.start + 1024 * 1024; // Leave 1MB for kernel
-            
-            unsafe {
-                // Store heap info before creating slice
-                self.heap_start = heap_start;
-                self.heap_used = 0;
-                DYNAMIC_HEAP_SIZE = self.heap_size;
-                
-                // Create a slice for our heap space
-                let heap_slice = core::slice::from_raw_parts_mut(
-                    heap_start as *mut u8,
-                    self.heap_size
-                );
-                HEAP_SPACE = Some(heap_slice);
-                
-                // Initialize the global allocator with raw pointer to avoid borrow issues
-                ALLOCATOR.lock().init(heap_start as *mut u8, self.heap_size);
-                
-                console_println!("✅ Dynamic heap: 0x{:08x} - 0x{:08x} ({} KB)",
-                    heap_start,
-                    heap_start + self.heap_size,
-                    self.heap_size / 1024
-                );
-            }
-        } else {
-            console_println!("❌ Could not find suitable memory region for heap");
+
+        // If no suitable "Normal" zone found, try to find *any* RAM region that can fit the heap
+        if heap_region_opt.is_none() {
+            console_println!("💡 No ideal 'Normal' zone RAM region for heap. Searching other RAM regions...");
+            heap_region_opt = self.detected_regions.iter()
+                .find(|r| r.is_ram && r.size >= self.heap_size); // Find any RAM region large enough
         }
+
+        // If still no region, try to find the largest available RAM region, even if smaller than desired heap_size
+        let mut actual_heap_size = self.heap_size;
+        if heap_region_opt.is_none() {
+            console_println!("⚠️ No single RAM region >= configured heap_size ({} KB). Trying largest available RAM region.", self.heap_size / 1024);
+            heap_region_opt = self.detected_regions.iter()
+                .filter(|r| r.is_ram && r.size > 0) // Filter for RAM regions with some size
+                .max_by_key(|r| r.size); // Find the largest one
+            if let Some(largest_region) = heap_region_opt {
+                if largest_region.size < actual_heap_size {
+                    console_println!("⚠️ Largest available RAM region ({} KB) is smaller than configured heap size ({} KB). Using smaller heap.", largest_region.size / 1024, actual_heap_size / 1024);
+                    actual_heap_size = largest_region.size; // Use the size of this largest region
+                }
+            }
+        }
+            
+        if let Some(region) = heap_region_opt {
+            // Define kernel memory layout constants.
+            // TODO: These should ideally come from linker symbols or a central layout configuration.
+            const KERNEL_LOAD_ADDRESS: usize = 0x80200000; // As per OpenSBI log for elinOS
+            const KERNEL_MAX_SIZE_ESTIMATE: usize = 2 * 1024 * 1024; // Generous 2MB estimate for kernel image
+            const PAGE_SIZE: usize = 4096;
+
+            // Calculate the earliest safe address for the heap (after kernel image, page-aligned).
+            let kernel_end_estimate = KERNEL_LOAD_ADDRESS.saturating_add(KERNEL_MAX_SIZE_ESTIMATE);
+            let min_safe_heap_start = (kernel_end_estimate.saturating_add(PAGE_SIZE - 1)) & !(PAGE_SIZE - 1);
+
+            // Determine the actual start of the heap within the selected region.
+            // It must be after the kernel and within the bounds of the region.
+            let potential_heap_start = if region.start > min_safe_heap_start {
+                (region.start.saturating_add(PAGE_SIZE - 1)) & !(PAGE_SIZE -1) // Align region.start if it's after kernel
+            } else {
+                min_safe_heap_start // Kernel end dictates start, already aligned
+            };
+            
+            // Calculate available space in the region from potential_heap_start.
+            let available_space_in_region = if potential_heap_start < region.start.saturating_add(region.size) {
+                region.start.saturating_add(region.size).saturating_sub(potential_heap_start)
+            } else {
+                0
+            };
+
+            if available_space_in_region >= actual_heap_size {
+                let chosen_heap_start = potential_heap_start;
+
+                // Final check: chosen_heap_start must be within the region and have enough space.
+                if chosen_heap_start >= region.start && 
+                   chosen_heap_start.saturating_add(actual_heap_size) <= region.start.saturating_add(region.size) {
+                    unsafe {
+                        self.heap_start = chosen_heap_start;
+                        self.heap_used = 0;
+                        DYNAMIC_HEAP_SIZE = actual_heap_size;
+                        
+                        let heap_slice = core::slice::from_raw_parts_mut(
+                            chosen_heap_start as *mut u8,
+                            actual_heap_size
+                        );
+                        HEAP_SPACE = Some(heap_slice);
+                        
+                        ALLOCATOR.lock().init(chosen_heap_start as *mut u8, actual_heap_size);
+                        
+                        console_println!("✅ Dynamic heap initialized: 0x{:08x} - 0x{:08x} ({} KB)",
+                            chosen_heap_start,
+                            chosen_heap_start.saturating_add(actual_heap_size),
+                            actual_heap_size / 1024
+                        );
+                        console_println!("   Region: 0x{:08x} - 0x{:08x}, Kernel End Est: 0x{:08x}",
+                            region.start, region.start.saturating_add(region.size), min_safe_heap_start);
+                        return; // Successfully initialized heap
+                    }
+                } else {
+                    console_println!("❌ Heap placement validation failed: start 0x{:x} + size {}KB would exceed region [0x{:x} - 0x{:x}]",
+                        chosen_heap_start, actual_heap_size/1024, region.start, region.start.saturating_add(region.size));
+                }
+            } else {
+                 console_println!("❌ Region 0x{:x}-0x{:x} (size {}KB) insufficient for heap ({}KB required). Available space after kernel (est. end 0x{:x}): {}KB.",
+                    region.start, region.start.saturating_add(region.size), region.size/1024,
+                    actual_heap_size/1024, min_safe_heap_start, available_space_in_region/1024);
+            }
+        } 
+        // If we reach here, heap_region_opt was None or the chosen region was unusable.
+        console_println!("❌ 최종: Could not find suitable memory region or usable space for heap after all checks.");
     }
     
     /// Initialize advanced allocators if memory permits

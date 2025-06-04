@@ -1,9 +1,11 @@
 // Common traits and types for filesystem implementations
 
 use heapless::Vec;
+use crate::virtio_blk::DiskError;
+use crate::console_println;
 
 /// Unified filesystem error types
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilesystemError {
     NotInitialized,
     NotMounted,
@@ -11,7 +13,7 @@ pub enum FilesystemError {
     InvalidBootSector,
     InvalidSuperblock,
     FileNotFound,
-    FilenameeTooLong,
+    FilenameTooLong,
     FilesystemFull,
     IoError,
     FileAlreadyExists,
@@ -19,6 +21,13 @@ pub enum FilesystemError {
     InvalidFAT,
     DeviceError,
     CorruptedFilesystem,
+    InvalidPath,
+    NotADirectory,
+    IsADirectory,
+    DirectoryNotEmpty,
+    PathNotFound,
+    InvalidFileNameCharacter,
+    Other(heapless::String<64>),
 }
 
 impl core::fmt::Display for FilesystemError {
@@ -30,7 +39,7 @@ impl core::fmt::Display for FilesystemError {
             FilesystemError::InvalidBootSector => write!(f, "Invalid FAT32 boot sector"),
             FilesystemError::InvalidSuperblock => write!(f, "Invalid ext4 superblock"),
             FilesystemError::FileNotFound => write!(f, "File not found"),
-            FilesystemError::FilenameeTooLong => write!(f, "Filename too long"),
+            FilesystemError::FilenameTooLong => write!(f, "Filename too long"),
             FilesystemError::FilesystemFull => write!(f, "Filesystem full"),
             FilesystemError::IoError => write!(f, "I/O error"),
             FilesystemError::FileAlreadyExists => write!(f, "File already exists"),
@@ -38,7 +47,23 @@ impl core::fmt::Display for FilesystemError {
             FilesystemError::InvalidFAT => write!(f, "Invalid FAT table"),
             FilesystemError::DeviceError => write!(f, "Device error"),
             FilesystemError::CorruptedFilesystem => write!(f, "Corrupted filesystem"),
+            FilesystemError::InvalidPath => write!(f, "Invalid path"),
+            FilesystemError::NotADirectory => write!(f, "Not a directory"),
+            FilesystemError::IsADirectory => write!(f, "Is a directory"),
+            FilesystemError::DirectoryNotEmpty => write!(f, "Directory not empty"),
+            FilesystemError::PathNotFound => write!(f, "Path not found"),
+            FilesystemError::InvalidFileNameCharacter => write!(f, "Invalid file name character"),
+            FilesystemError::Other(ref s) => write!(f, "Other error: {}", s),
         }
+    }
+}
+
+impl From<DiskError> for FilesystemError {
+    fn from(disk_error: DiskError) -> Self {
+        // You can map specific DiskError variants to FilesystemError variants
+        // if needed, or have a general mapping.
+        console_println!("DiskError occurred: {:?}", disk_error);
+        FilesystemError::DeviceError // General mapping
     }
 }
 
@@ -56,7 +81,7 @@ pub struct FileEntry {
 impl FileEntry {
     pub fn new_file(name: &str, inode: u64, size: usize) -> FilesystemResult<Self> {
         let filename = heapless::String::try_from(name)
-            .map_err(|_| FilesystemError::FilenameeTooLong)?;
+            .map_err(|_| FilesystemError::FilenameTooLong)?;
             
         Ok(FileEntry {
             name: filename,
@@ -68,7 +93,7 @@ impl FileEntry {
     
     pub fn new_directory(name: &str, inode: u64) -> FilesystemResult<Self> {
         let dirname = heapless::String::try_from(name)
-            .map_err(|_| FilesystemError::FilenameeTooLong)?;
+            .map_err(|_| FilesystemError::FilenameTooLong)?;
             
         Ok(FileEntry {
             name: dirname,
@@ -98,4 +123,30 @@ pub trait FileSystem {
     
     /// Check if the filesystem is mounted
     fn is_mounted(&self) -> bool;
+
+    // == Write Operations ==
+
+    /// Create a new empty file
+    fn create_file(&mut self, path: &str) -> FilesystemResult<FileEntry>;
+
+    /// Create a new directory
+    fn create_directory(&mut self, path: &str) -> FilesystemResult<FileEntry>;
+
+    /// Write data to a file at a given offset.
+    /// Should extend the file if offset + data.len() > file_size.
+    fn write_file(&mut self, file: &FileEntry, offset: u64, data: &[u8]) -> FilesystemResult<usize>;
+
+    /// Remove a file
+    fn delete_file(&mut self, path: &str) -> FilesystemResult<()>;
+
+    /// Remove an empty directory
+    fn delete_directory(&mut self, path: &str) -> FilesystemResult<()>;
+    
+    /// Truncate or extend a file to a new size.
+    /// If new_size > current_size, the file should be zero-extended.
+    /// If new_size < current_size, data beyond new_size should be discarded.
+    fn truncate_file(&mut self, file: &FileEntry, new_size: u64) -> FilesystemResult<()>;
+
+    /// Synchronize any in-memory caches to the disk
+    fn sync(&mut self) -> FilesystemResult<()>;
 } 
