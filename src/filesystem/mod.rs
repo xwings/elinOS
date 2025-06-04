@@ -117,6 +117,14 @@ impl FileSystem for UnifiedFileSystem {
         }
     }
     
+    fn list_directory(&self, path: &str) -> FilesystemResult<Vec<(heapless::String<64>, usize, bool), 32>> {
+        match &self.filesystem {
+            Filesystem::Fat32(fs) => fs.list_directory(path),
+            Filesystem::Ext4(fs) => fs.list_directory(path),
+            Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+    
     fn read_file(&self, filename: &str) -> FilesystemResult<Vec<u8, 4096>> {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.read_file(filename),
@@ -302,6 +310,12 @@ pub fn init_filesystem() -> FilesystemResult<()> {
 pub fn list_files() -> FilesystemResult<Vec<(heapless::String<64>, usize), 32>> {
     let fs = FILESYSTEM.lock();
     fs.list_files()
+}
+
+/// List files in a specific directory path
+pub fn list_directory(path: &str) -> FilesystemResult<Vec<(heapless::String<64>, usize, bool), 32>> {
+    let fs = FILESYSTEM.lock();
+    fs.list_directory(path)
 }
 
 /// Read a file from the filesystem

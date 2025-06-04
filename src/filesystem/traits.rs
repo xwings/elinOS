@@ -109,6 +109,9 @@ pub trait FileSystem {
     /// List all files in the filesystem
     fn list_files(&self) -> FilesystemResult<Vec<(heapless::String<64>, usize), 32>>;
     
+    /// List files in a specific directory path
+    fn list_directory(&self, path: &str) -> FilesystemResult<Vec<(heapless::String<64>, usize, bool), 32>>;
+    
     /// Read the contents of a file
     fn read_file(&self, filename: &str) -> FilesystemResult<Vec<u8, 4096>>;
     

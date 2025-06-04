@@ -676,6 +676,31 @@ impl FileSystem for Fat32FileSystem {
         Ok(result_vec)
     }
     
+    fn list_directory(&self, path: &str) -> FilesystemResult<Vec<(heapless::String<64>, usize, bool), 32>> {
+        // For now, FAT32 only supports root directory listing (like the original list_files)
+        // TODO: Implement full path resolution for FAT32 directories
+        console_println!("fat32: list_directory('{}') - Currently only supports root '/'", path);
+        
+        if path != "/" && path != "" {
+            console_println!("fat32: list_directory - Path resolution not implemented for FAT32, defaulting to root");
+        }
+        
+        let mut result_vec = Vec::new();
+        for entry in self.files.iter() {
+            // Convert entry.name (String<256>) to String<64>
+            let name_str = heapless::String::<64>::try_from(entry.name.as_str())
+                .map_err(|_| FilesystemError::FilenameTooLong)?;
+
+            match result_vec.push((name_str, entry.size, entry.is_directory)) {
+                Ok(_) => {},
+                Err(_) => return Err(FilesystemError::Other(
+                    heapless::String::try_from("List directory result vec full").unwrap_or_default()
+                ))
+            }
+        }
+        Ok(result_vec)
+    }
+    
     fn read_file(&self, filename: &str) -> FilesystemResult<Vec<u8, 4096>> {
         for file in &self.files {
             if file.name.as_str() == filename && !file.is_directory {

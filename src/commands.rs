@@ -418,12 +418,10 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
 
     syscall::sys_print("Listing for target '")?;
     syscall::sys_print(&list_target_path)?;
-    // Note: The actual filesystem list_files() currently doesn't take a path,
-    // so it will always list the root. This print shows the *intended* target.
-    syscall::sys_print("' (Note: actual listing is currently always root /)\n")?;
+    syscall::sys_print("':\n")?;
 
-    // Use modular filesystem API
-    match crate::filesystem::list_files() {
+    // Use the new path-aware directory listing
+    match crate::filesystem::list_directory(&list_target_path) {
         Ok(files) => {
             // Get filesystem info for display
             let fs = crate::filesystem::FILESYSTEM.lock();
@@ -462,8 +460,12 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
             if files.is_empty() {
                 syscall::sys_print("(No files found)\n")?;
             } else {
-                for (name, _size) in &files {
-                    syscall::sys_print("  FILE  ")?;
+                for (name, _size, is_directory) in &files {
+                    if *is_directory {
+                        syscall::sys_print("  DIR   ")?;
+                    } else {
+                        syscall::sys_print("  FILE  ")?;
+                    }
                     syscall::sys_print(name.as_str())?;
                     syscall::sys_print("\n")?;
                 }
@@ -475,8 +477,8 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
             Ok(())
         }
         Err(_) => {
-            syscall::sys_print("Failed to list files\n")?;
-            Err("Failed to list files")
+            syscall::sys_print("Failed to list directory\n")?;
+            Err("Failed to list directory")
         }
     }
 }
