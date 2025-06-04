@@ -1,11 +1,11 @@
 #![no_std]
 #![no_main]
-#![feature(panic_info_message)]
 
 use core::panic::PanicInfo;
 use core::fmt::Write;
 use core::arch::asm;
 use spin::Mutex;
+use heapless;
 
 // Module declarations
 pub mod console;
@@ -161,7 +161,12 @@ fn show_welcome() {
 
 // === INTERACTIVE SHELL ===
 fn shell_loop() -> ! {
-    let mut command_buffer = [0u8; 256];
+    // Use dynamic command buffer size based on detected memory
+    let command_buffer_size = crate::memory::get_optimal_buffer_size(crate::memory::BufferUsage::Command);
+    
+    // Use heapless::Vec since we're in no_std environment
+    let mut command_buffer = heapless::Vec::<u8, 1024>::new();
+    command_buffer.resize(command_buffer_size.min(1024), 0).ok();
     let mut buffer_pos = 0;
     
     loop {
@@ -181,6 +186,7 @@ fn shell_loop() -> ! {
                 b'\x08' | b'\x7f' => {  // Backspace or DEL
                     if buffer_pos > 0 {
                         buffer_pos -= 1;
+                        command_buffer[buffer_pos] = 0;
                         console_print!("\x08 \x08");  // Move back, print space, move back
                     }
                 }
@@ -198,7 +204,9 @@ fn shell_loop() -> ! {
         }
         
         // Null-terminate the command
-        command_buffer[buffer_pos] = 0;
+        if buffer_pos < command_buffer.len() {
+            command_buffer[buffer_pos] = 0;
+        }
         
         // Convert to string and execute
         if buffer_pos > 0 {

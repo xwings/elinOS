@@ -188,7 +188,7 @@ fn sys_getmeminfo() -> SysCallResult {
     // Show simplified memory manager stats
     let stats = memory::get_memory_stats();
     console_println!("Simplified Memory Manager:");
-    console_println!("  Total Memory: {} MB", stats.total_memory / (1024 * 1024));
+    console_println!("  Total Memory: {} MB", stats.detected_ram_size / (1024 * 1024));
     console_println!("  Allocated: {} bytes", stats.allocated_bytes);
     console_println!("  Allocations: {}", stats.allocation_count);
     console_println!("  Using heap-only allocation");

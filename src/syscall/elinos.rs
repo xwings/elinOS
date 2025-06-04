@@ -20,18 +20,8 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
     match args.syscall_num {
         SYS_ELINOS_VERSION => sys_elinos_version(),
         SYS_ELINOS_DEBUG => sys_elinos_debug(args.arg0_as_ptr::<u8>()),
-        SYS_ELINOS_SHUTDOWN => {
-            sys_elinos_shutdown(args.arg0_as_i32());
-            // This line is never reached, but needed for type checking
-            #[allow(unreachable_code)]
-            SysCallResult::Success(0)
-        },
-        SYS_ELINOS_REBOOT => {
-            sys_elinos_reboot();
-            // This line is never reached, but needed for type checking
-            #[allow(unreachable_code)]
-            SysCallResult::Success(0)
-        },
+        SYS_ELINOS_SHUTDOWN => sys_elinos_shutdown(args.arg0_as_i32()),
+        SYS_ELINOS_REBOOT => sys_elinos_reboot(),
         SYS_LOAD_ELF => super::process::sys_load_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_EXEC_ELF => super::process::sys_exec_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_ELF_INFO => super::process::sys_elf_info(args.arg0_as_ptr::<u8>(), args.arg1),

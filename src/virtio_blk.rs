@@ -862,4 +862,41 @@ static mut VIRTIO_STATUS_BUFFER: u8 = 0;
 pub fn init_virtio_blk() -> DiskResult<()> {
     let mut device = VIRTIO_BLK.lock();
     device.init()
+}
+
+/// Initialize VirtIO block device with specific address (for dynamic detection)
+pub fn init_with_address(base_addr: usize) -> bool {
+    console_println!("🔍 Trying VirtIO device at 0x{:08x}", base_addr);
+    
+    unsafe {
+        // Check if there's a valid VirtIO device at this address
+        let magic = core::ptr::read_volatile(base_addr as *const u32);
+        if magic != 0x74726976 {
+            return false;
+        }
+        
+        let version = core::ptr::read_volatile((base_addr + VIRTIO_MMIO_VERSION) as *const u32);
+        let device_id = core::ptr::read_volatile((base_addr + VIRTIO_MMIO_DEVICE_ID) as *const u32);
+        
+        // Check if it's a block device
+        if device_id != 2 {
+            console_println!("⚠️  Device at 0x{:08x} is not a block device (ID: {})", base_addr, device_id);
+            return false;
+        }
+        
+        console_println!("✅ Found VirtIO block device at 0x{:08x} (version: {})", base_addr, version);
+        
+        // Initialize the device with this address
+        let mut device = RustVmmVirtIOBlock::new();
+        device.mmio_base = base_addr;
+        if device.init().is_ok() {
+            console_println!("✅ VirtIO block device initialized successfully");
+            
+            // Store in global state
+            *VIRTIO_BLK.lock() = device;
+            return true;
+        }
+    }
+    
+    false
 } 
