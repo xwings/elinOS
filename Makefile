@@ -241,15 +241,15 @@ fix-all: format clippy-fix ## Apply all automatic fixes
 # Disk Image Commands
 # =============================================================================
 
-.PHONY: create-fat32
-create-fat32: ## Create a FAT32 test disk image
+.PHONY: fat32-disk
+fat32-disk: ## Create a FAT32 test disk image
 	@echo -e "$(COLOR_BLUE)Creating FAT32 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
 	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
 	@mkfs.fat -F32 $(DISK_IMAGE) >/dev/null 2>&1
 	@echo -e "$(COLOR_GREEN)✓ FAT32 disk image created: $(DISK_IMAGE)$(COLOR_RESET)"
 
-.PHONY: create-ext4
-create-ext4: ## Create an ext4 test disk image
+.PHONY: ext4-disk
+ext4-disk: ## Create an ext4 test disk image
 	@echo -e "$(COLOR_BLUE)Creating ext4 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
 	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
 	@mkfs.ext4 $(DISK_IMAGE) >/dev/null 2>&1
