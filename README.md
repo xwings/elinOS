@@ -140,27 +140,6 @@ make run
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🧪 Dynamic Adaptation Examples
-
-### Memory Scaling
-```
-8MB System:    32KB heap,  128B commands,   4KB max file,  SimpleHeap mode
-32MB System:   256KB heap, 512B commands,   64KB max file, TwoTier mode  
-128MB System:  512KB heap, 512B commands,   256KB max file, TwoTier mode
-1GB+ System:   8MB heap,   512B commands,   1MB max file,  TwoTier mode
-```
-
-### Hardware Detection
-- **RAM Detection**: Queries SBI for actual memory layout and zones
-- **Device Discovery**: Scans VirtIO MMIO space automatically (0x10001000-0x10008000)
-- **Filesystem Recognition**: Probes boot sectors (FAT32) and superblocks (ext4)
-- **Allocator Selection**: Chooses optimal memory management strategy based on available RAM
-
-### Real Filesystem Features
-- **FAT32**: Parses boot sector (0xAA55), reads directory entries, follows cluster chains
-- **ext4**: Validates superblock (0xEF53), reads inodes, traverses extent trees
-- **Auto-mount**: Detects filesystem type and mounts automatically on boot
-
 ## 🧪 Available Commands
 
 ```bash
@@ -238,29 +217,12 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [ ] File caching and buffer management
 - [ ] Additional filesystems (NTFS, btrfs, ZFS)
 
-## 📚 References & Inspiration
-
-- **[Maestro OS](https://github.com/maestro-os/maestro)** - Fallible allocation patterns and transaction system
-- **[Linux Kernel](https://kernel.org/)** - System call compatibility and memory management
-- **[rust-vmm](https://github.com/rust-vmm)** - VirtIO implementation patterns and device drivers
-- **[rCore](https://github.com/rcore-os/rCore)** - Rust OS development techniques and architecture
 
 ## 📄 License
 
 This project is dual-licensed under:
 
 - **MIT License** ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-- **Apache License 2.0** ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-
-at your option.
-
-## 🙏 Acknowledgments
-
-- **RISC-V Foundation** for the open ISA specification
-- **Rust Language Team** for the excellent systems programming language
-- **QEMU Project** for the versatile emulation platform
-- **rust-vmm Community** for VirtIO implementation guidance
-- **Maestro OS Team** for inspiration on fallible allocation patterns
 
 ---
 
