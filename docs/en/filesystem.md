@@ -114,7 +114,6 @@ struct Fat32DirEntry {
 - ✅ **File Reading**: Reads complete file contents
 - ✅ **File Existence Check**: Verifies file presence
 - ✅ **Filesystem Info**: Returns signature, sector count, sector size
-- ❌ **Write Operations**: Read-only implementation
 - ❌ **Long Filenames**: Only 8.3 names supported
 
 ### ext4 Implementation
@@ -171,8 +170,6 @@ struct Ext4Extent {
 - ✅ **Extent Tree**: Handles linear extent trees (depth-0)
 - ✅ **Directory Listing**: Parses real directory entries
 - ✅ **File Reading**: Reads files through extent mapping
-- ❌ **Multi-level Extents**: Only single-level extent trees
-- ❌ **Write Operations**: Read-only implementation
 - ❌ **Extended Attributes**: Not implemented
 
 ## Auto-Detection System

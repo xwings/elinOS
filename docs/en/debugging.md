@@ -5,14 +5,14 @@ This guide covers debugging techniques, common issues, and troubleshooting steps
 ## Debugging Setup
 
 ### QEMU Logs
-Debugging information is automatically logged to `qemu.log`:
+When using the `run-debug` target in the Makefile, debugging information from QEMU is logged to `qemu.log` (due to `-D qemu.log` flag). You can also add `-d guest_errors,int,unimp` or other flags to QEMU_ARGS in Makefile for more detailed logs.
 
 ```bash
 # Monitor logs in real-time
 tail -f qemu.log
 
 # Search for specific issues
-grep -i "error\|panic\|abort" qemu.log
+grep -i "error\\|panic\\|abort" qemu.log
 
 # View last 50 lines
 tail -50 qemu.log
@@ -21,26 +21,30 @@ tail -50 qemu.log
 ### GDB Debugging
 For kernel debugging with GDB:
 
-```bash
-# Start QEMU with GDB server
-qemu-system-riscv64 \
-    -machine virt \
-    -cpu rv64 \
-    -smp 1 \
-    -m 128M \
-    -serial stdio \
-    -bios default \
-    -kernel kernel.bin \
-    -s -S  # GDB server on port 1234, wait for connection
+1.  **Start QEMU with GDB server using the Makefile:**
+    The `run-debug` target in the `Makefile` starts QEMU with the GDB server enabled (`-s -S`), waiting for a connection on port 1234.
+    ```bash
+    make run-debug
+    ```
+    QEMU will print a message like: `Connect with: gdb target/riscv64gc-unknown-none-elf/debug/kernel -ex 'target remote :1234'`
 
-# In another terminal, connect with GDB
-riscv64-linux-gnu-gdb kernel.bin
-(gdb) target remote :1234
-(gdb) c  # Continue execution
-```
+2.  **In another terminal, connect with GDB:**
+    Use the GDB command provided by the `make run-debug` output. This will typically be:
+    ```bash
+    # Make sure you have a RISC-V GDB, e.g., gdb-multiarch or riscv64-unknown-elf-gdb
+    gdb-multiarch target/riscv64gc-unknown-none-elf/debug/kernel
+    # or riscv64-unknown-elf-gdb target/riscv64gc-unknown-none-elf/debug/kernel
+    ```
+    Then, within GDB:
+    ```gdb
+    (gdb) target remote :1234
+    (gdb) # Set breakpoints, e.g., break kmain
+    (gdb) c  # Continue execution
+    ```
+    The kernel ELF file (`target/riscv64gc-unknown-none-elf/debug/kernel`) contains symbols needed for effective debugging.
 
 ### Serial Output
-All kernel output goes through the serial console. Monitor for:
+All kernel output (`console_println!`) goes through the serial console. Monitor for:
 - Boot messages
 - System call traces
 - Error messages
@@ -59,11 +63,12 @@ rustup target add riscv64gc-unknown-none-elf
 ```
 
 #### Linker Errors
-**Error:** `undefined reference to '_start'`
+**Error:** `undefined reference to '_start'` (or similar)
 
-**Solution:** Check `src/linker.ld` and ensure proper entry point:
+**Solution:** Check `src/linker.ld` and ensure proper entry point and section layout:
 ```ld
 ENTRY(_start)
+/* ... other sections ... */
 ```
 
 #### Cargo Build Fails
@@ -72,11 +77,11 @@ ENTRY(_start)
 **Solutions:**
 ```bash
 # Clean and rebuild
-cargo clean
-make
+make clean
+make build # or just 'make'
 
-# Check for missing dependencies
-cargo check
+# Check for missing dependencies or other errors
+cargo check --target riscv64gc-unknown-none-elf
 
 # Update toolchain
 rustup update
@@ -85,478 +90,141 @@ rustup update
 ### Runtime Issues
 
 #### QEMU Boot Failure
-**Symptoms:** No output, immediate exit
+**Symptoms:** No output, immediate QEMU exit, or errors from QEMU itself.
 
 **Troubleshooting:**
-1. **Check QEMU installation:**
-   ```bash
-   qemu-system-riscv64 --version
-   ```
-
-2. **Verify kernel binary:**
-   ```bash
-   file kernel.bin
-   # Should show: kernel.bin: data
-   ```
-
-3. **Check memory settings:**
-   ```bash
-   # Try with more memory
-   MEMORY=256M ./run.sh
-   ```
+1.  **Check QEMU installation:**
+    ```bash
+    qemu-system-riscv64 --version
+    ```
+2.  **Verify kernel ELF file:**
+    The kernel file used is typically `target/riscv64gc-unknown-none-elf/debug/kernel`.
+    ```bash
+    file target/riscv64gc-unknown-none-elf/debug/kernel
+    # Should show: ... ELF 64-bit LSB executable, RISC-V, ...
+    ```
+3.  **Check memory settings in `Makefile`:**
+    The `QEMU_MEMORY` variable in the `Makefile` (e.g., `128M`). Try increasing if needed.
+4.  **OpenSBI:**
+    Ensure QEMU can find/use OpenSBI (the `Makefile` attempts to find it). If QEMU complains about BIOS, this could be an issue.
 
 #### OpenSBI Issues
-**Symptoms:** Boot stops at OpenSBI
+**Symptoms:** Boot stops at OpenSBI, or OpenSBI prints errors.
 
 **Solutions:**
-1. **Check OpenSBI version:**
-   - Ensure QEMU has compatible OpenSBI firmware
-   - Try different QEMU versions
-
-2. **Memory layout problems:**
-   - Verify linker script addresses
-   - Check for memory overlap
+1.  **Check OpenSBI version/path:**
+    - The `Makefile` tries to locate OpenSBI. Ensure the path it finds is correct or QEMU's default is working.
+    - Try different QEMU versions if OpenSBI compatibility is suspected.
+2.  **Memory layout problems:**
+    - Verify linker script addresses against OpenSBI's expectations for kernel load address.
+    - Check for memory overlap.
 
 #### No Serial Output
-**Symptoms:** QEMU starts but no text appears
+**Symptoms:** QEMU starts but no kernel text appears after OpenSBI.
 
 **Solutions:**
-1. **Check serial configuration:**
-   ```bash
-   # Ensure -serial stdio in run.sh
-   grep "serial" run.sh
-   ```
-
-2. **Verify UART initialization:**
-   - Check SBI UART setup in `src/main.rs`
-   - Ensure proper character output
+1.  **Check serial configuration in `Makefile`:**
+    - `run` and `run-debug` targets typically use `-nographic` which directs serial to stdio.
+    - `run-graphics` uses `-serial mon:vc`.
+2.  **Verify UART initialization in kernel:**
+    - Check early UART setup in `src/main.rs` or `src/uart.rs`.
+    - Ensure `console_println!` or direct UART writes are functioning.
 
 ### Memory Issues
 
 #### Stack Overflow
-**Symptoms:** Random crashes, corruption
+**Symptoms:** Random crashes, corruption, unexpected jumps.
 
 **Debugging:**
-```rust
-// Add stack canary checking
-fn check_stack_integrity() {
-    // Implementation to detect stack overflow
-}
-```
+- Use GDB to inspect stack pointer and backtrace when a crash occurs.
+- Consider adding stack canary checking in very early boot or for critical sections if suspected.
 
 **Solutions:**
-- Increase stack size in linker script
-- Reduce local variable usage
-- Use heap allocation for large data
+- Increase stack size in `src/linker.ld` (e.g., `_stack_size = 4K;`).
+- Reduce large local variables on the stack; use heap or static allocation.
 
 #### Heap Exhaustion
-**Symptoms:** Allocation failures, OOM
+**Symptoms:** Allocation failures (`memory::allocate_memory` returns `None`), `Out of memory` errors from kernel.
 
 **Debugging:**
 ```bash
-elinOS> memory
-Memory regions:
-  Region 0: 0x80000000 - 0x88000000 (128 MB) RAM
+elinOS> memory  # Check allocator statistics
+elinOS> config  # Check total RAM and kernel heap size
 ```
 
 **Solutions:**
-- Increase QEMU memory: `MEMORY=256M ./run.sh`
-- Optimize memory usage
-- Check for memory leaks
+- Increase QEMU memory via `QEMU_MEMORY` in `Makefile`.
+- Optimize memory usage in the kernel.
+- Check for memory leaks (memory allocated but never freed).
 
 #### Memory Corruption
-**Symptoms:** Random behavior, data corruption
+**Symptoms:** Random behavior, data corruption, inexplicable panics.
 
 **Debugging:**
-1. **Enable memory debugging:**
-   ```rust
-   // Add bounds checking
-   fn safe_memory_access(addr: usize) -> Result<u8, &'static str> {
-       if addr < HEAP_START || addr > HEAP_END {
-           return Err("Out of bounds access");
-       }
-       // Safe access
-   }
-   ```
-
-2. **Use address sanitizer patterns:**
-   ```rust
-   // Poison freed memory
-   fn debug_free(ptr: *mut u8, size: usize) {
-       unsafe {
-           ptr::write_bytes(ptr, 0xDE, size); // Poison pattern
-       }
-   }
-   ```
+1.  **Enable memory debugging features if available (or add them):**
+    ```rust
+    // Example: Add bounds checking for critical buffer accesses
+    // fn safe_memory_access(addr: usize, len: usize) -> Result<&'static [u8], &\'static str> { ... }
+    ```
+2.  **Use GDB watchpoints:**
+    Set watchpoints on memory locations suspected of being corrupted.
+3.  **Poison freed memory:**
+    If you have a custom heap, when freeing memory, write a pattern (e.g., `0xDEADBEEF`) to it. If this pattern is later read or executed, it indicates use-after-free.
+    ```rust
+    // In your_allocator::deallocate
+    // unsafe { core::ptr::write_bytes(ptr as *mut u8, 0xDE, layout.size()); }
+    ```
 
 ### System Call Issues
 
 #### Invalid System Call Numbers
-**Error:** `Invalid system call number`
+**Error:** `Unknown system call` or similar error from the shell or kernel.
 
 **Debugging:**
 ```bash
-elinOS> syscall
-# Check available system calls
-
-elinOS> categories
-# Verify call number ranges
+elinOS> syscall # Check a summary of available/implemented system calls
 ```
+(The `categories` command mentioned previously may no longer be available).
+Consult `docs/en/syscalls.md` for the definitive list of syscalls, their numbers, and categories.
 
 **Solutions:**
-- Verify syscall number ranges in documentation
-- Check category boundaries
-- Update user programs with correct numbers
+- Verify syscall numbers used by user-space applications against `docs/en/syscalls.md`.
+- Check the main dispatcher in `src/syscall/mod.rs` and submodule handlers (e.g. `src/syscall/file.rs`) for how numbers are routed and handled.
 
 #### Parameter Validation Errors
-**Error:** System calls fail with parameter errors
+**Error:** System calls fail, or behave unexpectedly, due to incorrect parameters.
 
 **Debugging:**
-1. **Add parameter logging:**
-   ```rust
-   pub fn handle_syscall(num: usize, args: &[usize]) -> SysCallResult {
-       console_print!("Syscall {} with args: {:?}", num, args);
-       // ... implementation
-   }
-   ```
-
-2. **Validate in user space:**
-   ```c
-   // Check parameters before syscall
-   if (filename == NULL || strlen(filename) == 0) {
-       return -1;
-   }
-   ```
+1.  **Add parameter logging in kernel syscall handlers:**
+    ```rust
+    // Example in a syscall handler function
+    // pub fn sys_openat(args: &SyscallArgs) -> SysCallResult {
+    //     console_println!("sys_openat: dirfd={}, path_ptr=0x{:x}, flags={}, mode={}",
+    //         args.arg0_as_i32(), args.arg1, args.arg2, args.arg3);
+    //     // ... implementation
+    // }
+    ```
+2.  **Validate in user space (if applicable):**
+    Ensure any test programs or user-space code correctly prepares and passes arguments.
 
 ### VirtIO Device Issues
 
 #### Device Not Found
-**Symptoms:** `devices` command shows no devices
+**Symptoms:** `elinOS> devices` command shows no VirtIO devices or fewer than expected.
 
 **Debugging:**
 ```bash
 elinOS> devices
-Probing for VirtIO devices...
-# Should show VirtIO devices
+# Check output for listed VirtIO block devices.
 ```
 
 **Solutions:**
-1. **Check QEMU configuration:**
-   ```bash
-   # Ensure VirtIO disk is configured
-   grep "virtio" run.sh
-   ```
+1.  **Check QEMU configuration in `Makefile`:**
+    - Ensure VirtIO disk is configured (e.g., `-drive ... -device virtio-blk-device,...`). The `Makefile` typically handles this.
+2.  **Verify MMIO addresses and kernel driver:**
+    - Check that the VirtIO MMIO base address used by the kernel driver matches QEMU's `virt` machine specification.
+    - Ensure the VirtIO driver in `src/virtio_blk.rs` is correctly probing and initializing devices.
+3.  **QEMU Logs:** Check `qemu.log` for any VirtIO related errors reported by QEMU itself.
 
-2. **Verify MMIO addresses:**
-   ```rust
-   // Check standard VirtIO MMIO addresses
-   const VIRTIO_MMIO_BASE: usize = 0x10001000;
-   ```
-
-#### Block Device Initialization Fails
-**Error:** VirtIO block device not responding
-
-**Debugging:**
-1. **Check device registers:**
-   ```rust
-   unsafe fn debug_virtio_device(base: usize) {
-       let magic = ptr::read_volatile((base + 0x00) as *const u32);
-       let version = ptr::read_volatile((base + 0x04) as *const u32);
-       console_print!("VirtIO Magic: 0x{:x}, Version: {}", magic, version);
-   }
-   ```
-
-2. **Verify queue setup:**
-   ```rust
-   fn debug_virtqueue(device: &VirtIOBlockDevice) {
-       console_print!("Queue size: {}", device.queue_size);
-       console_print!("Queue ready: {}", device.is_queue_ready());
-   }
-   ```
-
-### ELF Loader Issues
-
-#### Invalid ELF Files
-**Error:** `Invalid ELF magic number`
-
-**Debugging:**
-```bash
-# Check ELF file validity
-file hello.elf
-readelf -h hello.elf
-
-# Verify magic number
-hexdump -C hello.elf | head -1
-# Should start with: 7f 45 4c 46
-```
-
-**Solutions:**
-- Recompile with correct RISC-V toolchain
-- Check compilation flags
-- Verify file wasn't corrupted during transfer
-
-#### Unsupported ELF Features
-**Error:** `Unsupported ELF class/machine`
-
-**Solutions:**
-1. **Ensure RISC-V 64-bit:**
-   ```bash
-   readelf -h program.elf | grep Machine
-   # Should show: Machine: RISC-V
-   ```
-
-2. **Check ELF class:**
-   ```bash
-   readelf -h program.elf | grep Class
-   # Should show: Class: ELF64
-   ```
-
-### Filesystem Issues
-
-#### File Not Found
-**Error:** `File not found` errors
-
-**Debugging:**
-```bash
-elinOS> ls
-# Check available files
-
-# Verify filename exactly
-elinOS> cat "exact_filename.txt"
-```
-
-**Solutions:**
-- Check file was added to `src/filesystem.rs`
-- Verify filename case sensitivity
-- Ensure file size limits aren't exceeded
-
-#### Filesystem Full
-**Error:** Cannot create new files
-
-**Debugging:**
-```rust
-// Check filesystem capacity
-const MAX_FILES: usize = 16;
-const MAX_FILE_SIZE: usize = 4096;
-```
-
-**Solutions:**
-- Increase `MAX_FILES` in filesystem.rs
-- Increase `MAX_FILE_SIZE` for larger files
-- Remove unnecessary files
-
-## Performance Issues
-
-### Slow Boot Time
-**Symptoms:** Long time to reach shell prompt
-
-**Profiling:**
-1. **Add timing to boot stages:**
-   ```rust
-   fn boot_stage(name: &str) {
-       let start = get_time();
-       // ... stage implementation
-       let end = get_time();
-       console_print!("{} took {} cycles", name, end - start);
-   }
-   ```
-
-2. **Optimize device probing:**
-   ```rust
-   // Cache device probe results
-   static mut DEVICES_PROBED: bool = false;
-   ```
-
-### Memory Allocation Overhead
-**Symptoms:** High memory usage
-
-**Solutions:**
-- Use `heapless` collections more extensively
-- Reduce static buffer sizes
-- Implement memory pooling
-
-### System Call Overhead
-**Symptoms:** Slow command execution
-
-**Optimization:**
-```rust
-// Inline hot paths
-#[inline]
-pub fn fast_syscall_path(num: usize) -> SysCallResult {
-    // Optimized implementation
-}
-```
-
-## Development Debugging Techniques
-
-### Adding Debug Prints
-```rust
-// Conditional compilation for debug builds
-#[cfg(debug_assertions)]
-macro_rules! debug_print {
-    ($($arg:tt)*) => {
-        console_print!("[DEBUG] {}", format_args!($($arg)*));
-    };
-}
-
-#[cfg(not(debug_assertions))]
-macro_rules! debug_print {
-    ($($arg:tt)*) => {};
-}
-```
-
-### Assert Macros
-```rust
-// Custom assert for kernel debugging
-macro_rules! kernel_assert {
-    ($cond:expr, $msg:expr) => {
-        if !$cond {
-            panic!("Kernel assertion failed: {} at {}:{}", 
-                   $msg, file!(), line!());
-        }
-    };
-}
-```
-
-### Memory Debugging
-```rust
-// Track memory allocations
-struct MemoryTracker {
-    allocations: usize,
-    deallocations: usize,
-}
-
-impl MemoryTracker {
-    fn track_alloc(&mut self, size: usize) {
-        self.allocations += size;
-        debug_print!("Allocated {} bytes, total: {}", size, self.allocations);
-    }
-}
-```
-
-## Testing Strategies
-
-### Unit Testing
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_syscall_dispatch() {
-        let result = handle_syscall(1, &[1, 0x1000, 10]);
-        assert!(matches!(result, SysCallResult::Success(_)));
-    }
-}
-```
-
-### Integration Testing
-```bash
-# Script to test various scenarios
-#!/bin/bash
-echo "Testing elinOS functionality..."
-
-# Test 1: Basic boot
-timeout 30 ./run.sh << EOF
-version
-shutdown
-EOF
-
-# Test 2: File operations
-timeout 30 ./run.sh << EOF
-ls
-cat hello.txt
-shutdown
-EOF
-```
-
-### Stress Testing
-```rust
-// Stress test system calls
-fn stress_test_syscalls() {
-    for i in 0..1000 {
-        let result = handle_syscall(1, &[1, 0x1000, 10]);
-        assert!(result.is_success());
-    }
-}
-```
-
-## Advanced Debugging
-
-### Kernel Crash Analysis
-When the kernel panics:
-
-1. **Capture panic information:**
-   ```rust
-   #[panic_handler]
-   fn panic(info: &PanicInfo) -> ! {
-       println!("KERNEL PANIC: {}", info);
-       println!("Location: {:?}", info.location());
-       // Dump registers, stack trace, etc.
-       loop {}
-   }
-   ```
-
-2. **Analyze with GDB:**
-   ```gdb
-   (gdb) bt        # Stack trace
-   (gdb) info reg  # Register dump
-   (gdb) x/16x $sp # Stack contents
-   ```
-
-### Memory Layout Debugging
-```rust
-fn debug_memory_layout() {
-    extern "C" {
-        static __text_start: u8;
-        static __text_end: u8;
-        static __data_start: u8;
-        static __data_end: u8;
-    }
-    
-    unsafe {
-        println!("Text: 0x{:x} - 0x{:x}", 
-                 &__text_start as *const _ as usize,
-                 &__text_end as *const _ as usize);
-        println!("Data: 0x{:x} - 0x{:x}",
-                 &__data_start as *const _ as usize,
-                 &__data_end as *const _ as usize);
-    }
-}
-```
-
-## Recovery Procedures
-
-### Soft Reset
-If the system becomes unresponsive:
-```bash
-# Force QEMU exit
-Ctrl+A, X
-
-# Or from another terminal
-pkill qemu-system-riscv64
-```
-
-### Hard Reset
-For complete recovery:
-```bash
-# Clean all generated files
-make clean  # or rm -f kernel.bin qemu.log disk.qcow2
-
-# Rebuild from scratch
-make
-./run.sh
-```
-
-### Backup Procedures
-```bash
-# Backup working configuration
-cp -r src/ src.backup/
-cp Cargo.toml Cargo.toml.backup
-
-# Create development snapshot
-git add -A
-git commit -m "Working state before changes"
-```
-
-This debugging guide should help you identify and resolve most issues encountered during elinOS development and usage. 
+---
+This document provides a starting point. Effective debugging often involves a combination of these techniques and careful code review. 

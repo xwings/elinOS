@@ -95,11 +95,14 @@ make run
 
 ## 📖 Documentation
 
-- **[Architecture Guide](docs/architecture.md)** - System design and components
-- **[Memory Management](docs/memory_improvements.md)** - Advanced memory subsystem details
-- **[Filesystem Support](docs/filesystem.md)** - Storage and filesystem implementation
-- **[System Calls](docs/syscalls.md)** - API reference and Linux compatibility
-- **[Building & Development](docs/development.md)** - Developer setup and workflow
+- **[English Documentation](docs/en/)**
+- **[Memory Management](docs/en/memory.md)** - Advanced memory subsystem details
+- **[Filesystem Support](docs/en/filesystem.md)** - Storage and filesystem implementation
+- **[System Calls](docs/en/syscalls.md)** - API reference and Linux compatibility
+- **[Building & Development](docs/en/development.md)** - Developer setup and workflow
+- **[Commands](docs/en/commands.md)** - List of available shell commands
+- **[Debugging](docs/en/debugging.md)** - Debugging tips and techniques
+- **[Translation](docs/en/translation.md)** - Guidelines for translating documentation
 
 ## 🎯 System Requirements
 
@@ -212,10 +215,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [ ] Security hardening and capability system
 
 ### Filesystem Enhancements
-- [ ] Write support for FAT32 and ext4
-- [ ] Directory navigation and subdirectory support
 - [ ] File caching and buffer management
-- [ ] Additional filesystems (NTFS, btrfs, ZFS)
 
 
 ## 📄 License

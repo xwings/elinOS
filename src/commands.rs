@@ -246,29 +246,29 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("📖 elinOS Commands\n")?;
     syscall::sys_print("===============================================\n\n")?;
     
-    syscall::sys_print("🗂️  File Operations (modular filesystem support):\n")?;
-    syscall::sys_print("  ls [path]       - List files (path optional, currently lists root)\n")?;
-    syscall::sys_print("  cat <file>      - Display file contents\n")?;
-    syscall::sys_print("  echo <message>  - Echo a message\n")?;
-    syscall::sys_print("  pwd             - Print current working directory\n")?;
-    syscall::sys_print("  touch <file>    - Create an empty file\n")?;
-    syscall::sys_print("  mkdir <dir>     - Create a directory\n")?;
-    syscall::sys_print("  rm <file>       - Remove a file\n")?;
-    syscall::sys_print("  rmdir <dir>     - Remove an empty directory\n")?;
-    syscall::sys_print("  cd <dir>        - Change current directory\n")?;
-    
-    syscall::sys_print("\n📊 System Information:\n")?;
+    syscall::sys_print("📊 System Information:\n")?;
     syscall::sys_print("  help            - Show this help message\n")?;
-    syscall::sys_print("  version         - Show kernel version\n")?;
-    syscall::sys_print("  memory          - Show memory information\n")?;
-    syscall::sys_print("  devices         - List VirtIO and other devices\n")?;
+    syscall::sys_print("  version         - Show kernel version and features\n")?;
+    syscall::sys_print("  memory          - Show memory regions and allocator statistics\n")?;
+    syscall::sys_print("  devices         - List detected VirtIO devices\n")?;
     syscall::sys_print("  syscall         - Show system call information\n")?;
-    syscall::sys_print("  fscheck         - Check filesystem status\n")?;
+    syscall::sys_print("  fscheck         - Check filesystem status and metadata\n")?;
     syscall::sys_print("  config          - Show dynamic system configuration\n")?;
+
+    syscall::sys_print("\n🗂️  Filesystem Operations:\n")?;
+    syscall::sys_print("  ls [path]       - List files/dirs (default: current directory)\n")?;
+    syscall::sys_print("  cat <path>      - Display file contents\n")?;
+    syscall::sys_print("  echo [message]  - Print a message (newline if no message)\n")?;
+    syscall::sys_print("  pwd             - Print current working directory\n")?;
+    syscall::sys_print("  touch <path>    - Create an empty file at the specified path\n")?;
+    syscall::sys_print("  mkdir <path>    - Create a directory at the specified path\n")?;
+    syscall::sys_print("  rm <path>       - Remove a file at the specified path\n")?;
+    syscall::sys_print("  rmdir <path>    - Remove an empty directory at the specified path\n")?;
+    syscall::sys_print("  cd [path]       - Change directory (default: root, use '/', '..')\n")?;
     
     syscall::sys_print("\n⚙️  System Control:\n")?;
-    syscall::sys_print("  shutdown        - Shutdown the system\n")?;
-    syscall::sys_print("  reboot          - Reboot the system\n")?;
+    syscall::sys_print("  shutdown        - Shutdown the system via SBI\n")?;
+    syscall::sys_print("  reboot          - Reboot the system via SBI\n")?;
     
     syscall::sys_print("\n🎉 elinOS Features:\n")?;
     syscall::sys_print("  ✅ Dynamic RAM detection and allocation\n")?;

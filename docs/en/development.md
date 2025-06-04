@@ -1,477 +1,558 @@
-# Creating User Programs for elinOS
+# elinOS Development Guide
 
-Since elinOS has a built-in ELF loader, you can create and compile C programs to run on it! This guide shows how to create RISC-V binaries that elinOS can load and execute.
+## Table of Contents
+- [Development Environment Setup](#development-environment-setup)
+- [Build System](#build-system)
+- [Testing & Debugging](#testing--debugging)
+- [Code Structure](#code-structure)
+- [Contributing Guidelines](#contributing-guidelines)
+- [Advanced Development](#advanced-development)
 
-## Prerequisites for User Program Development
+## Development Environment Setup
 
-- **RISC-V GCC toolchain**: Install `riscv64-linux-gnu-gcc` or `riscv64-unknown-elf-gcc`
-- **Basic C knowledge**: For writing simple programs
-- **ELF knowledge**: Understanding of executable format (optional)
+### Prerequisites
 
-## Installing RISC-V GCC Toolchain
-
-### Ubuntu/Debian:
+#### Rust Toolchain
 ```bash
+# Install Rust via rustup
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+# Install nightly toolchain (required for no_std features)
+rustup toolchain install nightly
+rustup default nightly
+
+# Add RISC-V target
+rustup target add riscv64gc-unknown-none-elf
+```
+
+#### QEMU RISC-V Emulation
+```bash
+# Ubuntu/Debian
 sudo apt update
-sudo apt install gcc-riscv64-linux-gnu
+sudo apt install qemu-system-riscv64
+
+# Arch Linux
+sudo pacman -S qemu-system-riscv
+
+# macOS (with Homebrew)
+brew install qemu
+
+# Verify installation
+qemu-system-riscv64 --version
 ```
 
-### Arch Linux:
+#### Build Tools
 ```bash
-sudo pacman -S riscv64-linux-gnu-gcc
+# Ubuntu/Debian
+sudo apt install build-essential git make
+
+# Arch Linux  
+sudo pacman -S base-devel git make
+
+# macOS
+xcode-select --install
 ```
 
-### From Source:
+### Recommended Development Tools
+
+#### Visual Studio Code Extensions
+- **rust-analyzer**: Advanced Rust language support
+- **CodeLLDB**: Debugging support for Rust
+- **Even Better TOML**: Better TOML file support
+- **GitLens**: Enhanced Git integration
+
+#### Command Line Tools
 ```bash
-# Clone and build RISC-V GNU toolchain
-git clone https://github.com/riscv/riscv-gnu-toolchain
-cd riscv-gnu-toolchain
-./configure --prefix=/opt/riscv --with-arch=rv64gc --with-abi=lp64d
-make linux
+# Rust development tools
+cargo install cargo-expand    # Macro expansion
+cargo install cargo-edit      # Easy dependency management
+cargo install cargo-watch     # Auto-rebuild on changes
+
+# Optional: Advanced debugging
+cargo install gdb-multiarch   # Cross-platform debugging
 ```
 
-## Creating a Hello World Program
+## Build System
 
-Create a simple C program that can run on elinOS:
+### Makefile Targets
 
-**hello.c:**
-```c
-// Simple Hello World for elinOS
-// This program demonstrates basic execution on elinOS
-
-// Simple system call interface for elinOS
-// In a real implementation, you'd use proper syscall numbers
-static inline long syscall_write(const char* msg, int len) {
-    register long a0 asm("a0") = 1;        // stdout fd
-    register long a1 asm("a1") = (long)msg; // buffer
-    register long a2 asm("a2") = len;      // length
-    register long a7 asm("a7") = 1;        // SYS_WRITE
-    register long result asm("a0");
-    
-    asm volatile ("ecall"
-                  : "=r" (result)
-                  : "r" (a0), "r" (a1), "r" (a2), "r" (a7)
-                  : "memory");
-    return result;
-}
-
-static inline void syscall_exit(int status) {
-    register long a0 asm("a0") = status;
-    register long a7 asm("a7") = 121;      // SYS_EXIT
-    
-    asm volatile ("ecall"
-                  :
-                  : "r" (a0), "r" (a7)
-                  : "memory");
-}
-
-// String length function
-int strlen(const char* str) {
-    int len = 0;
-    while (str[len]) len++;
-    return len;
-}
-
-// Main function - entry point
-int main(void) {
-    const char* message = "Hello, World from elinOS user program!\n";
-    syscall_write(message, strlen(message));
-    
-    const char* info = "This C program is running via ELF loader!\n";
-    syscall_write(info, strlen(info));
-    
-    syscall_exit(0);
-    return 0;  // Should never reach here
-}
-
-// Entry point that calls main
-void _start(void) {
-    int result = main();
-    syscall_exit(result);
-}
-```
-
-## Compiling the Program
-
-Compile your C program to a RISC-V ELF binary:
+elinOS uses a comprehensive Makefile for development workflow:
 
 ```bash
-# Compile hello.c to RISC-V ELF
-riscv64-linux-gnu-gcc \
-    -march=rv64gc \
-    -mabi=lp64d \
-    -static \
-    -nostdlib \
-    -nostartfiles \
-    -fno-stack-protector \
-    -o hello.elf \
-    hello.c
+# Core build commands
+make build          # Build the kernel
+make clean          # Clean build artifacts
+make rebuild        # Clean and build
 
-# Alternative with unknown-elf toolchain:
-riscv64-unknown-elf-gcc \
-    -march=rv64gc \
-    -mabi=lp64d \
-    -static \
-    -nostdlib \
-    -nostartfiles \
-    -fno-stack-protector \
-    -o hello.elf \
-    hello.c
+# Running the kernel
+make run            # Run in QEMU (console mode)
+make run-graphics   # Run in QEMU with graphics
+make run-debug      # Run with GDB debugging enabled
+
+# Testing
+make test           # Run unit tests
+make integration    # Run integration tests
+make bench          # Run benchmarks
+
+# Development helpers
+make format         # Format code with rustfmt
+make clippy         # Run Clippy linter
+make doc            # Generate documentation
+make check-all      # Run all checks (format, clippy, tests)
+
+# Disk image creation
+make create-disk    # Create test FAT32 disk image
+make create-ext4    # Create test ext4 disk image
 ```
 
-## Compilation Options Explained
+### Build Configuration
 
-- **`-march=rv64gc`**: Target RISC-V 64-bit with standard extensions
-- **`-mabi=lp64d`**: Use 64-bit ABI with double-precision floating point
-- **`-static`**: Create statically linked executable
-- **`-nostdlib`**: Don't link standard library (we provide our own syscalls)
-- **`-nostartfiles`**: Don't use standard startup files
-- **`-fno-stack-protector`**: Disable stack protection for simplicity
+#### Cargo.toml Features
+```toml
+[features]
+default = ["console"]
+console = []
+graphics = []
+debug = []
+test-allocator = []
+benchmark = []
+```
 
-## Verifying Your ELF Binary
+#### Custom Build Scripts
 
-Check that your compiled program is a valid RISC-V ELF:
+The build process uses several custom components:
+
+1. **Linker Script** (`kernel.ld`): Defines memory layout
+2. **Assembly Boot Code** (`boot.S`): Initial hardware setup
+3. **Build Script** (`build.rs`): Custom build logic
+
+### Cross-Compilation Details
 
 ```bash
-# Check ELF header
-file hello.elf
-# Output: hello.elf: ELF 64-bit LSB executable, UCB RISC-V, ...
-
-# Examine ELF details
-readelf -h hello.elf
-# Should show Machine: RISC-V
-
-# Check program segments
-readelf -l hello.elf
-
-# Disassemble to see the code
-riscv64-linux-gnu-objdump -d hello.elf
+# Target triple: riscv64gc-unknown-none-elf
+# - riscv64: 64-bit RISC-V
+# - gc: General-purpose + Compressed instruction sets
+# - unknown: Unknown vendor
+# - none: No operating system
+# - elf: ELF binary format
 ```
 
-## Adding Your Program to elinOS
+## Testing & Debugging
 
-To make your program available in elinOS, add it to the filesystem during initialization:
+### Unit Testing
 
-### Option 1: Add to src/filesystem.rs
-
-Edit the `new()` function in `src/filesystem.rs`:
+elinOS supports unit testing in a `no_std` environment:
 
 ```rust
-pub fn new() -> Self {
-    let mut fs = SimpleFS {
-        files: heapless::FnvIndexMap::new(),
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
     
-    // Add existing test files
-    let _ = fs.create_file("hello.txt", b"Hello from elinOS filesystem!\n");
-    let _ = fs.create_file("test.txt", b"This is a test file.\nLine 2\nLine 3\n");
-    let _ = fs.create_file("readme.md", b"# elinOS\n\nA simple kernel in Rust.\n");
-    
-    // Add your compiled ELF binary
-    let hello_elf = include_bytes!("../hello.elf");
-    let _ = fs.create_file("hello.elf", hello_elf);
-    
-    fs
+    #[test]
+    fn test_memory_allocation() {
+        // Test memory allocator functionality
+        let ptr = allocate_memory(1024);
+        assert!(ptr.is_some());
+        deallocate_memory(ptr.unwrap(), 1024);
+    }
 }
 ```
 
-### Option 2: Convert to byte array
+Run tests with:
+```bash
+make test
+# or
+cargo test --target riscv64gc-unknown-none-elf
+```
+
+### Integration Testing
+
+Integration tests verify system-level functionality:
 
 ```bash
-# Convert ELF to C-style byte array
-xxd -i hello.elf > hello_elf.h
+# Run kernel in test mode
+make run ARGS="--test-mode"
 
-# Then manually copy the array into filesystem.rs
+# Automated testing with expect scripts
+./scripts/test-integration.sh
 ```
 
-## Testing Your Program in elinOS
+### Debugging Strategies
 
-Once you've added your program to the filesystem and rebuilt elinOS:
-
+#### QEMU Monitor
 ```bash
-# Rebuild elinOS with your program
-make
+# Run with monitor enabled
+make run-debug
 
-# Run elinOS
-./run.sh
+# In QEMU monitor (Ctrl+Alt+2):
+(qemu) info registers     # Show CPU registers
+(qemu) info mem          # Show memory layout
+(qemu) x/10i $pc         # Disassemble at PC
 ```
 
-In the elinOS shell:
+#### Serial Console Debugging
+```rust
+// Use console_println! for debugging output
+console_println!("Debug: value = {}", value);
 
-```
-elinOS> ls
-Files:
-  hello.txt (30 bytes)
-  test.txt (35 bytes)
-  readme.md (42 bytes)
-  hello.elf (8432 bytes)
-
-elinOS> elf-info hello.elf
-ELF Binary Information:
-  Class: ELF64
-  Data: Little-endian
-  Machine: RISC-V
-  Type: Executable
-  Entry point: 0x10078
-  Program header offset: 0x40
-  Program header count: 2
-  Section header offset: 0x1fd8
-  Section header count: 8
-
-elinOS> elf-load hello.elf
-Loading ELF binary: hello.elf
-Loading ELF binary:
-  Entry point: 0x10078
-  Program headers: 2
-  Segment 0: 0x10000 - 0x11000 (4096 bytes) flags: 0x5
-  Segment 1: 0x11000 - 0x12000 (4096 bytes) flags: 0x6
-ELF loaded successfully, entry at 0x10078
-ELF binary loaded successfully!
-Entry point: 0x10078
-
-elinOS> elf-exec hello.elf
-Executing ELF binary: hello.elf
-Loading ELF binary:
-  Entry point: 0x10078
-  Program headers: 2
-  Segment 0: 0x10000 - 0x11000 (4096 bytes) flags: 0x5
-  Segment 1: 0x11000 - 0x12000 (4096 bytes) flags: 0x6
-ELF loaded successfully, entry at 0x10078
-Would execute ELF at entry point: 0x10078
-NOTE: Actual execution requires virtual memory and process isolation
-ELF execution completed
+// Conditional debug output
+#[cfg(feature = "debug")]
+console_println!("Debug info: {:?}", structure);
 ```
 
-## Advanced Program Examples
+#### GDB Integration
+```bash
+# Start QEMU with GDB stub
+make run-gdb
 
-### Fibonacci Calculator
+# In another terminal
+gdb target/riscv64gc-unknown-none-elf/debug/elinOS
+(gdb) target remote :1234
+(gdb) break main
+(gdb) continue
+```
 
-**fibonacci.c** - Computing Fibonacci numbers:
-```c
-#include "elinos_syscalls.h"  // Your syscall definitions
+### Performance Profiling
 
-void print_number(int n) {
-    char buffer[32];
-    int len = 0;
-    
-    if (n == 0) {
-        buffer[0] = '0';
-        len = 1;
-    } else {
-        // Convert number to string
-        int temp = n;
-        while (temp > 0) {
-            buffer[len++] = '0' + (temp % 10);
-            temp /= 10;
-        }
-        
-        // Reverse string
-        for (int i = 0; i < len / 2; i++) {
-            char t = buffer[i];
-            buffer[i] = buffer[len - 1 - i];
-            buffer[len - 1 - i] = t;
+#### Memory Usage Analysis
+```bash
+# Show memory statistics in kernel
+elinOS> memory
+
+# Advanced memory debugging
+elinOS> syscall SYS_GETMEMINFO
+```
+
+#### Timing Analysis
+```rust
+// Simple timing measurement
+let start = get_time();
+perform_operation();
+let elapsed = get_time() - start;
+console_println!("Operation took {} cycles", elapsed);
+```
+
+## Code Structure
+
+### Directory Layout
+```
+elinOS/
+├── src/                    # Kernel source code
+│   ├── main.rs            # Kernel entry point
+│   ├── console/           # Console system
+│   ├── memory/            # Memory management
+│   │   ├── mod.rs         # Memory manager
+│   │   ├── buddy.rs       # Buddy allocator
+│   │   ├── slab.rs        # Slab allocator
+│   │   └── fallible.rs    # Fallible operations
+│   ├── filesystem/        # Filesystem support
+│   │   ├── mod.rs         # VFS layer
+│   │   ├── fat32.rs       # FAT32 implementation
+│   │   └── ext4.rs        # ext4 implementation
+│   ├── syscall/           # System call interface
+│   ├── virtio_blk.rs      # VirtIO block driver
+│   └── sbi.rs             # SBI interface
+├── docs/                  # Documentation
+├── scripts/               # Build/test scripts
+├── Makefile              # Build system
+├── kernel.ld             # Linker script
+└── Cargo.toml           # Rust package manifest
+```
+
+### Coding Standards
+
+#### Rust Idioms
+```rust
+// Use descriptive names
+fn calculate_optimal_heap_size(ram_size: usize) -> usize { ... }
+
+// Prefer Option/Result over panics
+fn try_allocate_memory(size: usize) -> Option<*mut u8> { ... }
+
+// Use const generics for type safety
+struct SlabAllocator<const SIZE: usize> { ... }
+
+// Document public APIs
+/// Allocates memory using the best available allocator
+/// 
+/// # Arguments
+/// * `size` - Number of bytes to allocate
+/// 
+/// # Returns
+/// * `Some(ptr)` - Pointer to allocated memory
+/// * `None` - Allocation failed
+pub fn allocate_memory(size: usize) -> Option<*mut u8> { ... }
+```
+
+#### Error Handling Patterns
+```rust
+// Use custom error types
+#[derive(Debug)]
+pub enum MemoryError {
+    OutOfMemory,
+    InvalidSize,
+    AlignmentError,
+}
+
+// Implement From trait for error conversion
+impl From<AllocError> for MemoryError {
+    fn from(err: AllocError) -> Self {
+        match err {
+            AllocError::OutOfMemory => MemoryError::OutOfMemory,
+            AllocError::InvalidSize => MemoryError::InvalidSize,
         }
     }
-    
-    syscall_write(buffer, len);
-    syscall_write("\n", 1);
+}
+```
+
+#### Safety Guidelines
+```rust
+// Always document unsafe blocks
+unsafe {
+    // SAFETY: We know ptr is valid because we just allocated it
+    // and checked for null
+    *ptr = value;
 }
 
-int main(void) {
-    syscall_write("Fibonacci sequence:\n", 20);
-    
-    int a = 0, b = 1;
-    print_number(a);
-    print_number(b);
-    
-    for (int i = 0; i < 10; i++) {
-        int c = a + b;
-        print_number(c);
-        a = b;
-        b = c;
+// Use safe abstractions where possible
+fn safe_write_memory(addr: usize, value: u8) -> Result<(), MemoryError> {
+    if addr == 0 {
+        return Err(MemoryError::InvalidAddress);
     }
     
-    return 0;
+    unsafe {
+        // SAFETY: Address validated above
+        *(addr as *mut u8) = value;
+    }
+    
+    Ok(())
 }
 ```
 
-### System Information Tool
+## Contributing Guidelines
 
-**sysinfo.c** - Displaying system information:
-```c
-#include "elinos_syscalls.h"
+### Development Workflow
 
-int main(void) {
-    syscall_write("elinOS System Information\n", 26);
-    syscall_write("========================\n", 26);
+1. **Fork & Clone**
+   ```bash
+   git clone https://github.com/yourusername/elinOS.git
+   cd elinOS
+   ```
+
+2. **Create Feature Branch**
+   ```bash
+   git checkout -b feature/amazing-new-feature
+   ```
+
+3. **Make Changes**
+   - Follow coding standards
+   - Add tests for new functionality
+   - Update documentation
+
+4. **Test Thoroughly**
+   ```bash
+   make check-all      # Run all checks
+   make test           # Unit tests
+   make integration    # Integration tests
+   ```
+
+5. **Commit with Clear Messages**
+   ```bash
+   git commit -m "memory: Add fallible allocation with rollback
+   
+   - Implement transaction-based allocation system
+   - Add automatic rollback on failure
+   - Include comprehensive test coverage
+   - Update documentation with usage examples"
+   ```
+
+6. **Push and Submit PR**
+   ```bash
+   git push origin feature/amazing-new-feature
+   ```
+
+### Code Review Process
+
+#### PR Requirements
+- [ ] All tests pass
+- [ ] Code follows style guidelines
+- [ ] Documentation updated
+- [ ] Performance impact assessed
+- [ ] Memory safety verified
+
+#### Review Checklist
+- **Correctness**: Does the code do what it claims?
+- **Safety**: Are unsafe blocks properly justified?
+- **Performance**: Are there any performance regressions?
+- **Style**: Does it follow project conventions?
+- **Tests**: Are edge cases covered?
+
+### Commit Message Guidelines
+
+```
+component: Brief description (50 chars or less)
+
+Longer explanation of the change, motivation, and impact.
+Include any breaking changes or migration notes.
+
+Fixes #123
+```
+
+Examples:
+```
+memory: Implement dynamic memory zone detection
+
+virtio: Add support for VirtIO 1.1 specification
+
+fs: Fix directory traversal in FAT32 implementation
+```
+
+## Advanced Development
+
+### Adding New Filesystems
+
+1. **Implement FileSystem Trait**
+   ```rust
+   pub struct MyFileSystem {
+       // filesystem-specific data
+   }
+   
+   impl FileSystem for MyFileSystem {
+       fn get_filesystem_type(&self) -> FilesystemType {
+           FilesystemType::MyFS
+       }
+       
+       // ... implement other methods
+   }
+   ```
+
+2. **Add Detection Logic**
+   ```rust
+   fn detect_myfs(boot_sector: &[u8]) -> bool {
+       // Check for filesystem signature
+       boot_sector[0..4] == b"MYFS"
+   }
+   ```
+
+3. **Register in VFS**
+   ```rust
+   // In filesystem/mod.rs
+   match filesystem_type {
+       FilesystemType::MyFS => Box::new(MyFileSystem::new(device)?),
+       // ... other filesystems
+   }
+   ```
+
+### Memory Allocator Development
+
+1. **Implement Allocator Trait**
+   ```rust
+   pub struct MyAllocator {
+       // allocator state
+   }
+   
+   impl Allocator for MyAllocator {
+       fn allocate(&mut self, size: usize) -> Result<NonNull<u8>, AllocError> {
+           // allocation logic
+       }
+       
+       fn deallocate(&mut self, ptr: NonNull<u8>, size: usize) {
+           // deallocation logic
+       }
+   }
+   ```
+
+2. **Add to Memory Manager**
+   ```rust
+   // In memory/mod.rs
+   pub enum AllocatorType {
+       Simple,
+       Buddy,
+       Slab,
+       MyAllocator, // Add your allocator
+   }
+   ```
+
+### Device Driver Development
+
+1. **Implement Device Trait**
+   ```rust
+   pub struct MyDevice {
+       base_addr: usize,
+       // device-specific state
+   }
+   
+   impl Device for MyDevice {
+       fn init(&mut self) -> Result<(), DeviceError> {
+           // device initialization
+       }
+       
+       fn read(&self, buffer: &mut [u8]) -> Result<usize, DeviceError> {
+           // read implementation
+       }
+   }
+   ```
+
+2. **Add Device Detection**
+   ```rust
+   fn probe_my_device(base_addr: usize) -> Option<MyDevice> {
+       // Check device signature
+       let signature = unsafe { *(base_addr as *const u32) };
+       if signature == MY_DEVICE_SIGNATURE {
+           Some(MyDevice::new(base_addr))
+       } else {
+           None
+       }
+   }
+   ```
+
+### Performance Optimization
+
+#### Profiling
+```rust
+// Add timing measurements
+#[cfg(feature = "benchmark")]
+fn benchmark_function() {
+    let start = read_cycle_counter();
     
-    // Get memory information via syscall
-    syscall_memory_info();
+    // Function to benchmark
+    perform_operation();
     
-    // Get device information
-    syscall_device_info();
-    
-    // Display version
-    syscall_version();
-    
-    return 0;
+    let cycles = read_cycle_counter() - start;
+    console_println!("Operation took {} cycles", cycles);
 }
 ```
 
-## System Call Interface
-
-elinOS provides the following system calls for user programs:
-
-### File I/O Operations (1-50)
-- `SYS_WRITE (1)` - Write to file descriptor
-- `SYS_READ (2)` - Read from file descriptor
-- `SYS_OPEN (3)` - Open file
-- `SYS_CLOSE (4)` - Close file descriptor
-- `SYS_UNLINK (5)` - Delete file
-
-### Process Management (121-170)
-- `SYS_EXIT (121)` - Exit process
-
-### Memory Management (71-120)
-- `SYS_GETMEMINFO (100)` - Get memory information
-
-### Device Management (171-220)
-- `SYS_GETDEVICES (200)` - Get device information
-
-### elinOS-Specific (900-999)
-- `SYS_ELINOS_VERSION (902)` - Get OS version
-
-## Creating System Call Headers
-
-Create a header file for easy system call access:
-
-**elinos_syscalls.h:**
-```c
-#ifndef ELINOS_SYSCALLS_H
-#define ELINOS_SYSCALLS_H
-
-// System call numbers
-#define SYS_WRITE 1
-#define SYS_READ 2
-#define SYS_OPEN 3
-#define SYS_CLOSE 4
-#define SYS_UNLINK 5
-#define SYS_EXIT 121
-#define SYS_GETMEMINFO 100
-#define SYS_GETDEVICES 200
-#define SYS_ELINOS_VERSION 902
-
-// System call wrappers
-static inline long syscall_write(const char* msg, int len) {
-    register long a0 asm("a0") = 1;
-    register long a1 asm("a1") = (long)msg;
-    register long a2 asm("a2") = len;
-    register long a7 asm("a7") = SYS_WRITE;
-    register long result asm("a0");
-    
-    asm volatile ("ecall"
-                  : "=r" (result)
-                  : "r" (a0), "r" (a1), "r" (a2), "r" (a7)
-                  : "memory");
-    return result;
+#### Memory Layout Optimization
+```rust
+// Use repr(C) for predictable layout
+#[repr(C)]
+struct OptimizedStruct {
+    // Order fields by size (largest first)
+    large_field: u64,
+    medium_field: u32,
+    small_field: u8,
 }
-
-static inline void syscall_exit(int status) {
-    register long a0 asm("a0") = status;
-    register long a7 asm("a7") = SYS_EXIT;
-    
-    asm volatile ("ecall"
-                  :
-                  : "r" (a0), "r" (a7)
-                  : "memory");
-}
-
-static inline long syscall_memory_info(void) {
-    register long a7 asm("a7") = SYS_GETMEMINFO;
-    register long result asm("a0");
-    
-    asm volatile ("ecall"
-                  : "=r" (result)
-                  : "r" (a7)
-                  : "memory");
-    return result;
-}
-
-static inline long syscall_version(void) {
-    register long a7 asm("a7") = SYS_ELINOS_VERSION;
-    register long result asm("a0");
-    
-    asm volatile ("ecall"
-                  : "=r" (result)
-                  : "r" (a7)
-                  : "memory");
-    return result;
-}
-
-// Utility functions
-static inline int strlen(const char* str) {
-    int len = 0;
-    while (str[len]) len++;
-    return len;
-}
-
-#endif // ELINOS_SYSCALLS_H
 ```
 
-## Development Workflow
+#### Assembly Integration
+```rust
+// Use inline assembly for critical paths
+#[inline(always)]
+fn fast_memory_copy(dest: *mut u8, src: *const u8, len: usize) {
+    unsafe {
+        asm!(
+            "call memcpy",
+            in("a0") dest,
+            in("a1") src,
+            in("a2") len,
+            options(nostack)
+        );
+    }
+}
+```
 
-1. **Write C program** using elinOS system calls
-2. **Compile** to RISC-V ELF using appropriate flags
-3. **Verify** ELF binary with `readelf` and `objdump`
-4. **Add to filesystem** in `src/filesystem.rs`
-5. **Rebuild elinOS** with `make`
-6. **Test in QEMU** using ELF commands
+---
 
-## Current Limitations
-
-⚠️ **Important Notes:**
-- **No actual execution yet**: elinOS can load and parse ELF files, but doesn't execute them yet
-- **No virtual memory**: Programs would need proper memory management for execution
-- **No process isolation**: Current implementation lacks process context switching
-- **Limited syscalls**: Only basic syscalls are implemented
-
-## Roadmap for Full Program Execution
-
-To enable actual program execution, elinOS needs:
-
-1. **Virtual Memory Management**: Page tables and memory mapping
-2. **Process Context**: CPU state management and switching
-3. **User/Kernel Mode**: Proper privilege separation
-4. **Complete Syscall Interface**: Full POSIX-like system calls
-5. **Program Loader**: Copy segments to virtual addresses and jump to entry point
-
-The current ELF loader provides the foundation for all of this!
-
-## Best Practices
-
-### Code Organization
-- Use header files for system call interfaces
-- Keep programs simple and focused
-- Comment your assembly inline code
-- Use meaningful function and variable names
-
-### Error Handling
-- Check system call return values
-- Provide meaningful error messages
-- Gracefully handle failures
-
-### Memory Management
-- Be aware of stack limitations
-- Don't assume large amounts of memory
-- Use static allocation where possible
-
-### Testing
-- Test with different input sizes
-- Verify ELF structure with tools
-- Use elinOS built-in ELF commands for debugging
-
-## Next Steps
-
-- See [Commands](commands.md) for testing your programs
-- See [Architecture](architecture.md) for understanding system internals
-- See [Debugging](debugging.md) for troubleshooting issues
+*This development guide should help you contribute effectively to elinOS while maintaining code quality and project standards.* 
