@@ -13,17 +13,24 @@ echo "Kernel information:"
 file kernel.bin
 ls -l kernel.bin
 
-# Disk image configuration - Use RAW format with FAT32 (simpler than ext4)
+# Disk image configuration - Use RAW format with (simpler than ext4)
 DISK_IMAGE=${DISK_IMAGE:-"disk.raw"}
 DISK_SIZE=${DISK_SIZE:-"64"}
 
 # Create disk image if it doesn't exist
 if [ ! -f "$DISK_IMAGE" ]; then
-    echo "Creating FAT32 disk image: $DISK_IMAGE (size: $DISK_SIZE MB)"
+    echo "Creating disk image: $DISK_IMAGE (size: $DISK_SIZE MB)"
     # 1. Create raw image
     dd if=/dev/zero of=$DISK_IMAGE bs=1M count=$DISK_SIZE
-    # 2. Format with FAT32 (much simpler than ext4)
-    mkfs.ext4 $DISK_IMAGE
+    # 2. Format with (much simpler than ext4)
+    if [ "$FILE_SYSTEM" == "fat" ]; then
+        mkfs.fat -F 32 $DISK_IMAGE
+    elif [ "$FILE_SYSTEM" == "ext4" ]; then
+        mkfs.ext4 $DISK_IMAGE
+    else
+        echo "Invalid file system: $FILE_SYSTEM"
+        exit 1
+    fi
     
     # 3. Mount and add some test files
     mkdir -p /tmp/elinOS_mount
@@ -33,11 +40,11 @@ if [ ! -f "$DISK_IMAGE" ]; then
     echo "Hello from elinOS, hello XiaoMa, Hello XiaoBai" | sudo tee /tmp/elinOS_mount/hello.txt
     echo "# elinOS README
 
-This is a simple FAT32 filesystem on IDE disk.
+This is a simple filesyste
 
 ## Features
-- IDE interface (simplest disk interface)
-- FAT32 filesystem (simple to implement)
+- virtio
+- filesystem
 - Real disk file reading
 
 ## Files
@@ -50,7 +57,7 @@ This is a simple FAT32 filesystem on IDE disk.
     sudo umount /tmp/elinOS_mount
     rmdir /tmp/elinOS_mount
     
-    echo "FAT32 disk image created successfully"
+    echo "disk image created successfully"
 else
     echo "Using existing disk image: $DISK_IMAGE"
 fi
