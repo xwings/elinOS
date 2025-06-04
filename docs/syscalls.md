@@ -420,7 +420,7 @@ syscall(960, 0, 0, 0, 0); // getmeminfo
 let pid = syscall(93, 0, 0, 0, 0);     // getpid
 let ppid = syscall(94, 0, 0, 0, 0);    // getppid
 
-println!("Process {} (parent: {})", pid, ppid);
+console_print!("Process {} (parent: {})", pid, ppid);
 
 // Exit process
 syscall(60, 0, 0, 0, 0); // exit with status 0

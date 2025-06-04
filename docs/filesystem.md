@@ -333,14 +333,14 @@ init_filesystem()?;
 // List all files
 let files = list_files()?;
 for (filename, size) in files {
-    println!("File: {} ({} bytes)", filename, size);
+    console_print!("File: {} ({} bytes)", filename, size);
 }
 
 // Read a specific file
 if file_exists("hello.txt") {
     let content = read_file("hello.txt")?;
     let text = core::str::from_utf8(&content)?;
-    println!("File content: {}", text);
+    console_print!("File content: {}", text);
 }
 
 // Check filesystem status
@@ -395,7 +395,7 @@ match read_file("nonexistent.txt") {
     Ok(content) => println!("File content: {:?}", content),
     Err(FilesystemError::FileNotFound) => println!("File not found"),
     Err(FilesystemError::IoError) => println!("Disk I/O error"),
-    Err(e) => println!("Other error: {:?}", e),
+    Err(e) => console_print!("Other error: {:?}", e),
 }
 ```
 

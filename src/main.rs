@@ -26,10 +26,10 @@ pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     // Print the panic message
-    println!("KERNEL PANIC: {}", info.message());
+    console_println!("KERNEL PANIC: {}", info.message());
     
     if let Some(location) = info.location() {
-        println!("  at {}:{}:{}", location.file(), location.line(), location.column());
+        console_println!("  at {}:{}:{}", location.file(), location.line(), location.column());
     }
     
     loop {
@@ -58,7 +58,7 @@ pub extern "C" fn __rust_start_panic(_payload: usize) -> u32 {
 // Add the missing panic_nounwind_fmt function
 #[no_mangle]
 extern "C" fn rust_panic_nounwind_fmt() -> ! {
-    println!("KERNEL PANIC: panic_nounwind_fmt called");
+    console_println!("KERNEL PANIC: panic_nounwind_fmt called");
     loop {
         unsafe {
             asm!("wfi");
@@ -69,7 +69,7 @@ extern "C" fn rust_panic_nounwind_fmt() -> ! {
 // Add the specific function that the linker is looking for
 #[no_mangle]
 pub extern "C" fn _ZN4core9panicking19panic_nounwind_fmt17h53f76bdb9f05922fE() -> ! {
-    println!("KERNEL PANIC: core::panicking::panic_nounwind_fmt");
+    console_println!("KERNEL PANIC: core::panicking::panic_nounwind_fmt");
     loop {
         unsafe {
             asm!("wfi");
@@ -232,7 +232,12 @@ fn execute_command(command: &str) {
         return;
     }
     
-    commands::process_command(trimmed);
+    if let Err(e) = commands::process_command(trimmed) {
+        // Print the error message from the command processor
+        console_println!("Command failed: ");
+        console_println!("{}", e); // e is the &'static str error message
+        console_println!(); // Newline
+    }
 }
 
 #[macro_export]

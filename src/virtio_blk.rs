@@ -6,6 +6,7 @@
 use spin::Mutex;
 use crate::console_println;
 use core::{convert::TryInto, cmp::Ord, result::Result::{Ok, Err}};
+use core::ptr::read_volatile;
 
 // === DISK ERRORS ===
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,6 +27,8 @@ pub enum DiskError {
 
 impl core::fmt::Display for DiskError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        // Ensure this message always gets out if a DiskError is processed
+        console_println!("!! DiskError Formatted: {:?}", self);
         match self {
             DiskError::InvalidSector => write!(f, "Invalid sector number"),
             DiskError::BufferTooSmall => write!(f, "Buffer too small"),
@@ -248,8 +251,11 @@ impl VirtioBlkReq {
     }
 }
 
-/// VirtIO Queue implementation based on rust-vmm
-/// Simplified for experimental kernel but following the same patterns
+/// VirtIO Queue implementation
+/// Handles descriptor management, available/used rings.
+/// Based on concepts from rust-vmm's virtio_queue.
+/// Not all features of rust-vmm's queue are implemented.
+#[derive(Debug)] // Added Debug derive
 pub struct VirtioQueue {
     /// Queue size (must be power of 2)
     size: u16,
@@ -261,140 +267,175 @@ pub struct VirtioQueue {
     avail_ring: usize,
     /// Base address of used ring
     used_ring: usize,
-    /// Next available index to use
+    /// Next available index to use for adding to avail_ring.ring
     next_avail: u16,
-    /// Last used index we've seen
+    /// Last used index we've processed from used_ring.ring
     last_used_idx: u16,
-    /// Queue select index
+    /// Queue select index (usually 0 for block device)
     queue_index: u16,
+    // Potentially add a small array to track free descriptor head indices
+    // if we want to reuse descriptor chains more robustly.
+    // For now, we assume simple sequential allocation of descriptors and chains.
 }
 
 impl VirtioQueue {
     pub const fn new() -> Self {
         VirtioQueue {
-            size: 0,
+            size: 0, // Will be set by init
             ready: false,
             desc_table: 0,
             avail_ring: 0,
             used_ring: 0,
             next_avail: 0,
             last_used_idx: 0,
-            queue_index: 0, // default queue index, can be set in init
+            queue_index: 0,
         }
     }
     
-    /// Initialize the queue with given parameters
     pub fn init(&mut self, size: u16, queue_idx: u16, desc_table: usize, avail_ring: usize, used_ring: usize) -> DiskResult<()> {
-        if !size.is_power_of_two() || size == 0 || size > 256 { // Max size constraint from array lengths
-            console_println!("VirtioQueue init: Invalid size {}", size);
-            return Err(DiskError::InvalidParameter); // Or specific error
+        if !size.is_power_of_two() || size == 0 {
+            console_println!("VirtioQueue init error: size {} is not a power of two or is zero.", size);
+            return Err(DiskError::InvalidParameter);
         }
         self.size = size;
+        self.ready = false; // Set to true by device setup logic later
         self.desc_table = desc_table;
         self.avail_ring = avail_ring;
         self.used_ring = used_ring;
         self.next_avail = 0;
         self.last_used_idx = 0;
-        self.ready = false; // Set to true by device/driver handshake later
         self.queue_index = queue_idx;
+
+        // Optional: Initialize available ring flags/idx if driver owns it fully at init.
+        // Usually, device may have expectations, or it's zeroed by setup_queue.
+        // For safety, ensure our view matches a clean state:
+        unsafe {
+            let avail_ring_ptr = self.avail_ring as *mut VirtqAvail;
+            // write_volatile(&mut (*avail_ring_ptr).flags, 0); // Or specific flags like VIRTQ_AVAIL_F_NO_INTERRUPT
+            // write_volatile(&mut (*avail_ring_ptr).idx, 0);   // Driver starts adding at index 0
+
+            let used_ring_ptr = self.used_ring as *mut VirtqUsed;
+            // last_used_idx should align with device's used_ring.idx if starting fresh.
+            self.last_used_idx = read_volatile(&(*used_ring_ptr).idx); 
+        }
+        console_println!("VirtioQueue initialized: size={}, idx={}, desc_base=0x{:x}, avail_base=0x{:x}, used_base=0x{:x}", 
+                         self.size, self.queue_index, self.desc_table, self.avail_ring, self.used_ring);
+
         Ok(())
     }
     
-    /// Acknowledges that the driver has processed descriptors up to `last_used_idx`.
-    /// This is a stub and might need more complex logic depending on the virtio library being emulated.
+    // This function is a stub and needs proper implementation if descriptor chains are to be freed/reused.
+    // For now, it does nothing, which is fine if we don't exhaust descriptors.
     pub fn ack_used_desc(&mut self) {
-        // In a more complete implementation, this might update a shared memory region
-        // or internal counters to inform the device about processed descriptors.
-        // For now, it does nothing as the current `get_used_elem` advances `last_used_idx`.
-        // console_println!("VirtioQueue [{}]: ack_used_desc called (last_used_idx: {})", self.queue_index, self.last_used_idx);
+        // TODO: Implement proper descriptor freeing if needed
+        // This would involve:
+        // 1. Getting the used descriptor chain head from the used ring.
+        // 2. Traversing the chain using `next` field.
+        // 3. Adding the descriptor indices back to a free list.
+        // console_println!("VirtioQueue::ack_used_desc - STUB");
     }
     
-    /// Add a descriptor chain to the available ring
-    /// Returns the head descriptor index
+    /// Add a chain of descriptors to the available ring.
+    /// Returns the index of the head of the descriptor chain.
     pub fn add_descriptor_chain(&mut self, chain: &[VirtqDesc]) -> DiskResult<u16> {
         if !self.ready || chain.is_empty() || chain.len() > self.size as usize {
+            console_println!("add_descriptor_chain: Queue not ready, chain empty, or chain too long. Ready: {}, Chain len: {}, Queue size: {}", self.ready, chain.len(), self.size);
+            return Err(DiskError::QueueFull); // Or InvalidParameter
+        }
+
+        let head_index = self.next_avail; 
+
+        if self.get_queue_available_count() < chain.len() as u16 {
+            console_println!("add_descriptor_chain: Not enough free descriptors. Available: {}, Needed: {}", self.get_queue_available_count(), chain.len());
             return Err(DiskError::QueueFull);
         }
         
-        // Check if we have enough descriptors
-        let available_count = self.size - self.get_queue_used_count();
-        if chain.len() > available_count as usize {
-            return Err(DiskError::QueueFull);
-        }
-        
-        let head_index = self.next_avail;
-        
-        unsafe {
-            let desc_table = self.desc_table as *mut VirtqDesc;
-            let avail_ring = self.avail_ring as *mut VirtqAvail;
-            
-            // Set up descriptor chain
-            for (i, desc) in chain.iter().enumerate() {
-                let desc_index = (head_index + i as u16) % self.size;
-                let desc_ptr = desc_table.offset(desc_index as isize);
-                *desc_ptr = *desc;
-                
-                // Set next pointer (except for last descriptor)
-                if i < chain.len() - 1 {
-                    (*desc_ptr).flags |= VIRTQ_DESC_F_NEXT;
-                    (*desc_ptr).next = (head_index + i as u16 + 1) % self.size;
-                }
+        let desc_table_ptr = self.desc_table as *mut VirtqDesc;
+
+        // Place descriptors into the descriptor table, adjusting .next pointers
+        for i in 0..chain.len() {
+            let actual_table_idx = (head_index + i as u16) % self.size;
+            let mut desc_to_write = chain[i]; // Make a mutable copy
+
+            if (desc_to_write.flags & VIRTQ_DESC_F_NEXT) != 0 {
+                desc_to_write.next = (head_index + desc_to_write.next) % self.size;
             }
             
-            // Add to available ring
-            let avail_idx = (*avail_ring).idx;
-            (*avail_ring).ring[avail_idx as usize % self.size as usize] = head_index;
+            unsafe {
+                core::ptr::write_volatile(desc_table_ptr.add(actual_table_idx as usize), desc_to_write);
+            }
+        }
+
+        let device_avail_idx_before_update = unsafe{read_volatile(&(*(self.avail_ring as *const VirtqAvail)).idx)};
+        // Add the head of the chain (which is `head_index`) to the available ring
+        unsafe {
+            let avail_ring_ptr = self.avail_ring as *mut VirtqAvail;
+            let ring_idx = device_avail_idx_before_update % self.size; // Where driver writes next descriptor ID
+            core::ptr::write_volatile(&mut (*avail_ring_ptr).ring[ring_idx as usize], head_index);
             
-            console_println!("📋 Queue state: avail_idx={}, head_index={}, chain_len={}", 
-                avail_idx, head_index, chain.len());
+            // Memory barrier might be good practice here if not relying solely on volatile
+            // core::sync::atomic::fence(core::sync::atomic::Ordering::Release);
             
-            // Memory barrier
-            core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);
-            
-            // Update available index
-            (*avail_ring).idx = avail_idx.wrapping_add(1);
-            
-            console_println!("📋 Updated avail_idx to: {}", (*avail_ring).idx);
+            core::ptr::write_volatile(&mut (*avail_ring_ptr).idx, device_avail_idx_before_update.wrapping_add(1));
         }
         
         self.next_avail = (self.next_avail + chain.len() as u16) % self.size;
+
+        let device_avail_idx_after_update = unsafe{read_volatile(&(*(self.avail_ring as *const VirtqAvail)).idx)};
+        console_println!("📋 Submitted chain (head={}): dev_avail_idx before={}, after={}. Driver next_avail={}", 
+                         head_index, device_avail_idx_before_update, device_avail_idx_after_update, self.next_avail);
+
         Ok(head_index)
     }
     
-    /// Check for completed requests in the used ring
+    /// Get a used element from the used ring if available.
+    /// This advances `last_used_idx`.
     pub fn get_used_elem(&mut self) -> Option<VirtqUsedElem> {
         unsafe {
-            let used_ring = self.used_ring as *mut VirtqUsed;
-            let used_idx = (*used_ring).idx;
+            let used_ring_ptr = self.used_ring as *const VirtqUsed;
+            // Volatile read of the device's current used_idx
+            let device_current_used_idx = read_volatile(&(*used_ring_ptr).idx);
             
-            if self.last_used_idx == used_idx {
+            if self.last_used_idx == device_current_used_idx {
                 return None; // No new used elements
             }
             
-            let elem = (*used_ring).ring[self.last_used_idx as usize % self.size as usize];
+            // Calculate the actual index in the ring array
+            let elem_array_idx = self.last_used_idx % self.size;
+            // Volatile read of the used element itself
+            let elem = read_volatile(&(*used_ring_ptr).ring[elem_array_idx as usize]);
+            
+            // Advance our internal counter for the next call
             self.last_used_idx = self.last_used_idx.wrapping_add(1);
             
             Some(elem)
         }
     }
-    
-    /// Get the number of used descriptors in the queue
-    fn get_queue_used_count(&self) -> u16 {
-        unsafe {
-            let avail_ring = self.avail_ring as *const VirtqAvail;
-            let used_ring = self.used_ring as *const VirtqUsed;
-            
-            let avail_idx = (*avail_ring).idx;
-            let used_idx = (*used_ring).idx;
-            
-            avail_idx.wrapping_sub(used_idx)
+
+    /// Get current count of available descriptors in the queue
+    /// This is a simplified calculation. A more robust queue would manage a free list.
+    fn get_queue_available_count(&self) -> u16 {
+        // This calculation is based on next_avail and how many might be in use.
+        // It's tricky without a full free list. For now, assume total size - current next_avail.
+        // This isn't perfectly accurate if there's wrap-around and fragmentation.
+        // A simpler but still not perfect metric might be:
+        // self.size - (self.next_avail - self.last_used_idx) % self.size (if considering in-flight)
+        // For now, assume we have at least 'some' reasonable number if not near full.
+        // A common way is self.size - number_of_in_flight_descriptors.
+        // Let's use a rough estimate:
+        let device_idx = unsafe { read_volatile(&(*(self.avail_ring as *const VirtqAvail)).idx) };
+        let in_flight = device_idx.wrapping_sub(self.last_used_idx); // approx
+        if self.size > in_flight {
+            self.size - in_flight
+        } else {
+            0 // Or a small number, indicates queue is likely full or near full
         }
     }
-    
+
     pub fn is_ready(&self) -> bool {
         self.ready
     }
-    
+
     pub fn size(&self) -> u16 {
         self.size
     }
@@ -751,10 +792,11 @@ impl RustVmmVirtIOBlock {
     fn virtio_read_sector(&mut self, sector: u64, buffer: &mut [u8; 512]) -> DiskResult<()> {
         console_println!("🔧 Executing VirtIO block read operation");
         
+        let head_index; // To store the head index of our request
         unsafe {
             // Use static buffers for VirtIO operations (device-accessible memory)
             VIRTIO_REQUEST_BUFFER = VirtioBlkReq::new_read(sector);
-            VIRTIO_STATUS_BUFFER = 0;
+            VIRTIO_STATUS_BUFFER = 0xFF; // Initialize to non-OK, device overwrites
             
             // Create descriptor chain using static buffer addresses
             let desc_chain = [
@@ -777,64 +819,70 @@ impl RustVmmVirtIOBlock {
                     addr: &mut VIRTIO_STATUS_BUFFER as *mut _ as u64,
                     len: 1,
                     flags: VIRTQ_DESC_F_WRITE,
-                    next: 0,
+                    next: 0, // Marks end of this chain for this descriptor
                 },
             ];
             
             // Add descriptor chain to queue
-            let _head_index = self.queue.add_descriptor_chain(&desc_chain)?;
+            head_index = self.queue.add_descriptor_chain(&desc_chain)?;
             
-            console_println!("📝 Descriptor chain setup (static buffers):");
+            console_println!("📝 READ Desc chain (head={}) setup (static buffers):", head_index);
             console_println!("  Request addr: 0x{:x}, len: {}", &VIRTIO_REQUEST_BUFFER as *const _ as u64, core::mem::size_of::<VirtioBlkReq>());
             console_println!("  Buffer addr: 0x{:x}, len: 512", VIRTIO_DATA_BUFFER.as_mut_ptr() as u64);
             console_println!("  Status addr: 0x{:x}, len: 1", &mut VIRTIO_STATUS_BUFFER as *mut _ as u64);
             
             // Notify device
-            console_println!("🔔 Notifying VirtIO device at queue 0");
-            self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, 0);
+            console_println!("🔔 Notifying VirtIO device at queue {} for READ", self.queue.queue_index);
+            self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, self.queue.queue_index as u32);
             
-            console_println!("📤 VirtIO request submitted, waiting for completion...");
+            console_println!("📤 VirtIO READ request (head={}) submitted, waiting for completion...", head_index);
+        } // End of unsafe block for buffer setup
             
-            // Check initial device state
-            let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
-            console_println!("🔍 Initial interrupt status: 0x{:x}", interrupt_status);
-            
-            // Wait for completion with timeout
-            let mut timeout = 1000000;
-            let mut poll_count = 0;
-            while timeout > 0 {
-                // Check interrupt status periodically
-                if poll_count % 100000 == 0 {
-                    let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
-                    console_println!("🔍 Poll {}: interrupt status: 0x{:x}", poll_count / 100000, interrupt_status);
-                    
-                    // Check queue state
-                    let used_ring = self.queue.used_ring as *const VirtqUsed;
-                    let used_idx = (*used_ring).idx;
-                    console_println!("🔍 Queue used_idx: {}, last_used_idx: {}", used_idx, self.queue.last_used_idx);
+        // Wait for completion with timeout
+        let mut timeout = 1000000; // Increased timeout slightly
+        let mut poll_count = 0;
+        loop { // Changed to loop to handle unexpected completions
+            if timeout <= 0 {
+                console_println!("⏰ VirtIO READ request (head={}, sector={}) timed out. Returning DiskError::IoError.", head_index, sector);
+                return Err(DiskError::IoError);
+            }
+
+            if poll_count % 200000 == 0 { // Log less frequently to reduce noise
+                let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
+                console_println!("🔍 Poll (Read) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
+                unsafe { // Accessing queue members
+                    let used_ring_ptr = self.queue.used_ring as *const VirtqUsed;
+                    let device_used_idx = read_volatile(&(*used_ring_ptr).idx);
+                    console_println!("🔍 Queue (Read) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
                 }
-                
-                if let Some(used_elem) = self.queue.get_used_elem() {
-                    console_println!("📥 VirtIO request completed, used_elem: id={}, len={}, status={}", 
-                        used_elem.id, used_elem.len, VIRTIO_STATUS_BUFFER);
-                    
-                    if VIRTIO_STATUS_BUFFER == VIRTIO_BLK_S_OK {
-                        console_println!("✅ VirtIO read successful!");
-                        // Copy data from static buffer to user buffer
-                        buffer.copy_from_slice(&VIRTIO_DATA_BUFFER);
-                        return Ok(());
-                    } else {
-                        console_println!("❌ VirtIO read failed with status: {}", VIRTIO_STATUS_BUFFER);
-                        return Err(DiskError::ReadError);
-                    }
-                }
-                timeout -= 1;
-                poll_count += 1;
-                core::hint::spin_loop();
             }
             
-            console_println!("⏰ VirtIO request timed out");
-            Err(DiskError::IoError)
+            if let Some(used_elem) = self.queue.get_used_elem() { // This advances self.queue.last_used_idx
+                if used_elem.id as u16 == head_index {
+                    console_println!("📥 VirtIO READ request (head={}) COMPLETED. UsedElem: id={}, len={}. StatusByte: 0x{:x}", 
+                        head_index, used_elem.id, used_elem.len, unsafe { VIRTIO_STATUS_BUFFER });
+                    
+                    if unsafe { VIRTIO_STATUS_BUFFER } == VIRTIO_BLK_S_OK {
+                        console_println!("✅ VirtIO read successful for sector {}!", sector);
+                        unsafe { buffer.copy_from_slice(&VIRTIO_DATA_BUFFER); }
+                        // Acknowledge interrupt for this specific queue processing
+                        // self.write_reg_u32(VIRTIO_MMIO_INTERRUPT_ACK, 1 << self.queue.queue_index); 
+                        return Ok(());
+                    } else {
+                        let status_val = unsafe { VIRTIO_STATUS_BUFFER };
+                        console_println!("❌ VirtIO read for sector {} failed with device status: 0x{:x}. Returning DiskError::ReadError.", sector, status_val);
+                        return Err(DiskError::ReadError);
+                    }
+                } else {
+                    console_println!("⚠️ Unexpected used elem for READ: id={}, expected_id={}, len={}. Ignoring and continuing to wait.", 
+                        used_elem.id, head_index, used_elem.len);
+                    // This element is not for us, loop again.
+                    // Potentially, a mechanism to reclaim/log stale descriptors if this happens often.
+                }
+            }
+            timeout -= 1;
+            poll_count += 1;
+            core::hint::spin_loop();
         }
     }
     
@@ -850,78 +898,99 @@ impl RustVmmVirtIOBlock {
 
     // Helper function for the actual VirtIO write logic
     fn virtio_write_sector(&mut self, sector: u64, buffer: &[u8; 512]) -> DiskResult<()> {
-        // console_println!("virtio_write_sector: s={}, buf_len={}", sector, buffer.len());
-        let req_header = VirtioBlkReq::new_write(sector);
-        let mut status: u8 = 0xFF; // Status byte, device writes here. Initialize to a non-OK value.
+        console_println!("🔧 Executing VirtIO block write operation for sector {}", sector);
 
-        // Descriptor for the request header (device reads this)
-        let desc_req = VirtqDesc {
-            addr: &req_header as *const _ as u64,
-            len: core::mem::size_of::<VirtioBlkReq>() as u32,
-            flags: VIRTQ_DESC_F_NEXT, // This descriptor is followed by the data descriptor
-            next: 1, // Index of data descriptor in our chain (relative to start of chain)
-        };
+        let head_index; // To store the head index of our request
+        unsafe {
+            // 1. Prepare static buffers
+            VIRTIO_REQUEST_BUFFER = VirtioBlkReq::new_write(sector);
+            VIRTIO_DATA_BUFFER.copy_from_slice(buffer); // Copy input data to static DMA buffer
+            VIRTIO_STATUS_BUFFER = 0xFF; // Initialize to a non-OK value, device will overwrite
 
-        // Descriptor for the data buffer (device reads this)
-        // For a write operation, the VIRTQ_DESC_F_WRITE flag is NOT set on the data buffer, 
-        // as the device is reading from this buffer, not writing to it.
-        let desc_data = VirtqDesc {
-            addr: buffer.as_ptr() as u64, 
-            len: buffer.len() as u32,
-            flags: VIRTQ_DESC_F_NEXT, // This descriptor is followed by the status descriptor
-            next: 2, // Index of status descriptor
-        };
-        
-        // Descriptor for the status byte (device writes to this)
-        let desc_status = VirtqDesc {
-            addr: &status as *const _ as u64,
-            len: core::mem::size_of::<u8>() as u32,
-            flags: VIRTQ_DESC_F_WRITE, // Device WRITES to this status byte
-            next: 0, // End of chain, no next descriptor
-        };
+            // 2. Create descriptor chain using static buffer addresses
+            let desc_chain = [
+                // Descriptor 0: Request header (device reads from this)
+                VirtqDesc {
+                    addr: &VIRTIO_REQUEST_BUFFER as *const _ as u64,
+                    len: core::mem::size_of::<VirtioBlkReq>() as u32,
+                    flags: VIRTQ_DESC_F_NEXT,
+                    next: 1,
+                },
+                // Descriptor 1: Data buffer (device reads from this)
+                // For a write operation, VIRTQ_DESC_F_WRITE is NOT set.
+                VirtqDesc {
+                    addr: VIRTIO_DATA_BUFFER.as_ptr() as u64, // Device reads from here
+                    len: VIRTIO_DATA_BUFFER.len() as u32,
+                    flags: VIRTQ_DESC_F_NEXT,
+                    next: 2,
+                },
+                // Descriptor 2: Status byte (device writes to this)
+                VirtqDesc {
+                    addr: &mut VIRTIO_STATUS_BUFFER as *mut _ as u64,
+                    len: 1,
+                    flags: VIRTQ_DESC_F_WRITE,
+                    next: 0, // Marks end of this chain for this descriptor
+                },
+            ];
 
-        // The chain of descriptors to be added to the queue
-        let chain = [desc_req, desc_data, desc_status];
-        
-        let head_idx = self.queue.add_descriptor_chain(&chain)?;
-        self.queue.ack_used_desc();
+            // 3. Add descriptor chain to queue
+            head_index = self.queue.add_descriptor_chain(&desc_chain)?;
+            
+            console_println!("📝 WRITE Desc chain (head={}) setup (static buffers):", head_index);
+            console_println!("  Request addr: 0x{:x}, len: {}", &VIRTIO_REQUEST_BUFFER as *const _ as u64, core::mem::size_of::<VirtioBlkReq>());
+            console_println!("  Data Buffer addr: 0x{:x}, len: {}", VIRTIO_DATA_BUFFER.as_ptr() as u64, VIRTIO_DATA_BUFFER.len());
+            console_println!("  Status addr: 0x{:x}, len: 1", &mut VIRTIO_STATUS_BUFFER as *mut _ as u64);
 
-        // Step 5: Notify the device about the new descriptors in the queue
-        // Corrected based on previous successful compilation attempts with `notify` and `u32` queue index.
-        self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, VIRTIO_BLK_REQUEST_QUEUE_IDX as u32);
+            // 4. Notify device
+            console_println!("🔔 Notifying VirtIO device at queue {} for WRITE", self.queue.queue_index);
+            self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, self.queue.queue_index as u32); 
+            
+            console_println!("📤 VirtIO WRITE request (head={}) submitted, waiting for completion...", head_index);
+        } // End of unsafe block for buffer setup
 
-        // Wait for the device to process the request (simplified: spin on used ring change)
-        // A real driver would use interrupts or a more robust polling mechanism.
-        let mut used_elem_opt = None;
-        for _ in 0..200000 { // Timeout loop (can be adjusted)
-            if let Some(elem) = self.queue.get_used_elem() {
-                if elem.id as u16 == head_idx {
-                    used_elem_opt = Some(elem);
-                    break;
+        // 5. Wait for completion
+        let mut timeout = 1000000; 
+        let mut poll_count = 0;
+        loop { // Changed to loop to handle unexpected completions
+            if timeout <= 0 {
+                console_println!("⏰ VirtIO WRITE request (head={}, sector={}) timed out. Returning DiskError::IoError.", head_index, sector);
+                return Err(DiskError::IoError);
+            }
+
+            if poll_count % 200000 == 0 { // Log less frequently
+                let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
+                console_println!("🔍 Poll (Write) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
+                 unsafe { // Accessing queue members
+                    let used_ring_ptr = self.queue.used_ring as *const VirtqUsed;
+                    let device_used_idx = read_volatile(&(*used_ring_ptr).idx);
+                    console_println!("🔍 Queue (Write) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
                 }
             }
-            core::hint::spin_loop();
-        }
 
-        if used_elem_opt.is_none() {
-            console_println!("Timeout waiting for VirtIO write completion for sector {}", sector);
-            return Err(DiskError::IoError);
-        }
-
-        match status {
-            VIRTIO_BLK_S_OK => Ok(()),
-            VIRTIO_BLK_S_IOERR => {
-                console_println!("VirtIO write to sector {} failed: I/O Error from device", sector);
-                Err(DiskError::WriteError)
-            },
-            VIRTIO_BLK_S_UNSUPP => {
-                console_println!("VirtIO write to sector {} failed: Unsupported request by device", sector);
-                Err(DiskError::VirtIOError)
+            if let Some(used_elem) = self.queue.get_used_elem() { // get_used_elem advances last_used_idx
+                if used_elem.id as u16 == head_index {
+                    console_println!("📥 VirtIO WRITE request (head={}) COMPLETED. UsedElem: id={}, len={}. StatusByte: 0x{:x}", 
+                        head_index, used_elem.id, used_elem.len, unsafe { VIRTIO_STATUS_BUFFER });
+                    
+                    if unsafe { VIRTIO_STATUS_BUFFER } == VIRTIO_BLK_S_OK {
+                        console_println!("✅ VirtIO write successful for sector {}!", sector);
+                        // Acknowledge interrupt for this specific queue processing
+                        // self.write_reg_u32(VIRTIO_MMIO_INTERRUPT_ACK, 1 << self.queue.queue_index);
+                        return Ok(());
+                    } else {
+                        let status_val = unsafe { VIRTIO_STATUS_BUFFER };
+                        console_println!("❌ VirtIO write for sector {} failed with device status: 0x{:x}. Returning DiskError::WriteError.", sector, status_val);
+                        return Err(DiskError::WriteError); 
+                    }
+                } else {
+                     console_println!("⚠️ Unexpected used elem for WRITE: id={}, expected_id={}, len={}. Ignoring and continuing to wait.", 
+                        used_elem.id, head_index, used_elem.len);
+                    // This element is not for us, loop again.
+                }
             }
-            _ => {
-                console_println!("VirtIO write to sector {} completed with unknown status: {}", sector, status);
-                Err(DiskError::VirtIOError)
-            }
+            timeout -= 1;
+            poll_count += 1;
+            core::hint::spin_loop(); 
         }
     }
     

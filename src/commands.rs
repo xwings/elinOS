@@ -1,11 +1,108 @@
 use crate::syscall;
-use crate::filesystem::traits::FileSystem;
+use crate::filesystem::traits::{FileSystem, FilesystemError, FileEntry};
 use crate::memory::{self, BufferUsage};
+use heapless::String;
+use core::fmt::Write;
 
 // Shell commands that use system calls
 
+const MAX_PATH_LEN: usize = 256;
+static mut CURRENT_PATH: String<MAX_PATH_LEN> = String::new();
+
+// Helper to initialize CWD if it's empty (e.g., on first command)
+fn ensure_cwd_initialized() {
+    unsafe {
+        if CURRENT_PATH.is_empty() {
+            // Initialize to root path "/"
+            CURRENT_PATH.clear(); // Ensure it's empty before pushing
+            if CURRENT_PATH.push('/').is_err() {
+                // This should ideally not fail with a single char if MAX_PATH_LEN > 0
+                // Consider a panic or a more robust error handling if path initialization is critical
+                syscall::sys_print("CRITICAL: Failed to initialize CWD to root!\n").unwrap_or_default();
+            }
+        }
+    }
+}
+
+// Helper function to resolve a path argument to an absolute path
+fn resolve_path(path_arg: &str) -> String<MAX_PATH_LEN> {
+    ensure_cwd_initialized(); // Ensure CURRENT_PATH is valid before use
+    unsafe { // To access CURRENT_PATH
+        let mut components: heapless::Vec<&str, 32> = heapless::Vec::new();
+
+        // Determine the starting components based on whether path_arg is absolute
+        if path_arg.starts_with('/') {
+            // Absolute path, start fresh. Add a placeholder if path_arg is only "/" to avoid empty components later.
+            // if path_arg == "/" { let _ = components.push(""); } // This logic is tricky, split handles it.
+        } else {
+            // Relative path, start with CURRENT_PATH components
+            // Trim CURRENT_PATH to avoid empty strings if it's just "/"
+            // and split by '/'
+            for component in CURRENT_PATH.trim_matches('/').split('/') {
+                if !component.is_empty() { // Avoid pushing empty strings from multiple slashes or root
+                    let _ = components.push(component);
+                }
+            }
+        }
+
+        // Process path_arg components
+        // Trim path_arg to handle cases like "dir/" or "/abs/path/"
+        for component in path_arg.trim_matches('/').split('/') {
+            if component.is_empty() || component == "." {
+                continue; // Skip empty parts (e.g. '//') or current dir '.'
+            }
+            if component == ".." {
+                if !components.is_empty() {
+                    components.pop(); // Go up one level
+                }
+                // If components is empty, ".." at root stays at root, effectively.
+            } else {
+                if components.push(component).is_err() {
+                    // Path too deep or too many components, handle error or truncate
+                    syscall::sys_print("Warning: Path too long or complex, may be truncated.\n").unwrap_or_default();
+                    break; 
+                }
+            }
+        }
+
+        // Construct the final path
+        let mut final_path = String::<MAX_PATH_LEN>::new();
+        if final_path.push('/').is_err() { /* error handling */ } // Always starts with /
+
+        for (i, comp) in components.iter().enumerate() {
+            if i > 0 { // Add separator for subsequent components
+                if final_path.push('/').is_err() { break; }
+            }
+            if final_path.push_str(comp).is_err() { break; }
+        }
+        
+        // If final_path is still just "/", it's correct.
+        // If it became empty somehow (shouldn't with this logic), reset to "/"
+        if final_path.is_empty() && components.is_empty() {
+             // This case should ideally be covered by final_path.push('/') above
+             // but as a safeguard:
+            final_path.clear();
+            final_path.push('/').unwrap_or_default();
+        }
+        final_path
+    }
+}
+
+// Helper to print FilesystemError
+fn print_filesystem_error(e: &FilesystemError) {
+    // This is a simplified way to print. Ideally, FilesystemError would implement Display
+    // or have a method to get a &'static str.
+    // Using a temporary buffer to format the debug representation.
+    let mut err_buf: String<128> = String::new();
+    let _ = write!(err_buf, "{:?}", e); // Using Debug format
+    let _ = syscall::sys_print("Error: ");
+    let _ = syscall::sys_print(&err_buf);
+    let _ = syscall::sys_print("\n");
+}
+
 // Central command processor - main.rs calls this function
-pub fn process_command(command: &str) {
+pub fn process_command(command: &str) -> Result<(), &'static str> {
+    ensure_cwd_initialized(); // Initialize CWD on first command
     let command = command.trim();
     
     let result = match command {
@@ -19,23 +116,104 @@ pub fn process_command(command: &str) {
         "config" => cmd_config(),
         
         // File operations (working via modular filesystem)
-        "ls" => cmd_ls(),
-        "cat" => cmd_cat(""),
+        "ls" => cmd_ls(None),
+        "cat" => {
+            syscall::sys_print("Usage: cat <filename>\n")?;
+            Ok(())
+        },
         "echo" => cmd_echo(""),
+        "pwd" => cmd_pwd(),
+
+        // New file/dir operations
+        "touch" => {
+            syscall::sys_print("Usage: touch <filename>\n")?;
+            Ok(())
+        },
+        "mkdir" => {
+            syscall::sys_print("Usage: mkdir <dirname>\n")?;
+            Ok(())
+        },
+        "rm" => {
+            syscall::sys_print("Usage: rm <filename>\n")?;
+            Ok(())
+        },
+        "rmdir" => {
+            syscall::sys_print("Usage: rmdir <dirname>\n")?;
+            Ok(())
+        },
+        "cd" => {
+            cmd_cd("/")
+        },
         
         // System control
         "shutdown" => cmd_shutdown(),
         "reboot" => cmd_reboot(),
         
         // Commands with arguments
+        cmd if cmd.starts_with("ls ") => {
+            let path_arg = &cmd[3..].trim();
+            cmd_ls(Some(path_arg))
+        },
         cmd if cmd.starts_with("cat ") => {
-            let filename = &cmd[4..];
-            cmd_cat(filename)
-        }
+            let path_arg = &cmd[4..].trim();
+            if path_arg.is_empty() {
+                syscall::sys_print("Usage: cat <filename>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(path_arg);
+                cmd_cat(&full_path)
+            }
+        },
         cmd if cmd.starts_with("echo ") => {
             let message = &cmd[5..];
             cmd_echo(message)
-        }
+        },
+        
+        // Commands with arguments for new fs operations
+        cmd if cmd.starts_with("touch ") => {
+            let path_arg = cmd.strip_prefix("touch ").unwrap_or("").trim();
+            if path_arg.is_empty() {
+                syscall::sys_print("Usage: touch <filename>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(path_arg);
+                cmd_touch(&full_path)
+            }
+        },
+        cmd if cmd.starts_with("mkdir ") => {
+            let path_arg = cmd.strip_prefix("mkdir ").unwrap_or("").trim();
+            if path_arg.is_empty() {
+                syscall::sys_print("Usage: mkdir <dirname>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(path_arg);
+                cmd_mkdir(&full_path)
+            }
+        },
+        cmd if cmd.starts_with("rm ") => {
+            let path_arg = cmd.strip_prefix("rm ").unwrap_or("").trim();
+            if path_arg.is_empty() {
+                syscall::sys_print("Usage: rm <filename>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(path_arg);
+                cmd_rm(&full_path)
+            }
+        },
+        cmd if cmd.starts_with("rmdir ") => {
+            let path_arg = cmd.strip_prefix("rmdir ").unwrap_or("").trim();
+            if path_arg.is_empty() {
+                syscall::sys_print("Usage: rmdir <dirname>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(path_arg);
+                cmd_rmdir(&full_path)
+            }
+        },
+        cmd if cmd.starts_with("cd ") => {
+            let path_arg = cmd.strip_prefix("cd ").unwrap_or("").trim();
+            cmd_cd(path_arg)
+        },
         
         // Empty command
         "" => Ok(()),
@@ -49,18 +227,15 @@ pub fn process_command(command: &str) {
         }
     };
 
-    if let Err(e) = result {
-        let _ = syscall::sys_print("Command failed: ");
-        let _ = syscall::sys_print(e);
-        let _ = syscall::sys_print("\n");
-    }
+    result
 }
 
 // Get list of all available commands (for help and autocomplete)
 pub fn get_available_commands() -> &'static [&'static str] {
     &[
         "help", "version", "memory", "devices", "syscall", "fscheck", "config",
-        "ls", "cat", "echo", 
+        "ls", "cat", "echo", "pwd",
+        "touch", "mkdir", "rm", "rmdir", "cd",
         "shutdown", "reboot"
     ]
 }
@@ -72,9 +247,15 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("===============================================\n\n")?;
     
     syscall::sys_print("🗂️  File Operations (modular filesystem support):\n")?;
-    syscall::sys_print("  ls              - List files in filesystem\n")?;
+    syscall::sys_print("  ls [path]       - List files (path optional, currently lists root)\n")?;
     syscall::sys_print("  cat <file>      - Display file contents\n")?;
     syscall::sys_print("  echo <message>  - Echo a message\n")?;
+    syscall::sys_print("  pwd             - Print current working directory\n")?;
+    syscall::sys_print("  touch <file>    - Create an empty file\n")?;
+    syscall::sys_print("  mkdir <dir>     - Create a directory\n")?;
+    syscall::sys_print("  rm <file>       - Remove a file\n")?;
+    syscall::sys_print("  rmdir <dir>     - Remove an empty directory\n")?;
+    syscall::sys_print("  cd <dir>        - Change current directory\n")?;
     
     syscall::sys_print("\n📊 System Information:\n")?;
     syscall::sys_print("  help            - Show this help message\n")?;
@@ -225,7 +406,22 @@ pub fn cmd_devices() -> Result<(), &'static str> {
     syscall::sys_device_info()
 }
 
-pub fn cmd_ls() -> Result<(), &'static str> {
+pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
+    ensure_cwd_initialized();
+    let list_target_path: String<MAX_PATH_LEN>;
+    unsafe { // Access CURRENT_PATH
+        list_target_path = match path_arg_opt {
+            Some(path_arg) => resolve_path(path_arg),
+            None => String::try_from(CURRENT_PATH.as_str()).unwrap_or_default(),
+        };
+    }
+
+    syscall::sys_print("Listing for target '")?;
+    syscall::sys_print(&list_target_path)?;
+    // Note: The actual filesystem list_files() currently doesn't take a path,
+    // so it will always list the root. This print shows the *intended* target.
+    syscall::sys_print("' (Note: actual listing is currently always root /)\n")?;
+
     // Use modular filesystem API
     match crate::filesystem::list_files() {
         Ok(files) => {
@@ -287,7 +483,7 @@ pub fn cmd_ls() -> Result<(), &'static str> {
 
 pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
     if filename.is_empty() {
-        return Err("Usage: cat <filename>");
+        return Err("Filename cannot be empty for cat");
     }
     
     // Use modular filesystem API
@@ -422,4 +618,95 @@ pub fn cmd_fscheck() -> Result<(), &'static str> {
             Err("Failed to check filesystem")
         }
     }
+}
+
+fn cmd_pwd() -> Result<(), &'static str> {
+    ensure_cwd_initialized();
+    unsafe {
+        syscall::sys_print(&CURRENT_PATH)?;
+    }
+    syscall::sys_print("\n")?;
+    Ok(())
+}
+
+fn cmd_touch(path: &str) -> Result<(), &'static str> {
+    match crate::filesystem::FILESYSTEM.lock().create_file(path) {
+        Ok(entry) => {
+            syscall::sys_print("Created file '")?;
+            syscall::sys_print(&entry.name)?; // Name from returned FileEntry might be just the basename
+            syscall::sys_print("' at path '")?;
+            syscall::sys_print(path)?;
+            syscall::sys_print("'.\n")?;
+            Ok(())
+        }
+        Err(e) => {
+            print_filesystem_error(&e);
+            Err("Failed to create file")
+        }
+    }
+}
+
+fn cmd_mkdir(path: &str) -> Result<(), &'static str> {
+    match crate::filesystem::FILESYSTEM.lock().create_directory(path) {
+        Ok(entry) => {
+            syscall::sys_print("Created directory '")?;
+            syscall::sys_print(&entry.name)?;
+            syscall::sys_print("' at path '")?;
+            syscall::sys_print(path)?;
+            syscall::sys_print("'.\n")?;
+            Ok(())
+        }
+        Err(e) => {
+            print_filesystem_error(&e);
+            Err("Failed to create directory")
+        }
+    }
+}
+
+fn cmd_rm(path: &str) -> Result<(), &'static str> { // For files
+    match crate::filesystem::FILESYSTEM.lock().delete_file(path) {
+        Ok(()) => {
+            syscall::sys_print("Removed file '")?;
+            syscall::sys_print(path)?;
+            syscall::sys_print("'.\n")?;
+            Ok(())
+        }
+        Err(e) => {
+            print_filesystem_error(&e);
+            Err("Failed to remove file")
+        }
+    }
+}
+
+fn cmd_rmdir(path: &str) -> Result<(), &'static str> { // For directories
+    match crate::filesystem::FILESYSTEM.lock().delete_directory(path) {
+        Ok(()) => {
+            syscall::sys_print("Removed directory '")?;
+            syscall::sys_print(path)?;
+            syscall::sys_print("'.\n")?;
+            Ok(())
+        }
+        Err(e) => {
+            print_filesystem_error(&e);
+            Err("Failed to remove directory")
+        }
+    }
+}
+
+fn cmd_cd(path_arg: &str) -> Result<(), &'static str> {
+    let new_path_str = resolve_path(path_arg);
+    // Optimistic CD: we just set the path.
+    // Validation would ideally occur here by checking if new_path_str is a directory.
+    // For now, we update and print.
+    unsafe {
+        CURRENT_PATH.clear();
+        if CURRENT_PATH.push_str(&new_path_str).is_err() {
+            syscall::sys_print("Error: New path too long for CWD buffer.\n")?;
+            return Err("Path too long");
+        }
+    }
+    // syscall::sys_print("Current directory: ")?; // cmd_pwd can be used
+    // syscall::sys_print(&new_path_str)?;
+    // syscall::sys_print("\n")?;
+    Ok(())
 } 

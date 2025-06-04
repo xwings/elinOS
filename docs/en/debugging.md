@@ -215,7 +215,7 @@ elinOS> categories
 1. **Add parameter logging:**
    ```rust
    pub fn handle_syscall(num: usize, args: &[usize]) -> SysCallResult {
-       println!("Syscall {} with args: {:?}", num, args);
+       console_print!("Syscall {} with args: {:?}", num, args);
        // ... implementation
    }
    ```
@@ -262,15 +262,15 @@ Probing for VirtIO devices...
    unsafe fn debug_virtio_device(base: usize) {
        let magic = ptr::read_volatile((base + 0x00) as *const u32);
        let version = ptr::read_volatile((base + 0x04) as *const u32);
-       println!("VirtIO Magic: 0x{:x}, Version: {}", magic, version);
+       console_print!("VirtIO Magic: 0x{:x}, Version: {}", magic, version);
    }
    ```
 
 2. **Verify queue setup:**
    ```rust
    fn debug_virtqueue(device: &VirtIOBlockDevice) {
-       println!("Queue size: {}", device.queue_size);
-       println!("Queue ready: {}", device.is_queue_ready());
+       console_print!("Queue size: {}", device.queue_size);
+       console_print!("Queue ready: {}", device.is_queue_ready());
    }
    ```
 
@@ -357,7 +357,7 @@ const MAX_FILE_SIZE: usize = 4096;
        let start = get_time();
        // ... stage implementation
        let end = get_time();
-       println!("{} took {} cycles", name, end - start);
+       console_print!("{} took {} cycles", name, end - start);
    }
    ```
 
@@ -395,7 +395,7 @@ pub fn fast_syscall_path(num: usize) -> SysCallResult {
 #[cfg(debug_assertions)]
 macro_rules! debug_print {
     ($($arg:tt)*) => {
-        println!("[DEBUG] {}", format_args!($($arg)*));
+        console_print!("[DEBUG] {}", format_args!($($arg)*));
     };
 }
 
