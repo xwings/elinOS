@@ -13,6 +13,7 @@ kernel.bin
 qemu.log
 disk.qcow2
 disk.raw
+disk.img
 rootfs/
 fs/
 
