@@ -32,29 +32,73 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 pub fn sys_elinos_version() -> SysCallResult {
-    syscall::sys_print("elinOS Version Information:\n")?;
-    syscall::sys_print("===============================================\n\n")?;
+    if let Err(e) = crate::syscall::sys_print("elinOS Version Information:\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("===============================================\n\n") {
+        return SysCallResult::Error(e);
+    }
     
-    syscall::sys_print("🦀 elinOS v0.1.0\n")?;
-    syscall::sys_print("RISC-V Experimental Operating System\n")?;
-    syscall::sys_print("Written in Rust for research and development\n\n")?;
+    if let Err(e) = crate::syscall::sys_print("🦀 elinOS v0.1.0\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("RISC-V Experimental Operating System\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("Written in Rust for research and development\n\n") {
+        return SysCallResult::Error(e);
+    }
     
-    syscall::sys_print("Architecture:\n")?;
-    syscall::sys_print("  Target: riscv64gc-unknown-none-elf\n")?;
-    syscall::sys_print("  Memory Model: sv39 (future)\n")?;
-    syscall::sys_print("  Privilege Level: Machine Mode\n\n")?;
+    if let Err(e) = crate::syscall::sys_print("Architecture:\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  Target: riscv64gc-unknown-none-elf\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  Memory Model: sv39 (future)\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  Privilege Level: Machine Mode\n\n") {
+        return SysCallResult::Error(e);
+    }
     
-    syscall::sys_print("Features:\n")?;
-    syscall::sys_print("  ✅ VirtIO Block Device Support\n")?;
-    syscall::sys_print("  ✅ FAT32 Filesystem\n")?;
-    syscall::sys_print("  ✅ Linux-Compatible System Calls\n")?;
-    syscall::sys_print("  ✅ Memory Management\n")?;
-    syscall::sys_print("  ✅ Interactive Shell\n\n")?;
+    if let Err(e) = crate::syscall::sys_print("Features:\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  ✅ VirtIO Block Device Support\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  ✅ Real FAT32 Filesystem\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  ✅ Real ext4 Filesystem\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  ✅ Automatic Filesystem Detection\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  ✅ Linux-Compatible System Calls\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  ✅ Memory Management\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  ✅ Interactive Shell\n\n") {
+        return SysCallResult::Error(e);
+    }
     
-    syscall::sys_print("Build Information:\n")?;
-    syscall::sys_print("  Compiler: rustc (nightly)\n")?;
-    syscall::sys_print("  Built: [compile time]\n")?;
-    syscall::sys_print("  Kernel: elinOS\n")?;
+    if let Err(e) = crate::syscall::sys_print("Build Information:\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  Compiler: rustc (nightly)\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  Built: [compile time]\n") {
+        return SysCallResult::Error(e);
+    }
+    if let Err(e) = crate::syscall::sys_print("  Kernel: elinOS\n") {
+        return SysCallResult::Error(e);
+    }
     
     SysCallResult::Success(0)
 }

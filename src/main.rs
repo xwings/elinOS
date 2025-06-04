@@ -13,7 +13,7 @@ pub mod uart;
 pub mod commands;
 pub mod sbi;
 pub mod memory;
-pub mod filesystem;
+pub mod filesystem;  // Now points to filesystem/mod.rs
 pub mod elf;
 pub mod syscall;
 pub mod virtio_blk;

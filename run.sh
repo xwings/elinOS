@@ -23,14 +23,14 @@ if [ ! -f "$DISK_IMAGE" ]; then
     # 1. Create raw image
     dd if=/dev/zero of=$DISK_IMAGE bs=1M count=$DISK_SIZE
     # 2. Format with FAT32 (much simpler than ext4)
-    mkfs.vfat -F 32 $DISK_IMAGE
+    mkfs.ext4 $DISK_IMAGE
     
     # 3. Mount and add some test files
     mkdir -p /tmp/elinOS_mount
     sudo mount -o loop $DISK_IMAGE /tmp/elinOS_mount
     
     # Add test files
-    echo "Hello from elinOS IDE disk!" | sudo tee /tmp/elinOS_mount/hello.txt
+    echo "Hello from elinOS, hello XiaoMa, Hello XiaoBai" | sudo tee /tmp/elinOS_mount/hello.txt
     echo "# elinOS README
 
 This is a simple FAT32 filesystem on IDE disk.

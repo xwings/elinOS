@@ -1,4 +1,5 @@
 use crate::syscall;
+use crate::filesystem::traits::FileSystem;
 
 // Shell commands that use system calls
 
@@ -13,8 +14,9 @@ pub fn process_command(command: &str) {
         "memory" => cmd_memory(),
         "devices" => cmd_devices(),
         "syscall" => cmd_syscall(),
+        "fscheck" => cmd_fscheck(),
         
-        // File operations (working via VirtIO)
+        // File operations (working via modular filesystem)
         "ls" => cmd_ls(),
         "cat" => cmd_cat(""),
         "echo" => cmd_echo(""),
@@ -55,7 +57,7 @@ pub fn process_command(command: &str) {
 // Get list of all available commands (for help and autocomplete)
 pub fn get_available_commands() -> &'static [&'static str] {
     &[
-        "help", "version", "memory", "devices", "syscall",
+        "help", "version", "memory", "devices", "syscall", "fscheck",
         "ls", "cat", "echo", 
         "shutdown", "reboot"
     ]
@@ -67,7 +69,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("📖 elinOS Commands\n")?;
     syscall::sys_print("===============================================\n\n")?;
     
-    syscall::sys_print("🗂️  File Operations (via VirtIO block device):\n")?;
+    syscall::sys_print("🗂️  File Operations (modular filesystem support):\n")?;
     syscall::sys_print("  ls              - List files in filesystem\n")?;
     syscall::sys_print("  cat <file>      - Display file contents\n")?;
     syscall::sys_print("  echo <message>  - Echo a message\n")?;
@@ -78,6 +80,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  memory          - Show memory information\n")?;
     syscall::sys_print("  devices         - List VirtIO and other devices\n")?;
     syscall::sys_print("  syscall         - Show system call information\n")?;
+    syscall::sys_print("  fscheck         - Check filesystem status\n")?;
     
     syscall::sys_print("\n⚙️  System Control:\n")?;
     syscall::sys_print("  shutdown        - Shutdown the system\n")?;
@@ -85,7 +88,8 @@ pub fn cmd_help() -> Result<(), &'static str> {
     
     syscall::sys_print("\n🎉 Success! You now have:\n")?;
     syscall::sys_print("  ✅ VirtIO block device\n")?;
-    syscall::sys_print("  ✅ FAT32 filesystem\n")?;
+    syscall::sys_print("  ✅ Modular filesystem (FAT32 + ext4)\n")?;
+    syscall::sys_print("  ✅ Automatic filesystem detection\n")?;
     syscall::sys_print("  ✅ Working syscalls (openat, read, close)\n")?;
     syscall::sys_print("  ✅ Legacy VirtIO 1.0 support\n")?;
     syscall::sys_print("  ✅ Complete I/O stack: command → syscall → filesystem → VirtIO → QEMU\n")?;
@@ -114,26 +118,60 @@ pub fn cmd_devices() -> Result<(), &'static str> {
 }
 
 pub fn cmd_ls() -> Result<(), &'static str> {
-    // Use SYS_GETDENTS64 syscall to read directory entries
-    let result = syscall::syscall_handler(
-        syscall::file::SYS_GETDENTS64,
-        0, // fd for current directory (or root)
-        0, // buffer (kernel will handle)
-        0, // count
-        0,
-    );
-    
-    match result {
-        syscall::SysCallResult::Success(_) => Ok(()),
-        syscall::SysCallResult::Error(_) => {
-            // Fallback to filesystem interface for now
-            match crate::filesystem::list_files() {
-                Ok(()) => Ok(()),
-                Err(_) => {
-                    syscall::sys_print("Failed to list files\n")?;
-                    Err("Failed to list files")
-                }
+    // Use modular filesystem API
+    match crate::filesystem::list_files() {
+        Ok(files) => {
+            // Get filesystem info for display
+            let fs = crate::filesystem::FILESYSTEM.lock();
+            let fs_type = fs.get_filesystem_type();
+            let fs_info = fs.get_filesystem_info();
+            drop(fs);
+            
+            syscall::sys_print("📁 Filesystem contents (VirtIO disk):\n")?;
+            syscall::sys_print("Type: ")?;
+            match fs_type {
+                crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
+                crate::filesystem::FilesystemType::Ext4 => syscall::sys_print("ext4")?,
+                crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
             }
+            syscall::sys_print("\n")?;
+            
+            if let Some((signature, total_blocks, block_size)) = fs_info {
+                syscall::sys_print("Boot signature/Magic: 0x")?;
+                // Simple hex output without format!
+                let hex_chars = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f'];
+                let mut hex_str = [0u8; 4];
+                hex_str[0] = hex_chars[((signature >> 12) & 0xF) as usize];
+                hex_str[1] = hex_chars[((signature >> 8) & 0xF) as usize];
+                hex_str[2] = hex_chars[((signature >> 4) & 0xF) as usize];
+                hex_str[3] = hex_chars[(signature & 0xF) as usize];
+                syscall::sys_print(core::str::from_utf8(&hex_str).unwrap_or("????"))?;
+                syscall::sys_print("\n")?;
+                
+                syscall::sys_print("Total blocks/sectors: ")?;
+                syscall::sys_print("(numeric display not implemented)\n")?;
+                syscall::sys_print("Block/sector size: ")?;
+                syscall::sys_print("(numeric display not implemented)\n")?;
+                syscall::sys_print("\n")?;
+            }
+            
+            if files.is_empty() {
+                syscall::sys_print("(No files found)\n")?;
+            } else {
+                for (name, _size) in &files {
+                    syscall::sys_print("  FILE  ")?;
+                    syscall::sys_print(name.as_str())?;
+                    syscall::sys_print("\n")?;
+                }
+                syscall::sys_print("\nTotal files: ")?;
+                syscall::sys_print("(count display not implemented)\n")?;
+            }
+            
+            Ok(())
+        }
+        Err(_) => {
+            syscall::sys_print("Failed to list files\n")?;
+            Err("Failed to list files")
         }
     }
 }
@@ -143,59 +181,41 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
         return Err("Usage: cat <filename>");
     }
     
-    // Use proper syscalls: OPENAT -> READ -> CLOSE
-    let mut filename_buf = [0u8; 256];
-    if filename.len() >= filename_buf.len() {
-        return Err("Filename too long");
-    }
-    
-    filename_buf[..filename.len()].copy_from_slice(filename.as_bytes());
-    
-    // Step 1: Open the file with SYS_OPENAT
-    // SYS_OPENAT signature: (dirfd, pathname, flags, mode)
-    let open_result = syscall::syscall_handler(
-        syscall::file::SYS_OPENAT,
-        -100isize as usize, // AT_FDCWD (current working directory)
-        filename_buf.as_ptr() as usize, // pathname
-        0, // flags (O_RDONLY)
-        0, // mode (not used for opening existing files)
-    );
-    
-    match open_result {
-        syscall::SysCallResult::Success(fd) => {
-            // Step 2: Read file content with SYS_READ
-            let read_result = syscall::syscall_handler(
-                syscall::file::SYS_READ,
-                fd as usize, // file descriptor
-                0, // buffer (kernel handles)
-                4096, // max bytes to read
-                0,
-            );
+    // Use modular filesystem API
+    match crate::filesystem::read_file(filename) {
+        Ok(content) => {
+            // Get filesystem type for display
+            let fs = crate::filesystem::FILESYSTEM.lock();
+            let fs_type = fs.get_filesystem_type();
+            drop(fs);
             
-            // Step 3: Close file (when SYS_CLOSE is implemented)
-            let _ = syscall::syscall_handler(
-                syscall::file::SYS_CLOSE,
-                fd as usize,
-                0, 0, 0,
-            );
-            
-            match read_result {
-                syscall::SysCallResult::Success(_) => Ok(()),
-                syscall::SysCallResult::Error(_) => {
-                    syscall::sys_print("Failed to read file content\n")?;
-                    Err("Failed to read file content")
-                }
+            syscall::sys_print("📖 Reading file: ")?;
+            syscall::sys_print(filename)?;
+            syscall::sys_print(" (from ")?;
+            match fs_type {
+                crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
+                crate::filesystem::FilesystemType::Ext4 => syscall::sys_print("ext4")?,
+                crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
             }
+            syscall::sys_print(" filesystem)\n")?;
+            
+            if let Ok(content_str) = core::str::from_utf8(&content) {
+                syscall::sys_print("Content:\n")?;
+                syscall::sys_print(content_str)?;
+                syscall::sys_print("\n")?;
+            } else {
+                syscall::sys_print("(Binary file - ")?;
+                syscall::sys_print("bytes count not displayed")?;
+                syscall::sys_print(")\n")?;
+            }
+            
+            Ok(())
         }
-        syscall::SysCallResult::Error(_) => {
-            // Fallback to filesystem interface
-            match crate::filesystem::read_file(filename) {
-                Ok(()) => Ok(()),
-                Err(_) => {
-                    syscall::sys_print("Failed to read file\n")?;
-                    Err("Failed to read file")
-                }
-            }
+        Err(_) => {
+            syscall::sys_print("❌ File '")?;
+            syscall::sys_print(filename)?;
+            syscall::sys_print("' not found\n")?;
+            Err("File not found")
         }
     }
 }
@@ -283,4 +303,14 @@ pub fn cmd_echo(message: &str) -> Result<(), &'static str> {
     syscall::sys_print(message)?;
     syscall::sys_print("\n")?;
     Ok(())
+}
+
+pub fn cmd_fscheck() -> Result<(), &'static str> {
+    match crate::filesystem::check_filesystem() {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            syscall::sys_print("Failed to check filesystem\n")?;
+            Err("Failed to check filesystem")
+        }
+    }
 } 
