@@ -68,10 +68,7 @@ pub fn sys_elinos_version() -> SysCallResult {
     if let Err(e) = crate::syscall::sys_print("  ✅ VirtIO Block Device Support\n") {
         return SysCallResult::Error(e);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ Real FAT32 Filesystem\n") {
-        return SysCallResult::Error(e);
-    }
-    if let Err(e) = crate::syscall::sys_print("  ✅ Real ext4 Filesystem\n") {
+    if let Err(e) = crate::syscall::sys_print("  ✅ FAT32/ext4 Filesystem\n") {
         return SysCallResult::Error(e);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ Automatic Filesystem Detection\n") {
@@ -83,7 +80,7 @@ pub fn sys_elinos_version() -> SysCallResult {
     if let Err(e) = crate::syscall::sys_print("  ✅ Memory Management\n") {
         return SysCallResult::Error(e);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ Interactive Shell\n\n") {
+    if let Err(e) = crate::syscall::sys_print("  ✅ Simple Interactive Shell\n\n") {
         return SysCallResult::Error(e);
     }
     
