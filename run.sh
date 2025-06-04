@@ -23,7 +23,7 @@ if [ ! -f "$DISK_IMAGE" ]; then
     # 1. Create raw image
     dd if=/dev/zero of=$DISK_IMAGE bs=1M count=$DISK_SIZE
     # 2. Format with (much simpler than ext4)
-    if [ "$FILE_SYSTEM" == "fat" ]; then
+    if [ "$FILE_SYSTEM" == "fat32" ]; then
         mkfs.fat -F 32 $DISK_IMAGE
     elif [ "$FILE_SYSTEM" == "ext4" ]; then
         mkfs.ext4 $DISK_IMAGE

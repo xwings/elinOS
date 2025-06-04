@@ -136,7 +136,7 @@ pub fn cmd_ls() -> Result<(), &'static str> {
             }
             syscall::sys_print("\n")?;
             
-            if let Some((signature, total_blocks, block_size)) = fs_info {
+            if let Some((signature, _total_blocks, _block_size)) = fs_info {
                 syscall::sys_print("Boot signature/Magic: 0x")?;
                 // Simple hex output without format!
                 let hex_chars = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f'];

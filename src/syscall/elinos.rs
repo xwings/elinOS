@@ -20,8 +20,18 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
     match args.syscall_num {
         SYS_ELINOS_VERSION => sys_elinos_version(),
         SYS_ELINOS_DEBUG => sys_elinos_debug(args.arg0_as_ptr::<u8>()),
-        SYS_ELINOS_SHUTDOWN => sys_elinos_shutdown(args.arg0_as_i32()),
-        SYS_ELINOS_REBOOT => sys_elinos_reboot(),
+        SYS_ELINOS_SHUTDOWN => {
+            sys_elinos_shutdown(args.arg0_as_i32());
+            // This line is never reached, but needed for type checking
+            #[allow(unreachable_code)]
+            SysCallResult::Success(0)
+        },
+        SYS_ELINOS_REBOOT => {
+            sys_elinos_reboot();
+            // This line is never reached, but needed for type checking
+            #[allow(unreachable_code)]
+            SysCallResult::Success(0)
+        },
         SYS_LOAD_ELF => super::process::sys_load_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_EXEC_ELF => super::process::sys_exec_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_ELF_INFO => super::process::sys_elf_info(args.arg0_as_ptr::<u8>(), args.arg1),
@@ -123,22 +133,19 @@ fn sys_elinos_debug(msg_ptr: *const u8) -> SysCallResult {
     SysCallResult::Success(0)
 }
 
-fn sys_elinos_shutdown(status: i32) -> SysCallResult {
-    console_println!("System shutdown requested with status: {}", status);
+pub fn sys_elinos_shutdown(_status: i32) -> ! {
+    console_println!("💤 System shutdown requested");
+    console_println!("Goodbye from elinOS!");
     
-    // Use SBI to shutdown the system
+    // Shutdown the system - this never returns
     sbi::system_shutdown();
-    
-    // This should not be reached
-    SysCallResult::Success(0)
 }
 
-fn sys_elinos_reboot() -> SysCallResult {
-    console_println!("System reboot requested");
+/// SYS_REBOOT - reboot the system  
+pub fn sys_elinos_reboot() -> ! {
+    console_println!("🔄 System reboot requested");
+    console_println!("Rebooting elinOS...");
     
-    // Use SBI to reboot the system  
+    // Reset the system - this never returns
     sbi::system_reset();
-    
-    // This should not be reached
-    SysCallResult::Success(0)
 } 
