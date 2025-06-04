@@ -16,11 +16,11 @@ elinOS is a modern experimental kernel designed around three core principles:
 
 1. **Dynamic Adaptation**: Zero hardcoded values, adapts to actual hardware
 2. **Memory Safety**: Rust's ownership model prevents entire classes of bugs
-3. **Educational Clarity**: Clean, well-documented code for learning OS concepts
+3. **experimental Clarity**: Clean, well-documented code for learning OS concepts
 
 ### Design Philosophy
 
-Unlike traditional educational kernels that make assumptions about hardware, elinOS dynamically detects and adapts to the environment it runs in. This makes it suitable for both tiny embedded systems and large server-class machines.
+Unlike traditional experimental kernels that make assumptions about hardware, elinOS dynamically detects and adapts to the environment it runs in. This makes it suitable for both tiny embedded systems and large server-class machines.
 
 ## System Architecture
 
@@ -317,4 +317,4 @@ pub fn syscall_handler(
 
 ---
 
-*This architecture enables elinOS to be both educationally valuable and practically useful for systems research.* 
+*This architecture enables elinOS to be both experimentally valuable and practically useful for systems research.* 

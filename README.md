@@ -8,7 +8,7 @@
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![no_std](https://img.shields.io/badge/no__std-yes-green)](https://docs.rust-embedded.org/book/intro/no-std.html)
 
-> **elinOS** is an experimental operating system kernel designed for research, education, and exploring advanced memory management techniques. Built from the ground up in Rust for RISC-V architecture, it features dynamic hardware detection, multi-tier memory allocators, real filesystem implementations, and a professional kernel design inspired by modern operating systems like Linux and Maestro OS.
+> **elinOS** is an experimental operating system kernel designed for research, experiment, and exploring advanced memory management techniques. Built from the ground up in Rust for RISC-V architecture, it features dynamic hardware detection, multi-tier memory allocators and real filesystem implementations.
 
 ## 🌟 Key Features
 
@@ -37,8 +37,8 @@
 ### 🛠️ **Developer Experience**
 - **Interactive Shell**: Built-in command-line interface with 15+ commands
 - **Comprehensive Diagnostics**: Real-time system monitoring, memory statistics, and device information
-- **Professional Documentation**: Extensive technical documentation with architecture diagrams
-- **Educational Focus**: Clear code structure for learning OS development concepts
+- **Comprehensive Documentation**: Extensive technical documentation with architecture diagrams
+- **Experiment Focus**: Clear code structure for learning OS development concepts
 
 ## 🚀 Quick Start
 
@@ -183,7 +183,7 @@ elinOS is designed for:
 
 - **Memory Management Research**: Testing advanced allocation strategies and fallible operations
 - **Filesystem Development**: Implementing and testing new filesystem types
-- **OS Education**: Learning kernel development concepts with real implementations
+- **OS experiment**: Learning kernel development concepts with real implementations
 - **Hardware Bring-up**: Porting to new RISC-V platforms and devices
 - **Performance Analysis**: Benchmarking kernel subsystems and allocation patterns
 

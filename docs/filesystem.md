@@ -401,4 +401,4 @@ match read_file("nonexistent.txt") {
 
 ---
 
-*The elinOS filesystem layer provides a solid foundation for storage operations while maintaining the educational focus and experimental nature of the project.* 
+*The elinOS filesystem layer provides a solid foundation for storage operations while maintaining the experimental focus and experimental nature of the project.* 

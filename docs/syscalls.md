@@ -11,14 +11,14 @@
 
 ## Overview
 
-elinOS implements a Linux-compatible system call interface to provide familiar APIs for developers while maintaining educational clarity. The system call layer serves as the primary interface between user space and kernel services.
+elinOS implements a Linux-compatible system call interface to provide familiar APIs for developers while maintaining experimental clarity. The system call layer serves as the primary interface between user space and kernel services.
 
 ### Key Features
 
 - **Linux Compatibility**: Uses standard Linux system call numbers and conventions
 - **Modular Design**: Organized by functional categories (file I/O, memory, process)
 - **Type Safety**: Rust-based implementation with comprehensive error handling
-- **Educational Focus**: Clear, well-documented implementation for learning
+- **experimental Focus**: Clear, well-documented implementation for learning
 - **Extensible**: Easy to add new system calls and functionality
 
 ## System Call Architecture
@@ -453,4 +453,4 @@ elinOS> shutdown              # elinos_shutdown()
 
 ---
 
-*The elinOS system call interface provides a familiar Linux-compatible API while showcasing modern kernel design principles and serving as an excellent educational resource for understanding operating system internals.* 
+*The elinOS system call interface provides a familiar Linux-compatible API while showcasing modern kernel design principles and serving as an excellent experimental resource for understanding operating system internals.* 

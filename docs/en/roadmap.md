@@ -6,7 +6,7 @@ This document outlines the planned development phases and future enhancements fo
 
 elinOS has achieved:
 - ✅ **Core System**: RISC-V 64-bit kernel with dynamic memory management
-- ✅ **System Call Architecture**: 9-category professional organization (Qiling-inspired)
+- ✅ **System Call Architecture**: 9-category organization
 - ✅ **VirtIO Support**: Block device driver with MMIO discovery
 - ✅ **Filesystem**: In-memory filesystem with POSIX-like operations
 - ✅ **ELF Loader**: Complete ELF64 parsing and loading infrastructure
@@ -292,4 +292,4 @@ elinOS has achieved:
 5. **Code Review** - Peer review and feedback
 6. **Integration** - Merge approved changes
 
-This roadmap provides a clear path for elinOS evolution from its current solid foundation to a full-featured kernel suitable for education, research, and embedded applications. 
+This roadmap provides a clear path for elinOS evolution from its current solid foundation to a full-featured kernel suitable for experiment, research, and embedded applications. 

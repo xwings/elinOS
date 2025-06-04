@@ -132,7 +132,7 @@ src/
 
 ### System Call Interface
 
-**Professional Organization:**
+**File Organization:**
 - 9-file structure, each category self-contained
 - Industry standard following Qiling framework methodology
 - Range-based numbers for future-proof expansion
@@ -171,7 +171,7 @@ pub fn process_command(input: &str) -> Result<(), &'static str> {
 
 ### ELF Loader
 
-**Professional Implementation:**
+**Implementation:**
 ```rust
 // src/elf.rs
 #[repr(C)]

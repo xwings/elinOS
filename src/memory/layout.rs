@@ -204,7 +204,7 @@ impl MemoryLayout {
         let _ = writeln!(uart, "  Kernel guard: {} KB", self.kernel_guard_size / 1024);
         let _ = writeln!(uart, "  Stack guard:  {} KB", self.stack_guard_size / 1024);
         
-        let _ = writeln!(uart, "Professional Heap Layout:");
+        let _ = writeln!(uart, "Heap Layout:");
         let _ = writeln!(uart, "  Buddy:   0x{:08x} - 0x{:08x} ({} KB)",
             self.buddy_heap_start,
             self.buddy_heap_start + self.buddy_heap_size, 

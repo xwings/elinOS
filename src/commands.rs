@@ -95,7 +95,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  ✅ Hardware-adaptive memory management\n")?;
     syscall::sys_print("  ✅ VirtIO device auto-detection\n")?;
     syscall::sys_print("  ✅ Modular filesystem (FAT32 + ext4)\n")?;
-    syscall::sys_print("  ✅ Professional experimental kernel design\n")?;
+    syscall::sys_print("  ✅ Experimental kernel design\n")?;
     
     Ok(())
 }
@@ -170,7 +170,7 @@ pub fn cmd_config() -> Result<(), &'static str> {
     syscall::sys_print("  ✅ Adapts to actual hardware\n")?;
     syscall::sys_print("  ✅ Scales from tiny to large systems\n")?;
     syscall::sys_print("  ✅ Efficient memory utilization\n")?;
-    syscall::sys_print("  ✅ Professional kernel design\n")?;
+    syscall::sys_print("  ✅ Experimental kernel design\n")?;
     
     Ok(())
 }
