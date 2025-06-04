@@ -107,7 +107,6 @@ pub extern "C" fn main() -> ! {
         panic!("Failed to initialize console: {}", e);
     }
     
-    // Now use console macros for output
     console_println!("✅ Console system initialized");
     
     // Initialize memory management
@@ -126,115 +125,8 @@ pub extern "C" fn main() -> ! {
         console_println!("✅ VirtIO disk ready");
     }
 
-    // SKIP filesystem initialization for now to isolate the hang
-    console_println!("⚠️ Skipping filesystem initialization to debug hang");
-    
-    // But let's try a minimal test to see where exactly it hangs
-    console_println!("🧪 Testing minimal filesystem operations...");
-    
-    // Test 1: Try to read boot sector (we know this works)
-    console_println!("🔍 Test 1: Reading boot sector...");
-    {
-        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
-        let mut buffer = [0u8; 512];
-        match disk_device.read_blocks(0, &mut buffer) {
-            Ok(()) => {
-                console_println!("✅ Boot sector read successful");
-            }
-            Err(e) => {
-                console_println!("❌ Boot sector read failed: {:?}", e);
-            }
-        }
-    }
-    
-    // Test 2: Try to read root directory sector (this might hang)
-    console_println!("🔍 Test 2: Reading root directory sector 2080...");
-    {
-        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
-        let mut buffer = [0u8; 512];
-        match disk_device.read_blocks(2080, &mut buffer) {
-            Ok(()) => {
-                console_println!("✅ Root directory sector read successful");
-                console_println!("🔍 First 16 bytes: {:02x?}", &buffer[0..16]);
-                
-                // Let's check if there's any non-zero data in this sector
-                let mut has_data = false;
-                for i in 0..512 {
-                    if buffer[i] != 0 {
-                        has_data = true;
-                        break;
-                    }
-                }
-                console_println!("🔍 Sector 2080 has data: {}", has_data);
-                
-                // Let's also check the boot sector to understand the FAT32 layout
-                match disk_device.read_blocks(0, &mut buffer) {
-                    Ok(()) => {
-                        console_println!("📊 Boot sector analysis:");
-                        console_println!("  Signature: 0x{:02x}{:02x}", buffer[511], buffer[510]);
-                        
-                        // Parse key FAT32 fields
-                        let sectors_per_cluster = buffer[13];
-                        let reserved_sectors = u16::from_le_bytes([buffer[14], buffer[15]]);
-                        let num_fats = buffer[16];
-                        let sectors_per_fat = u32::from_le_bytes([buffer[36], buffer[37], buffer[38], buffer[39]]);
-                        let root_cluster = u32::from_le_bytes([buffer[44], buffer[45], buffer[46], buffer[47]]);
-                        
-                        console_println!("  Sectors per cluster: {}", sectors_per_cluster);
-                        console_println!("  Reserved sectors: {}", reserved_sectors);
-                        console_println!("  Number of FATs: {}", num_fats);
-                        console_println!("  Sectors per FAT: {}", sectors_per_fat);
-                        console_println!("  Root cluster: {}", root_cluster);
-                        
-                        // Calculate the actual root directory sector
-                        let fat_start = reserved_sectors as u32;
-                        let data_start = fat_start + (num_fats as u32 * sectors_per_fat);
-                        let actual_root_sector = data_start + ((root_cluster - 2) * sectors_per_cluster as u32);
-                        
-                        console_println!("  FAT starts at sector: {}", fat_start);
-                        console_println!("  Data starts at sector: {}", data_start);
-                        console_println!("  Calculated root sector: {} (was using {})", actual_root_sector, 2080);
-                        
-                        // Try reading the calculated root directory
-                        if actual_root_sector != 2080 {
-                            match disk_device.read_blocks(actual_root_sector as u64, &mut buffer) {
-                                Ok(()) => {
-                                    console_println!("✅ Actual root directory sector read successful");
-                                    console_println!("🔍 First 32 bytes: {:02x?}", &buffer[0..32]);
-                                    
-                                    // Check for directory entries
-                                    if buffer[0] != 0 && buffer[0] != 0xE5 {
-                                        console_println!("🎉 Found potential directory entry!");
-                                        let name_bytes = &buffer[0..8];
-                                        let ext_bytes = &buffer[8..11];
-                                        console_println!("  Name: {:?}", name_bytes);
-                                        console_println!("  Ext: {:?}", ext_bytes);
-                                        console_println!("  Attributes: 0x{:02x}", buffer[11]);
-                                    }
-                                }
-                                Err(e) => {
-                                    console_println!("❌ Failed to read calculated root sector: {:?}", e);
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        console_println!("❌ Failed to read boot sector: {:?}", e);
-                    }
-                }
-            }
-            Err(e) => {
-                console_println!("❌ Root directory sector read failed: {:?}", e);
-            }
-        }
-    }
-    
-    console_println!("✅ Minimal filesystem tests complete");
-    
-    // Now let's try a minimal filesystem initialization that just does the essentials
-    console_println!("🔍 Testing minimal filesystem initialization...");
-    
-    // Try to do filesystem init with minimal logging to avoid potential console buffer issues
+    // Initialize filesystem
+    console_println!("🗂️ Initializing filesystem...");
     match filesystem::init_filesystem() {
         Ok(()) => {
             console_println!("✅ Filesystem initialization successful!");

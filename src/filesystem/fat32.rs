@@ -300,4 +300,80 @@ impl FileSystem for Fat32FileSystem {
     fn is_mounted(&self) -> bool {
         self.mounted
     }
+}
+
+/// FAT32-specific test functions for debugging
+impl Fat32FileSystem {
+    /// Test function for debugging FAT32 filesystem operations
+    /// This contains the low-level tests that were previously in main.rs
+    pub fn run_debug_tests() -> FilesystemResult<()> {
+        use crate::{console_println, virtio_blk};
+        
+        console_println!("🧪 Running FAT32 debug tests...");
+        
+        // Test 1: Read boot sector
+        console_println!("🔍 Test 1: Reading boot sector...");
+        {
+            let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
+            let mut buffer = [0u8; 512];
+            match disk_device.read_blocks(0, &mut buffer) {
+                Ok(()) => {
+                    console_println!("✅ Boot sector read successful");
+                    
+                    // Parse key FAT32 fields
+                    let sectors_per_cluster = buffer[13];
+                    let reserved_sectors = u16::from_le_bytes([buffer[14], buffer[15]]);
+                    let num_fats = buffer[16];
+                    let sectors_per_fat = u32::from_le_bytes([buffer[36], buffer[37], buffer[38], buffer[39]]);
+                    let root_cluster = u32::from_le_bytes([buffer[44], buffer[45], buffer[46], buffer[47]]);
+                    
+                    console_println!("📊 FAT32 Boot Sector Analysis:");
+                    console_println!("  Sectors per cluster: {}", sectors_per_cluster);
+                    console_println!("  Reserved sectors: {}", reserved_sectors);
+                    console_println!("  Number of FATs: {}", num_fats);
+                    console_println!("  Sectors per FAT: {}", sectors_per_fat);
+                    console_println!("  Root cluster: {}", root_cluster);
+                    
+                    // Calculate filesystem layout
+                    let fat_start = reserved_sectors as u32;
+                    let data_start = fat_start + (num_fats as u32 * sectors_per_fat);
+                    let root_sector = data_start + ((root_cluster - 2) * sectors_per_cluster as u32);
+                    
+                    console_println!("  FAT starts at sector: {}", fat_start);
+                    console_println!("  Data starts at sector: {}", data_start);
+                    console_println!("  Root directory sector: {}", root_sector);
+                    
+                    // Test 2: Read root directory
+                    console_println!("🔍 Test 2: Reading root directory...");
+                    match disk_device.read_blocks(root_sector as u64, &mut buffer) {
+                        Ok(()) => {
+                            console_println!("✅ Root directory read successful");
+                            console_println!("🔍 First 32 bytes: {:02x?}", &buffer[0..32]);
+                            
+                            // Look for directory entries
+                            if buffer[0] != 0 && buffer[0] != 0xE5 {
+                                console_println!("🎉 Found directory entry!");
+                                let name_bytes = &buffer[0..8];
+                                let ext_bytes = &buffer[8..11];
+                                console_println!("  Name: {:?}", name_bytes);
+                                console_println!("  Ext: {:?}", ext_bytes);
+                                console_println!("  Attributes: 0x{:02x}", buffer[11]);
+                            }
+                        }
+                        Err(e) => {
+                            console_println!("❌ Failed to read root directory: {:?}", e);
+                            return Err(FilesystemError::IoError);
+                        }
+                    }
+                }
+                Err(e) => {
+                    console_println!("❌ Boot sector read failed: {:?}", e);
+                    return Err(FilesystemError::IoError);
+                }
+            }
+        }
+        
+        console_println!("✅ FAT32 debug tests complete");
+        Ok(())
+    }
 } 
