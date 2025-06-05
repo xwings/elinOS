@@ -68,7 +68,7 @@ pub fn sys_elinos_version() -> SysCallResult {
     if let Err(e) = crate::syscall::sys_print("  ✅ VirtIO Block Device Support\n") {
         return SysCallResult::Error(e);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ FAT32/ext4 Filesystem\n") {
+    if let Err(e) = crate::syscall::sys_print("  ✅ FAT32/ext2 Filesystem\n") {
         return SysCallResult::Error(e);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ Automatic Filesystem Detection\n") {

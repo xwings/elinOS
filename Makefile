@@ -141,6 +141,19 @@ run: build ## Run the kernel in QEMU (console mode)
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0
 
+.PHONY: run-qcow2
+run-qcow2: build ## Run the kernel in QEMU (console mode)
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) in QEMU...$(COLOR_RESET)"
+	@$(QEMU) \
+		-machine $(QEMU_MACHINE) \
+		-cpu $(QEMU_CPU) \
+		-smp $(QEMU_SMP) \
+		-m $(QEMU_MEMORY) \
+		-nographic \
+		-bios $(OPENSBI) \
+		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-drive file=disk.qcow2,format=qcow2,if=none,id=disk0 \
+        -device virtio-blk-device,drive=disk0
 
 .PHONY: run-graphics
 run-graphics: build ## Run the kernel in QEMU with graphics
@@ -248,16 +261,9 @@ fat32-disk: ## Create a FAT32 test disk image
 	@mkfs.fat -F32 $(DISK_IMAGE) >/dev/null 2>&1
 	@echo -e "$(COLOR_GREEN)✓ FAT32 disk image created: $(DISK_IMAGE)$(COLOR_RESET)"
 
-.PHONY: ext4-disk
-ext4-disk: ## Create an ext4 test disk image
-	@echo -e "$(COLOR_BLUE)Creating ext4 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
-	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
-	@mkfs.ext4 -O ^metadata_csum,^64bit -F $(DISK_IMAGE) >/dev/null 2>&1
-	@echo -e "$(COLOR_GREEN)✓ ext4 disk image created: $(DISK_IMAGE)$(COLOR_RESET)"
-
 .PHONY: ext2-disk
-ext2-disk: ## Create an ext4 test disk image
-	@echo -e "$(COLOR_BLUE)Creating ext4 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
+ext2-disk: ## Create an ext2 test disk image
+	@echo -e "$(COLOR_BLUE)Creating ext2 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
 	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
 	@mkfs.ext2 $(DISK_IMAGE) >/dev/null 2>&1
 	@echo -e "$(COLOR_GREEN)✓ ext2 disk image created: $(DISK_IMAGE)$(COLOR_RESET)"

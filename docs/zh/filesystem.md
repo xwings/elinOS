@@ -15,7 +15,7 @@ elinOS 具有一个复杂的文件系统层，支持多种文件系统类型，�
 
 ### 主要特性
 
-- **多文件系统支持**：原生 FAT32 和 ext4 实现
+- **多文件系统支持**：原生 FAT32 和 ext2 实现
 - **自动检测**：探测磁盘结构以识别文件系统类型
 - **统一 API**：为所有支持的文件系统提供单一接口
 - **真实解析**：实际实现文件系统规范，而非模拟
@@ -46,8 +46,8 @@ elinOS 具有一个复杂的文件系统层，支持多种文件系统类型，�
 │           文件系统实现 (Filesystem Implementations)         │
 │                                                             │
 │  ┌─────────────────┐           ┌─────────────────┐          │
-│  │  FAT32 驱动     │           │   ext4 驱动     │          │
-│  │  (FAT32 Driver) │           │   (ext4 Driver) │          │
+│  │  FAT32 驱动     │           │   ext2 驱动     │          │
+│  │  (FAT32 Driver) │           │   (ext2 Driver) │          │
 │  │                 │           │                 │          │
 │  │ • 引导扇区      │           │ • 超级块        │          │
 │  │ • FAT 表        │           │ • 组描述符      │          │
@@ -119,9 +119,9 @@ struct Fat32DirEntry {
 - ✅ **文件系统信息**：返回签名、扇区总数、扇区大小
 - ❌ **长文件名**：仅支持 8.3 文件名
 
-### ext4 实现
+### ext2 实现
 
-**具有超级块和 inode 解析功能的真实 ext4 驱动程序：**
+**具有超级块和 inode 解析功能的真实 ext2 驱动程序：**
 
 #### 特性
 - **超级块验证**：验证 0xEF53 魔数和文件系统参数
@@ -133,7 +133,7 @@ struct Fat32DirEntry {
 #### 技术细节
 ```rust
 // 超级块结构 (位于偏移量 1024 处，大小 1024 字节)
-struct Ext4Superblock {
+struct Ext2Superblock {
     s_inodes_count: u32,          // Inode 总数
     s_blocks_count_lo: u32,       // 块总数 (低32位)
     s_log_block_size: u32,        // 块大小 (1024 << s_log_block_size)
@@ -144,7 +144,7 @@ struct Ext4Superblock {
 }
 
 // Inode 结构 (通常为 256 字节)
-struct Ext4Inode {
+struct Ext2Inode {
     i_mode: u16,                  // 文件模式和类型
     i_size_lo: u32,               // 文件大小 (低32位)
     i_flags: u32,                 // Inode 标志
@@ -153,13 +153,13 @@ struct Ext4Inode {
 }
 
 // 用于现代文件布局的 Extent 结构
-struct Ext4ExtentHeader {
+struct Ext2ExtentHeader {
     eh_magic: u16,                // 0xF30A 魔数
     eh_entries: u16,              // extent 条目数
     eh_depth: u16,                // 树深度 (0 = 叶节点)
 }
 
-struct Ext4Extent {
+struct Ext2Extent {
     ee_block: u32,                // 逻辑块号
     ee_len: u16,                  // 块数量
     ee_start_hi: u16,             // 物理块号高16位
@@ -195,12 +195,12 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
         }
     }
     
-    // 步骤 2: 检查 ext4 超级块 (偏移量 1024 字节)
+    // 步骤 2: 检查 ext2 超级块 (偏移量 1024 字节)
     let superblock_sectors = read_sectors(2, 2)?;  // 从扇区2开始读取2个扇区
-    let ext4_magic = u16::from_le_bytes([superblock_sectors[56], superblock_sectors[57]]);
+    let ext2_magic = u16::from_le_bytes([superblock_sectors[56], superblock_sectors[57]]);
     
-    if ext4_magic == 0xEF53 {
-        return Ok(FilesystemType::Ext4);
+    if ext2_magic == 0xEF53 {
+        return Ok(FilesystemType::Ext2);
     }
     
     Ok(FilesystemType::Unknown)
@@ -210,7 +210,7 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
 ### 检测过程
 
 1. **引导扇区分析**：读取扇区 0 并检查 FAT32 签名
-2. **超级块分析**：在偏移量 1024 字节处读取 ext4 超级块
+2. **超级块分析**：在偏移量 1024 字节处读取 ext2 超级块
 3. **魔数验证**：验证特定于文件系统的魔数
 4. **类型特定验证**：对文件系统有效性进行额外检查
 
@@ -237,14 +237,14 @@ pub struct FileEntry {
     pub name: heapless::String<256>, // 文件名
     pub is_directory: bool,          // 是否为目录
     pub size: usize,                 // 文件大小
-    pub inode: u64,  // 簇号 (FAT32) 或 inode 号 (ext4)
+    pub inode: u64,  // 簇号 (FAT32) 或 inode 号 (ext2)
 }
 
 // 支持的文件系统类型
 pub enum FilesystemType {
     Unknown, // 未知
     Fat32,   // FAT32
-    Ext4,    // ext4
+    Ext2,    // ext2
 }
 ```
 *(请注意，后续的API函数（如 `list_files`, `read_file` 等）的详细文档将遵循类似的翻译模式：函数签名保留英文，注释和描述翻译成中文。由于原始英文文档未提供这些函数的具体API细节，此处省略它们的翻译。)* 

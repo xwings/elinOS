@@ -1,20 +1,20 @@
-// ext4 Filesystem Implementation (Real Parser)
+// ext2 Filesystem Implementation (Real Parser)
 
 use super::traits::{FileSystem, FileEntry, FilesystemError, FilesystemResult};
 use crate::{console_println, virtio_blk};
 use heapless::Vec;
 use core::mem::drop;
 
-/// ext4 constants
+/// ext2 constants
 const SECTOR_SIZE: usize = 512;
-const EXT4_SUPERBLOCK_OFFSET: usize = 1024;
-const EXT4_MAGIC: u16 = 0xEF53;
-const EXT4_ROOT_INODE: u32 = 2;
+const EXT2_SUPERBLOCK_OFFSET: usize = 1024;
+const EXT2_MAGIC: u16 = 0xEF53;
+const EXT2_ROOT_INODE: u32 = 2;
 
-/// Simplified ext4 Superblock - only essential fields
+/// Simplified ext2 Superblock - only essential fields
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
-struct Ext4Superblock {
+struct Ext2Superblock {
     s_inodes_count: u32,        // 0x00
     s_blocks_count_lo: u32,     // 0x04
     s_r_blocks_count_lo: u32,   // 0x08
@@ -50,7 +50,7 @@ struct Ext4Superblock {
 /// Simplified Group Descriptor
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
-struct Ext4GroupDesc {
+struct Ext2GroupDesc {
     bg_block_bitmap_lo: u32,      // 0x00
     bg_inode_bitmap_lo: u32,      // 0x04
     bg_inode_table_lo: u32,       // 0x08
@@ -64,7 +64,7 @@ struct Ext4GroupDesc {
 /// Simplified Inode - focusing on basic fields
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
-struct Ext4Inode {
+struct Ext2Inode {
     i_mode: u16,        // 0x00
     i_uid: u16,         // 0x02
     i_size_lo: u32,     // 0x04
@@ -87,7 +87,7 @@ struct Ext4Inode {
 /// Directory Entry
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
-struct Ext4DirEntry {
+struct Ext2DirEntry {
     inode: u32,       // Inode number
     rec_len: u16,     // Directory entry length
     name_len: u8,     // Name length
@@ -96,16 +96,16 @@ struct Ext4DirEntry {
 }
 
 /// File type constants
-const EXT4_FT_REG_FILE: u8 = 1;
-const EXT4_FT_DIR: u8 = 2;
+const EXT2_FT_REG_FILE: u8 = 1;
+const EXT2_FT_DIR: u8 = 2;
 
-/// ext4 inode flags
-const EXT4_EXTENTS_FL: u32 = 0x00080000;  // Inode uses extents
+/// ext2 inode flags
+const EXT2_EXTENTS_FL: u32 = 0x00080000;  // Inode uses extents
 
 /// Extent structures
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, Default)] // Added Default
-struct Ext4ExtentHeader {
+struct Ext2ExtentHeader {
     eh_magic: u16,          // Magic number (0xF30A)
     eh_entries: u16,        // Number of valid entries following the header
     eh_max: u16,            // Maximum number of entries that could follow
@@ -115,40 +115,40 @@ struct Ext4ExtentHeader {
 
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
-struct Ext4Extent {
+struct Ext2Extent {
     ee_block: u32,          // First logical block extent covers
     ee_len: u16,            // Number of blocks covered by extent
     ee_start_hi: u16,       // High 16 bits of physical block
     ee_start_lo: u32,       // Low 32 bits of physical block
 }
 
-const EXT4_EXT_MAGIC: u16 = 0xF30A;
+const EXT2_EXT_MAGIC: u16 = 0xF30A;
 
-/// Real ext4 Filesystem Implementation
-pub struct Ext4FileSystem {
-    superblock: Option<Ext4Superblock>,
+/// Real ext2 Filesystem Implementation
+pub struct Ext2FileSystem {
+    superblock: Option<Ext2Superblock>,
     files: Vec<FileEntry, 64>,
     initialized: bool,
     mounted: bool,
     block_size: usize,
-    group_desc: Option<Ext4GroupDesc>,
+    group_desc: Option<Ext2GroupDesc>,
 }
 
-impl Ext4FileSystem {
+impl Ext2FileSystem {
     pub fn new() -> Self {
-        Ext4FileSystem {
+        Ext2FileSystem {
             superblock: None,
             files: Vec::new(),
             initialized: false,
             mounted: false,
-            block_size: 1024, // Default ext4 block size
+            block_size: 1024, // Default ext2 block size
             group_desc: None,
         }
     }
     
-    /// Initialize the ext4 filesystem
+    /// Initialize the ext2 filesystem
     pub fn init(&mut self) -> FilesystemResult<()> {
-        console_println!("🗂️  Initializing real ext4 filesystem...");
+        console_println!("🗂️  Initializing real ext2 filesystem...");
 
         // Step 1: Read superblock
         self.read_superblock()?;
@@ -160,13 +160,13 @@ impl Ext4FileSystem {
         self.parse_root_directory()?;
         
         self.mounted = true;
-        console_println!("✅ Real ext4 filesystem mounted");
+        console_println!("✅ Real ext2 filesystem mounted");
         Ok(())
     }
     
     /// Read and validate superblock
     fn read_superblock(&mut self) -> FilesystemResult<()> {
-        console_println!("📖 Reading ext4 superblock...");
+        console_println!("📖 Reading ext2 superblock...");
         
         let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         
@@ -175,22 +175,22 @@ impl Ext4FileSystem {
         }
 
         // Read superblock sectors (1024 bytes starting at offset 1024)
-        let start_sector = EXT4_SUPERBLOCK_OFFSET / SECTOR_SIZE; // sector 2
-        console_println!("ext4::read_superblock: Calculated start_sector for superblock: {}", start_sector); // Added log
+        let start_sector = EXT2_SUPERBLOCK_OFFSET / SECTOR_SIZE; // sector 2
+        console_println!("ext2::read_superblock: Calculated start_sector for superblock: {}", start_sector); // Added log
         let mut sb_buffer = [0u8; 1024];
         
         // Read 2 sectors to get full superblock
         for i in 0..2 {
             let current_sector_to_read = (start_sector + i) as u64;
-            console_println!("ext4::read_superblock: Attempting to read sector {}", current_sector_to_read); // Added log
+            console_println!("ext2::read_superblock: Attempting to read sector {}", current_sector_to_read); // Added log
             let mut sector_buf = [0u8; SECTOR_SIZE];
             match disk_device.read_blocks(current_sector_to_read, &mut sector_buf) {
                 Ok(_) => {
             sb_buffer[i * SECTOR_SIZE..(i + 1) * SECTOR_SIZE].copy_from_slice(&sector_buf);
-                    console_println!("ext4::read_superblock: Successfully read sector {}", current_sector_to_read); // Added log
+                    console_println!("ext2::read_superblock: Successfully read sector {}", current_sector_to_read); // Added log
                 }
                 Err(e_virtio) => {
-                    console_println!("ext4::read_superblock: virtio_blk read_blocks for sector {} FAILED with {:?}", current_sector_to_read, e_virtio); // Added log
+                    console_println!("ext2::read_superblock: virtio_blk read_blocks for sector {} FAILED with {:?}", current_sector_to_read, e_virtio); // Added log
                     return Err(FilesystemError::IoError);
                 }
             }
@@ -199,19 +199,19 @@ impl Ext4FileSystem {
         drop(disk_device);
         
         // Parse superblock
-        let superblock: Ext4Superblock = unsafe {
-            let sb_ptr = sb_buffer.as_ptr() as *const Ext4Superblock;
+        let superblock: Ext2Superblock = unsafe {
+            let sb_ptr = sb_buffer.as_ptr() as *const Ext2Superblock;
             *sb_ptr
         };
 
         // Validate magic
         let s_magic = superblock.s_magic;
-        if s_magic != EXT4_MAGIC {
-            console_println!("❌ Invalid ext4 magic: 0x{:04x}", s_magic);
+        if s_magic != EXT2_MAGIC {
+            console_println!("❌ Invalid ext2 magic: 0x{:04x}", s_magic);
             return Err(FilesystemError::InvalidSuperblock);
         }
 
-        console_println!("✅ Valid ext4 superblock found!");
+        console_println!("✅ Valid ext2 superblock found!");
         
         // Copy fields to local variables to avoid packed alignment issues
         let s_inodes_count = superblock.s_inodes_count;
@@ -221,7 +221,7 @@ impl Ext4FileSystem {
         // Create a local copy for printing to avoid unaligned access.
         let s_magic_val = superblock.s_magic;
         
-        console_println!("✅ Valid ext4 superblock found! Magic: 0x{:04x}", s_magic_val);
+        console_println!("✅ Valid ext2 superblock found! Magic: 0x{:04x}", s_magic_val);
         console_println!("   📊 Inodes: {}", s_inodes_count);
         console_println!("   📊 Blocks: {}", s_blocks_count_lo);
         console_println!("   📊 Inodes per group: {}", s_inodes_per_group);
@@ -250,8 +250,8 @@ impl Ext4FileSystem {
         
         let gdt_data = self.read_block_data(gdt_block as u64)?;
         
-        let group_desc: Ext4GroupDesc = unsafe {
-            let gdt_ptr = gdt_data.as_ptr() as *const Ext4GroupDesc;
+        let group_desc: Ext2GroupDesc = unsafe {
+            let gdt_ptr = gdt_data.as_ptr() as *const Ext2GroupDesc;
             *gdt_ptr
         };
         
@@ -266,12 +266,12 @@ impl Ext4FileSystem {
         Ok(())
     }
     
-    /// Parse root directory from real ext4 disk structures
+    /// Parse root directory from real ext2 disk structures
     fn parse_root_directory(&mut self) -> FilesystemResult<()> {
-        console_println!("📂 Parsing real ext4 root directory...");
+        console_println!("📂 Parsing real ext2 root directory...");
         
         // Read root inode (inode #2)
-        let root_inode = self.read_inode(EXT4_ROOT_INODE)?;
+        let root_inode = self.read_inode(EXT2_ROOT_INODE)?;
         let i_mode = root_inode.i_mode;
         let i_size_lo = root_inode.i_size_lo;
         
@@ -286,12 +286,12 @@ impl Ext4FileSystem {
         // Parse directory entries from the root inode
         self.read_directory_entries(&root_inode)?;
         
-        console_println!("✅ Parsed {} entries from real ext4 root directory", self.files.len());
+        console_println!("✅ Parsed {} entries from real ext2 root directory", self.files.len());
         Ok(())
     }
     
     /// Read an inode from the inode table
-    fn read_inode(&self, inode_num: u32) -> FilesystemResult<Ext4Inode> {
+    fn read_inode(&self, inode_num: u32) -> FilesystemResult<Ext2Inode> {
         let superblock = self.superblock.ok_or(FilesystemError::NotInitialized)?;
         let group_desc = self.group_desc.ok_or(FilesystemError::NotInitialized)?;
         
@@ -307,7 +307,7 @@ impl Ext4FileSystem {
         
         // For simplicity, only support group 0 for now
         if group != 0 {
-            console_println!("❌ Multi-group ext4 not supported yet");
+            console_println!("❌ Multi-group ext2 not supported yet");
             return Err(FilesystemError::UnsupportedFilesystem);
         }
         
@@ -329,13 +329,13 @@ impl Ext4FileSystem {
         let block_data = self.read_block_data(inode_block as u64)?;
         
         // Extract inode from the block
-        if byte_offset_in_block + core::mem::size_of::<Ext4Inode>() > block_data.len() {
+        if byte_offset_in_block + core::mem::size_of::<Ext2Inode>() > block_data.len() {
             console_println!("❌ Inode extends beyond block boundary");
             return Err(FilesystemError::CorruptedFilesystem);
         }
         
-        let inode: Ext4Inode = unsafe {
-            let inode_ptr = (block_data.as_ptr().add(byte_offset_in_block)) as *const Ext4Inode;
+        let inode: Ext2Inode = unsafe {
+            let inode_ptr = (block_data.as_ptr().add(byte_offset_in_block)) as *const Ext2Inode;
             *inode_ptr
         };
         
@@ -343,7 +343,7 @@ impl Ext4FileSystem {
     }
     
     /// Read directory entries from a directory inode
-    fn read_directory_entries(&mut self, dir_inode: &Ext4Inode) -> FilesystemResult<()> {
+    fn read_directory_entries(&mut self, dir_inode: &Ext2Inode) -> FilesystemResult<()> {
         console_println!("   📖 Reading directory entries from real blocks...");
         
         let i_size_lo = dir_inode.i_size_lo;
@@ -352,7 +352,7 @@ impl Ext4FileSystem {
         console_println!("   🔍 Inode flags: 0x{:08x}", i_flags);
         
         // Check if this inode uses extents
-        if (i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (i_flags & EXT2_EXTENTS_FL) != 0 {
             console_println!("   🌟 Inode uses extents - parsing extent tree");
             return self.read_directory_entries_from_extents(dir_inode);
         } else {
@@ -362,13 +362,13 @@ impl Ext4FileSystem {
     }
     
     /// Read directory entries from extent-based inode
-    fn read_directory_entries_from_extents(&mut self, dir_inode: &Ext4Inode) -> FilesystemResult<()> {
+    fn read_directory_entries_from_extents(&mut self, dir_inode: &Ext2Inode) -> FilesystemResult<()> {
         // Copy i_block array to avoid packed field alignment issues
         let i_block_copy = dir_inode.i_block;
         
         // Parse extent header from the beginning of i_block
-        let extent_header: Ext4ExtentHeader = unsafe {
-            let header_ptr = i_block_copy.as_ptr() as *const Ext4ExtentHeader;
+        let extent_header: Ext2ExtentHeader = unsafe {
+            let header_ptr = i_block_copy.as_ptr() as *const Ext2ExtentHeader;
             *header_ptr
         };
         
@@ -379,9 +379,9 @@ impl Ext4FileSystem {
         console_println!("   🔍 Extent header: magic=0x{:04x}, entries={}, depth={}", 
             eh_magic_val, eh_entries_val, eh_depth_val);
         
-        if eh_magic_val != EXT4_EXT_MAGIC {
+        if eh_magic_val != EXT2_EXT_MAGIC {
             console_println!("   ❌ Invalid extent magic: 0x{:04x} (expected: 0x{:04x})", 
-                eh_magic_val, EXT4_EXT_MAGIC);
+                eh_magic_val, EXT2_EXT_MAGIC);
             return Err(FilesystemError::CorruptedFilesystem);
         }
         
@@ -391,7 +391,7 @@ impl Ext4FileSystem {
         }
         
         // Parse extent entries (they come right after the header)
-        let extents_start = core::mem::size_of::<Ext4ExtentHeader>();
+        let extents_start = core::mem::size_of::<Ext2ExtentHeader>();
         let i_block_bytes = unsafe {
             core::slice::from_raw_parts(
                 i_block_copy.as_ptr() as *const u8,
@@ -402,15 +402,15 @@ impl Ext4FileSystem {
         console_println!("   📊 Processing {} extent entries", eh_entries_val);
         
         for i in 0..eh_entries_val as usize {
-            let extent_offset = extents_start + i * core::mem::size_of::<Ext4Extent>();
+            let extent_offset = extents_start + i * core::mem::size_of::<Ext2Extent>();
             
-            if extent_offset + core::mem::size_of::<Ext4Extent>() > i_block_bytes.len() {
+            if extent_offset + core::mem::size_of::<Ext2Extent>() > i_block_bytes.len() {
                 console_println!("   ⚠️ Extent {} extends beyond i_block", i);
                 break;
             }
             
-            let extent: Ext4Extent = unsafe {
-                let extent_ptr = (i_block_bytes.as_ptr().add(extent_offset)) as *const Ext4Extent;
+            let extent: Ext2Extent = unsafe {
+                let extent_ptr = (i_block_bytes.as_ptr().add(extent_offset)) as *const Ext2Extent;
                 *extent_ptr
             };
             
@@ -448,7 +448,7 @@ impl Ext4FileSystem {
     }
     
     /// Read directory entries from traditional direct block pointers
-    fn read_directory_entries_from_blocks(&mut self, dir_inode: &Ext4Inode) -> FilesystemResult<()> {
+    fn read_directory_entries_from_blocks(&mut self, dir_inode: &Ext2Inode) -> FilesystemResult<()> {
         let i_size_lo = dir_inode.i_size_lo;
         let mut bytes_read = 0;
         
@@ -503,8 +503,8 @@ impl Ext4FileSystem {
                 break;
             }
             
-            let dir_entry: Ext4DirEntry = unsafe {
-                let entry_ptr = (block_data.as_ptr().add(offset)) as *const Ext4DirEntry;
+            let dir_entry: Ext2DirEntry = unsafe {
+                let entry_ptr = (block_data.as_ptr().add(offset)) as *const Ext2DirEntry;
                 *entry_ptr
             };
             
@@ -554,10 +554,10 @@ impl Ext4FileSystem {
                         // Skip "." and ".." entries for file listing
                         if filename != "." && filename != ".." {
                             // First try using file_type from directory entry
-                            let mut is_directory = file_type == EXT4_FT_DIR;
+                            let mut is_directory = file_type == EXT2_FT_DIR;
                             
                             // If file_type is 0 or doesn't match expected values, check inode mode as fallback
-                            if file_type == 0 || (file_type != EXT4_FT_DIR && file_type != EXT4_FT_REG_FILE) {
+                            if file_type == 0 || (file_type != EXT2_FT_DIR && file_type != EXT2_FT_REG_FILE) {
                                 console_println!("   🔍 file_type={} unreliable, checking inode mode for '{}'", file_type, filename);
                                 match self.read_inode(inode) {
                                     Ok(entry_inode) => {
@@ -659,7 +659,7 @@ impl Ext4FileSystem {
         console_println!("   🔍 File inode flags: 0x{:08x}", i_flags);
         
         // Check if this inode uses extents
-        if (i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (i_flags & EXT2_EXTENTS_FL) != 0 {
             console_println!("   🌟 File uses extents - reading from extent tree");
             self.read_file_content_from_extents(&file_inode, file_size)
         } else {
@@ -669,7 +669,7 @@ impl Ext4FileSystem {
     }
     
     /// Read file content from extent-based inode
-    fn read_file_content_from_extents(&self, file_inode: &Ext4Inode, file_size: usize) -> FilesystemResult<Vec<u8, 4096>> {
+    fn read_file_content_from_extents(&self, file_inode: &Ext2Inode, file_size: usize) -> FilesystemResult<Vec<u8, 4096>> {
         let mut file_content = Vec::new();
         let mut bytes_read = 0;
         
@@ -677,8 +677,8 @@ impl Ext4FileSystem {
         let i_block_copy = file_inode.i_block;
         
         // Parse extent header
-        let extent_header: Ext4ExtentHeader = unsafe {
-            let header_ptr = i_block_copy.as_ptr() as *const Ext4ExtentHeader;
+        let extent_header: Ext2ExtentHeader = unsafe {
+            let header_ptr = i_block_copy.as_ptr() as *const Ext2ExtentHeader;
             *header_ptr
         };
         
@@ -689,7 +689,7 @@ impl Ext4FileSystem {
         console_println!("   🔍 File extent header: magic=0x{:04x}, entries={}, depth={}", 
             eh_magic, eh_entries, eh_depth);
         
-        if eh_magic != EXT4_EXT_MAGIC {
+        if eh_magic != EXT2_EXT_MAGIC {
             console_println!("   ❌ Invalid extent magic for file");
             return Err(FilesystemError::CorruptedFilesystem);
         }
@@ -700,7 +700,7 @@ impl Ext4FileSystem {
         }
         
         // Parse extent entries
-        let extents_start = core::mem::size_of::<Ext4ExtentHeader>();
+        let extents_start = core::mem::size_of::<Ext2ExtentHeader>();
         let i_block_bytes = unsafe {
             core::slice::from_raw_parts(
                 i_block_copy.as_ptr() as *const u8,
@@ -713,15 +713,15 @@ impl Ext4FileSystem {
                 break;
             }
             
-            let extent_offset = extents_start + i * core::mem::size_of::<Ext4Extent>();
+            let extent_offset = extents_start + i * core::mem::size_of::<Ext2Extent>();
             
-            if extent_offset + core::mem::size_of::<Ext4Extent>() > i_block_bytes.len() {
+            if extent_offset + core::mem::size_of::<Ext2Extent>() > i_block_bytes.len() {
                 console_println!("   ⚠️ File extent {} extends beyond i_block", i);
                 break;
             }
             
-            let extent: Ext4Extent = unsafe {
-                let extent_ptr = (i_block_bytes.as_ptr().add(extent_offset)) as *const Ext4Extent;
+            let extent: Ext2Extent = unsafe {
+                let extent_ptr = (i_block_bytes.as_ptr().add(extent_offset)) as *const Ext2Extent;
                 *extent_ptr
             };
             
@@ -771,7 +771,7 @@ impl Ext4FileSystem {
     }
     
     /// Read file content from traditional direct block pointers
-    fn read_file_content_from_blocks(&self, file_inode: &Ext4Inode, file_size: usize) -> FilesystemResult<Vec<u8, 4096>> {
+    fn read_file_content_from_blocks(&self, file_inode: &Ext2Inode, file_size: usize) -> FilesystemResult<Vec<u8, 4096>> {
         let mut file_content = Vec::new();
         let mut bytes_read = 0;
         
@@ -817,7 +817,7 @@ impl Ext4FileSystem {
     }
 
     /// Writes an inode structure to the inode table on disk.
-    fn write_inode_to_table(&mut self, inode_num: u32, inode_data: &Ext4Inode) -> FilesystemResult<()> {
+    fn write_inode_to_table(&mut self, inode_num: u32, inode_data: &Ext2Inode) -> FilesystemResult<()> {
         let superblock = self.superblock.ok_or(FilesystemError::NotInitialized)?;
         let group_desc = self.group_desc.ok_or(FilesystemError::NotInitialized)?;
 
@@ -868,18 +868,18 @@ impl Ext4FileSystem {
         }
 
         // Overlay the new inode data
-        // Convert Ext4Inode to byte slice. This is unsafe if Ext4Inode is not repr(C) or has padding issues.
+        // Convert Ext2Inode to byte slice. This is unsafe if Ext2Inode is not repr(C) or has padding issues.
         // It is repr(C, packed), so direct transmutation or pointer casting should be okay for size of struct.
         let inode_bytes: &[u8] = unsafe {
             core::slice::from_raw_parts(
-                (inode_data as *const Ext4Inode) as *const u8,
-                core::mem::size_of::<Ext4Inode>()
+                (inode_data as *const Ext2Inode) as *const u8,
+                core::mem::size_of::<Ext2Inode>()
             )
         };
         
-        // We must ensure we only copy `inode_size_bytes` which might be smaller than `size_of<Ext4Inode>()`
+        // We must ensure we only copy `inode_size_bytes` which might be smaller than `size_of<Ext2Inode>()`
         // if the on-disk inode size (s_inode_size) is smaller than our struct representation.
-        // However, our Ext4Inode struct is padded to 256 bytes, matching common s_inode_size.
+        // However, our Ext2Inode struct is padded to 256 bytes, matching common s_inode_size.
         // For safety, let's use min(inode_size_bytes, inode_bytes.len()) if they could differ.
         // Assuming `inode_size_bytes` is the authoritative size on disk.
 
@@ -1008,7 +1008,7 @@ impl Ext4FileSystem {
 
         // Initialize the inode structure
         let current_time = 0; // Placeholder for actual timestamp
-        let mut new_inode = Ext4Inode {
+        let mut new_inode = Ext2Inode {
             i_mode: mode, 
             i_uid: uid,
             i_gid: gid,
@@ -1029,18 +1029,18 @@ impl Ext4FileSystem {
         };
 
         // If the inode uses extents, initialize the extent header in i_block
-        if (i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (i_flags & EXT2_EXTENTS_FL) != 0 {
             console_println!("allocate_inode: Initializing extent header for inode {}", global_inode_num);
             
             // Copy i_block array to local variable to avoid unaligned access
             let mut i_block_copy = new_inode.i_block;
             
             // Initialize extent header for an empty file
-            let extent_header = Ext4ExtentHeader {
-                eh_magic: EXT4_EXT_MAGIC,
+            let extent_header = Ext2ExtentHeader {
+                eh_magic: EXT2_EXT_MAGIC,
                 eh_entries: 0, // No extents yet (empty file)
-                eh_max: ((core::mem::size_of_val(&i_block_copy) - core::mem::size_of::<Ext4ExtentHeader>()) 
-                        / core::mem::size_of::<Ext4Extent>()) as u16,
+                eh_max: ((core::mem::size_of_val(&i_block_copy) - core::mem::size_of::<Ext2ExtentHeader>()) 
+                        / core::mem::size_of::<Ext2Extent>()) as u16,
                 eh_depth: 0, // Leaf node
                 eh_generation: 0,
             };
@@ -1055,8 +1055,8 @@ impl Ext4FileSystem {
             
             let header_bytes = unsafe {
                 core::slice::from_raw_parts(
-                    (&extent_header as *const Ext4ExtentHeader) as *const u8,
-                    core::mem::size_of::<Ext4ExtentHeader>()
+                    (&extent_header as *const Ext2ExtentHeader) as *const u8,
+                    core::mem::size_of::<Ext2ExtentHeader>()
                 )
             };
             
@@ -1200,17 +1200,17 @@ impl Ext4FileSystem {
     }
 
     /// Writes the superblock back to disk.
-    fn write_superblock(&mut self, sb_to_write: &Ext4Superblock) -> FilesystemResult<()> {
+    fn write_superblock(&mut self, sb_to_write: &Ext2Superblock) -> FilesystemResult<()> {
         console_println!("write_superblock: Writing superblock to disk...");
 
         let sb_bytes: &[u8] = unsafe {
             core::slice::from_raw_parts(
-                (sb_to_write as *const Ext4Superblock) as *const u8,
-                core::mem::size_of::<Ext4Superblock>()
+                (sb_to_write as *const Ext2Superblock) as *const u8,
+                core::mem::size_of::<Ext2Superblock>()
             )
         };
 
-        if sb_bytes.len() != 1024 { // Ext4Superblock struct is padded to 1024
+        if sb_bytes.len() != 1024 { // Ext2Superblock struct is padded to 1024
             console_println!(
                 "write_superblock: ERROR - Serialized superblock size {} is not 1024 bytes.",
                 sb_bytes.len()
@@ -1219,7 +1219,7 @@ impl Ext4FileSystem {
         }
 
         let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
-        let start_sector = (EXT4_SUPERBLOCK_OFFSET / SECTOR_SIZE) as u64; // Should be sector 2
+        let start_sector = (EXT2_SUPERBLOCK_OFFSET / SECTOR_SIZE) as u64; // Should be sector 2
 
         // Write the 1024 bytes (typically 2 sectors)
         for i in 0.. (1024 / SECTOR_SIZE) {
@@ -1246,7 +1246,7 @@ impl Ext4FileSystem {
 
     /// Writes a specific group descriptor back to the Group Descriptor Table on disk.
     /// For now, assumes group_num is 0.
-    fn write_group_descriptor(&mut self, group_num: u16, gd_to_write: &Ext4GroupDesc) -> FilesystemResult<()> {
+    fn write_group_descriptor(&mut self, group_num: u16, gd_to_write: &Ext2GroupDesc) -> FilesystemResult<()> {
         if group_num != 0 {
             console_println!("write_group_descriptor: ERROR - Only group 0 is supported for writing currently.");
             return Err(FilesystemError::UnsupportedFilesystem);
@@ -1254,7 +1254,7 @@ impl Ext4FileSystem {
         console_println!("write_group_descriptor: Writing group descriptor {} to disk...", group_num);
 
         let superblock = self.superblock.as_ref().ok_or(FilesystemError::NotInitialized)?;
-        let group_desc_size = core::mem::size_of::<Ext4GroupDesc>(); // Typically 32 or 64 bytes depending on features
+        let group_desc_size = core::mem::size_of::<Ext2GroupDesc>(); // Typically 32 or 64 bytes depending on features
 
         // Calculate start block of GDT
         let s_first_data_block = superblock.s_first_data_block;
@@ -1273,7 +1273,7 @@ impl Ext4FileSystem {
 
         let gd_bytes: &[u8] = unsafe {
             core::slice::from_raw_parts(
-                (gd_to_write as *const Ext4GroupDesc) as *const u8,
+                (gd_to_write as *const Ext2GroupDesc) as *const u8,
                 group_desc_size
             )
         };
@@ -1339,7 +1339,7 @@ impl Ext4FileSystem {
         let mut entry_written = false;
 
         // Check if directory uses extents or direct blocks
-        if (parent_inode.i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (parent_inode.i_flags & EXT2_EXTENTS_FL) != 0 {
             console_println!("add_direntry: Directory inode {} uses extents", parent_dir_inode_num);
             
             // Parse extent header
@@ -1347,16 +1347,16 @@ impl Ext4FileSystem {
             let header_data = unsafe {
                 core::slice::from_raw_parts(
                     i_block_copy.as_ptr() as *const u8,
-                    core::mem::size_of::<Ext4ExtentHeader>()
+                    core::mem::size_of::<Ext2ExtentHeader>()
                 )
             };
-            let header: Ext4ExtentHeader = unsafe { core::ptr::read_unaligned(header_data.as_ptr() as *const Ext4ExtentHeader) };
+            let header: Ext2ExtentHeader = unsafe { core::ptr::read_unaligned(header_data.as_ptr() as *const Ext2ExtentHeader) };
             
             // Copy packed fields to local variables to avoid unaligned access
             let eh_magic = header.eh_magic;
             let eh_depth = header.eh_depth;
             
-            if eh_magic != EXT4_EXT_MAGIC {
+            if eh_magic != EXT2_EXT_MAGIC {
                 console_println!("add_direntry: Invalid extent magic: 0x{:x}", eh_magic);
                 return Err(FilesystemError::IoError);
             }
@@ -1368,14 +1368,14 @@ impl Ext4FileSystem {
             
             // Iterate through extents
             for extent_idx in 0..header.eh_entries {
-                let extent_offset = core::mem::size_of::<Ext4ExtentHeader>() + (extent_idx as usize * core::mem::size_of::<Ext4Extent>());
+                let extent_offset = core::mem::size_of::<Ext2ExtentHeader>() + (extent_idx as usize * core::mem::size_of::<Ext2Extent>());
                 let extent_data = unsafe {
                     core::slice::from_raw_parts(
                         (i_block_copy.as_ptr() as *const u8).add(extent_offset),
-                        core::mem::size_of::<Ext4Extent>()
+                        core::mem::size_of::<Ext2Extent>()
                     )
                 };
-                let extent: Ext4Extent = unsafe { core::ptr::read_unaligned(extent_data.as_ptr() as *const Ext4Extent) };
+                let extent: Ext2Extent = unsafe { core::ptr::read_unaligned(extent_data.as_ptr() as *const Ext2Extent) };
                 
                 let physical_start = ((extent.ee_start_hi as u64) << 32) | (extent.ee_start_lo as u64);
                 
@@ -1386,7 +1386,7 @@ impl Ext4FileSystem {
                     let mut offset_in_block = 0;
 
                     while offset_in_block < self.block_size {
-                        let current_entry_ptr = unsafe { block_data.as_ptr().add(offset_in_block) } as *const Ext4DirEntry;
+                        let current_entry_ptr = unsafe { block_data.as_ptr().add(offset_in_block) } as *const Ext2DirEntry;
                         let current_entry = unsafe { *current_entry_ptr };
 
                         let current_rec_len = current_entry.rec_len;
@@ -1396,14 +1396,14 @@ impl Ext4FileSystem {
                         // Scenario 1: Found a usable deleted/empty entry (inode 0)
                         if current_entry.inode == 0 && current_rec_len >= required_rec_len {
                             console_println!("add_direntry: Reusing deleted/empty entry in extent block {} at offset {}", physical_block_num, offset_in_block);
-                            let new_entry = Ext4DirEntry {
+                            let new_entry = Ext2DirEntry {
                                 inode: child_inode_num,
                                 rec_len: current_rec_len,
                                 name_len,
                                 file_type,
                             };
                             unsafe {
-                                let new_entry_ptr = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext4DirEntry;
+                                let new_entry_ptr = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext2DirEntry;
                                 *new_entry_ptr = new_entry;
                                 core::ptr::copy_nonoverlapping(
                                     name_bytes.as_ptr(),
@@ -1421,19 +1421,19 @@ impl Ext4FileSystem {
                             console_println!("add_direntry: Splitting entry in extent block {} at offset {}", physical_block_num, offset_in_block);
                             // Shorten current entry
                             unsafe {
-                                let current_entry_ptr_mut = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext4DirEntry;
+                                let current_entry_ptr_mut = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext2DirEntry;
                                 (*current_entry_ptr_mut).rec_len = space_taken_by_current_header_and_name;
                             }
                             // New entry starts after the shortened old one
                             let new_entry_offset = offset_in_block + space_taken_by_current_header_and_name as usize;
-                            let new_entry_struct = Ext4DirEntry {
+                            let new_entry_struct = Ext2DirEntry {
                                 inode: child_inode_num,
                                 rec_len: current_rec_len - space_taken_by_current_header_and_name,
                                 name_len,
                                 file_type,
                             };
                             unsafe {
-                                let new_entry_ptr = block_data.as_mut_ptr().add(new_entry_offset) as *mut Ext4DirEntry;
+                                let new_entry_ptr = block_data.as_mut_ptr().add(new_entry_offset) as *mut Ext2DirEntry;
                                 *new_entry_ptr = new_entry_struct;
                                 core::ptr::copy_nonoverlapping(
                                     name_bytes.as_ptr(),
@@ -1494,7 +1494,7 @@ impl Ext4FileSystem {
                 let mut offset_in_block = 0;
 
                 while offset_in_block < self.block_size {
-                    let current_entry_ptr = unsafe { block_data.as_ptr().add(offset_in_block) } as *const Ext4DirEntry;
+                    let current_entry_ptr = unsafe { block_data.as_ptr().add(offset_in_block) } as *const Ext2DirEntry;
                     let current_entry = unsafe { *current_entry_ptr };
 
                     let current_rec_len = current_entry.rec_len;
@@ -1504,14 +1504,14 @@ impl Ext4FileSystem {
                     // Scenario 1: Current entry is the end of list marker in a newly allocated block.
                     if block_newly_allocated_for_dir && current_entry.inode == 0 && current_rec_len == 0 && offset_in_block == 0 {
                         console_println!("add_direntry: Using newly allocated block {}", physical_block_num);
-                        let new_entry = Ext4DirEntry {
+                        let new_entry = Ext2DirEntry {
                             inode: child_inode_num,
                             rec_len: (self.block_size - offset_in_block) as u16,
                             name_len,
                             file_type,
                         };
                         unsafe {
-                            let new_entry_ptr = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext4DirEntry;
+                            let new_entry_ptr = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext2DirEntry;
                             *new_entry_ptr = new_entry;
                             core::ptr::copy_nonoverlapping(
                                 name_bytes.as_ptr(),
@@ -1527,14 +1527,14 @@ impl Ext4FileSystem {
                     // Scenario 2: Found a usable deleted/empty entry (inode 0)
                     if current_entry.inode == 0 && current_rec_len >= required_rec_len {
                         console_println!("add_direntry: Reusing deleted/empty entry in block {} at offset {}", physical_block_num, offset_in_block);
-                        let new_entry = Ext4DirEntry {
+                        let new_entry = Ext2DirEntry {
                             inode: child_inode_num,
                             rec_len: current_rec_len,
                             name_len,
                             file_type,
                         };
                         unsafe {
-                            let new_entry_ptr = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext4DirEntry;
+                            let new_entry_ptr = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext2DirEntry;
                             *new_entry_ptr = new_entry;
                             core::ptr::copy_nonoverlapping(
                                 name_bytes.as_ptr(),
@@ -1552,19 +1552,19 @@ impl Ext4FileSystem {
                         console_println!("add_direntry: Splitting entry in block {} at offset {}", physical_block_num, offset_in_block);
                         // Shorten current entry
                         unsafe {
-                            let current_entry_ptr_mut = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext4DirEntry;
+                            let current_entry_ptr_mut = block_data.as_mut_ptr().add(offset_in_block) as *mut Ext2DirEntry;
                             (*current_entry_ptr_mut).rec_len = space_taken_by_current_header_and_name;
                         }
                         // New entry starts after the shortened old one
                         let new_entry_offset = offset_in_block + space_taken_by_current_header_and_name as usize;
-                        let new_entry_struct = Ext4DirEntry {
+                        let new_entry_struct = Ext2DirEntry {
                             inode: child_inode_num,
                             rec_len: current_rec_len - space_taken_by_current_header_and_name,
                             name_len,
                             file_type,
                         };
                         unsafe {
-                            let new_entry_ptr = block_data.as_mut_ptr().add(new_entry_offset) as *mut Ext4DirEntry;
+                            let new_entry_ptr = block_data.as_mut_ptr().add(new_entry_offset) as *mut Ext2DirEntry;
                             *new_entry_ptr = new_entry_struct;
                             core::ptr::copy_nonoverlapping(
                                 name_bytes.as_ptr(),
@@ -1619,17 +1619,17 @@ impl Ext4FileSystem {
     }
 
     fn create_file(&mut self, path: &str) -> FilesystemResult<FileEntry> {
-        console_println!("ext4: create_file('{}')", path);
+        console_println!("ext2: create_file('{}')", path);
 
         let (parent_dir_inode_num, filename_component) =
             self.resolve_path_to_parent_and_final_component(path)?;
 
         if filename_component.is_empty() {
-            console_println!("ext4: create_file - Filename cannot be empty.");
+            console_println!("ext2: create_file - Filename cannot be empty.");
             return Err(FilesystemError::InvalidPath);
         }
         if filename_component.as_str() == "." || filename_component.as_str() == ".." {
-            console_println!("ext4: create_file - Filename cannot be '.' or '..'.");
+            console_println!("ext2: create_file - Filename cannot be '.' or '..'.");
             return Err(FilesystemError::InvalidPath);
         }
 
@@ -1637,7 +1637,7 @@ impl Ext4FileSystem {
         // Check if an entry with the same name already exists in the parent directory
         if self.find_entry_in_dir(parent_dir_inode_num, filename_component.as_str())?.is_some() {
             console_println!(
-                "ext4: create_file - File or directory '{}' already exists in parent inode {}.",
+                "ext2: create_file - File or directory '{}' already exists in parent inode {}.",
                 filename_component, parent_dir_inode_num
             );
             return Err(FilesystemError::FileAlreadyExists);
@@ -1649,61 +1649,61 @@ impl Ext4FileSystem {
         let uid = 0; // Default user ID
         let gid = 0; // Default group ID
         let links_count = 1;
-        let i_flags = EXT4_EXTENTS_FL; // Default to using extents
+        let i_flags = EXT2_EXTENTS_FL; // Default to using extents
 
-        console_println!("ext4: create_file - Allocating inode for '{}' in parent dir {}", filename_component, parent_dir_inode_num);
+        console_println!("ext2: create_file - Allocating inode for '{}' in parent dir {}", filename_component, parent_dir_inode_num);
         let new_file_inode_num = self.allocate_inode(mode, uid, gid, links_count, i_flags)?;
-        console_println!("ext4: create_file - Allocated inode {} for '{}'", new_file_inode_num, filename_component);
+        console_println!("ext2: create_file - Allocated inode {} for '{}'", new_file_inode_num, filename_component);
 
         // Add directory entry in the parent directory
         console_println!(
-            "ext4: create_file - Adding direntry for inode {} ('{}') into dir {}",
+            "ext2: create_file - Adding direntry for inode {} ('{}') into dir {}",
             new_file_inode_num, filename_component, parent_dir_inode_num
         );
         self.add_direntry(
             parent_dir_inode_num,
             new_file_inode_num,
             filename_component.as_str(),
-            EXT4_FT_REG_FILE,
+            EXT2_FT_REG_FILE,
         )?;
 
         let file_entry = FileEntry::new_file(filename_component.as_str(), new_file_inode_num as u64, 0)?;
         
         // Update cache if this is a file in the root directory (inode 2)
-        if parent_dir_inode_num == EXT4_ROOT_INODE {
+        if parent_dir_inode_num == EXT2_ROOT_INODE {
             if self.files.push(file_entry.clone()).is_err() {
-                console_println!("ext4: create_file - Warning: File cache full, new file not added to cache");
+                console_println!("ext2: create_file - Warning: File cache full, new file not added to cache");
             } else {
-                console_println!("ext4: create_file - Added '{}' to file cache", filename_component);
+                console_println!("ext2: create_file - Added '{}' to file cache", filename_component);
             }
         }
 
         console_println!(
-            "✅ ext4: create_file - File '{}' created successfully with inode {} in parent dir {}.",
+            "✅ ext2: create_file - File '{}' created successfully with inode {} in parent dir {}.",
             filename_component, new_file_inode_num, parent_dir_inode_num
         );
         Ok(file_entry)
     }
 
     fn create_directory(&mut self, path: &str) -> FilesystemResult<FileEntry> {
-        console_println!("ext4: create_directory ('{}')", path);
+        console_println!("ext2: create_directory ('{}')", path);
 
         let (parent_dir_inode_num, dirname_component) =
             self.resolve_path_to_parent_and_final_component(path)?;
 
         if dirname_component.is_empty() {
-            console_println!("ext4: create_directory - Directory name cannot be empty.");
+            console_println!("ext2: create_directory - Directory name cannot be empty.");
             return Err(FilesystemError::InvalidPath);
         }
         if dirname_component.as_str() == "." || dirname_component.as_str() == ".." {
-            console_println!("ext4: create_directory - Directory name cannot be '.' or '..'.");
+            console_println!("ext2: create_directory - Directory name cannot be '.' or '..'.");
             return Err(FilesystemError::InvalidPath);
         }
 
         // Check if an entry with the same name already exists in the parent directory
         if self.find_entry_in_dir(parent_dir_inode_num, dirname_component.as_str())?.is_some() {
             console_println!(
-                "ext4: create_directory - File or directory '{}' already exists in parent inode {}.",
+                "ext2: create_directory - File or directory '{}' already exists in parent inode {}.",
                 dirname_component, parent_dir_inode_num
             );
             return Err(FilesystemError::FileAlreadyExists);
@@ -1713,17 +1713,17 @@ impl Ext4FileSystem {
         let mode = 0x4000 | 0o755; // S_IFDIR | 0755
         let uid = 0; 
         let gid = 0; 
-        let i_flags = EXT4_EXTENTS_FL; // Directories can also use extents, or i_block for small ones
+        let i_flags = EXT2_EXTENTS_FL; // Directories can also use extents, or i_block for small ones
         let new_dir_links_count = 2; // For its "." entry and its entry in the parent.
 
-        console_println!("ext4: create_dir - Allocating inode for '{}' in parent dir {}", dirname_component, parent_dir_inode_num);
+        console_println!("ext2: create_dir - Allocating inode for '{}' in parent dir {}", dirname_component, parent_dir_inode_num);
         let new_dir_inode_num = self.allocate_inode(mode, uid, gid, new_dir_links_count, i_flags)?;
-        console_println!("ext4: create_dir - Allocated inode {} for '{}'", new_dir_inode_num, dirname_component);
+        console_println!("ext2: create_dir - Allocated inode {} for '{}'", new_dir_inode_num, dirname_component);
 
         // 2. Allocate a data block for the new directory's contents
-        console_println!("ext4: create_dir - Allocating data block for dir inode {}", new_dir_inode_num);
+        console_println!("ext2: create_dir - Allocating data block for dir inode {}", new_dir_inode_num);
         let dir_data_block_num = self.allocate_block()?;
-        console_println!("ext4: create_dir - Allocated data block {} for dir inode {}", dir_data_block_num, new_dir_inode_num);
+        console_println!("ext2: create_dir - Allocated data block {} for dir inode {}", dir_data_block_num, new_dir_inode_num);
 
         // 3. Initialize the new directory's data block with . and .. entries
         let mut dir_block_data = Vec::<u8, 4096>::new();
@@ -1736,49 +1736,49 @@ impl Ext4FileSystem {
 
         let dot_name_len = 1;
         let dot_rec_len = Self::calculate_rec_len(dot_name_len);
-        let dot_entry = Ext4DirEntry {
+        let dot_entry = Ext2DirEntry {
             inode: new_dir_inode_num,
             rec_len: dot_rec_len,
             name_len: dot_name_len,
-            file_type: EXT4_FT_DIR,
+            file_type: EXT2_FT_DIR,
         };
         unsafe {
-            let entry_ptr = dir_block_data.as_mut_ptr().add(0) as *mut Ext4DirEntry;
+            let entry_ptr = dir_block_data.as_mut_ptr().add(0) as *mut Ext2DirEntry;
             *entry_ptr = dot_entry;
             dir_block_data.as_mut_ptr().add(8).write(b'.'); 
         }
 
         let dotdot_name_len = 2;
         let final_dotdot_rec_len = (self.block_size - dot_rec_len as usize) as u16;
-        let dotdot_entry = Ext4DirEntry {
+        let dotdot_entry = Ext2DirEntry {
             inode: parent_dir_inode_num, // ".." points to the actual parent inode
             rec_len: final_dotdot_rec_len, 
             name_len: dotdot_name_len,
-            file_type: EXT4_FT_DIR,
+            file_type: EXT2_FT_DIR,
         };
         unsafe {
-            let entry_ptr = dir_block_data.as_mut_ptr().add(dot_rec_len as usize) as *mut Ext4DirEntry;
+            let entry_ptr = dir_block_data.as_mut_ptr().add(dot_rec_len as usize) as *mut Ext2DirEntry;
             *entry_ptr = dotdot_entry;
             let name_ptr = dir_block_data.as_mut_ptr().add(dot_rec_len as usize + 8);
             name_ptr.write(b'.');
             name_ptr.add(1).write(b'.');
         }
-        console_println!("ext4: create_dir - Prepared . and .. entries for block {}", dir_data_block_num);
+        console_println!("ext2: create_dir - Prepared . and .. entries for block {}", dir_data_block_num);
         self.write_block_data_internal(dir_data_block_num, &dir_block_data)?;
 
         // 4. Update the new directory's inode
         let mut new_dir_inode = self.read_inode(new_dir_inode_num)?;
-        if (new_dir_inode.i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (new_dir_inode.i_flags & EXT2_EXTENTS_FL) != 0 {
             // Initialize extent header for the directory data block
-            let mut eh: Ext4ExtentHeader = Default::default();
-            eh.eh_magic = EXT4_EXT_MAGIC;
+            let mut eh: Ext2ExtentHeader = Default::default();
+            eh.eh_magic = EXT2_EXT_MAGIC;
             eh.eh_entries = 1;
-            eh.eh_max = ((60 - core::mem::size_of::<Ext4ExtentHeader>()) 
-                            / core::mem::size_of::<Ext4Extent>()) as u16; // i_block is 60 bytes
+            eh.eh_max = ((60 - core::mem::size_of::<Ext2ExtentHeader>()) 
+                            / core::mem::size_of::<Ext2Extent>()) as u16; // i_block is 60 bytes
             eh.eh_depth = 0;
             
             // Set up extent to point to the allocated data block
-            let extent = Ext4Extent {
+            let extent = Ext2Extent {
                 ee_block: 0, // First logical block of directory content
                 ee_len: 1,   // Covers one block
                 ee_start_hi: 0, // dir_data_block_num is u32, so high bits are 0
@@ -1789,7 +1789,7 @@ impl Ext4FileSystem {
             let ee_block_val = extent.ee_block;
             let ee_len_val = extent.ee_len;
             let ee_start_lo_val = extent.ee_start_lo;
-            console_println!("ext4: create_dir - Setting up extent: block={}, len={}, physical={}", 
+            console_println!("ext2: create_dir - Setting up extent: block={}, len={}, physical={}", 
                 ee_block_val, ee_len_val, ee_start_lo_val);
 
             // Write header and extent directly to i_block array
@@ -1799,12 +1799,12 @@ impl Ext4FileSystem {
                 let i_block_ptr = i_block_copy.as_mut_ptr() as *mut u8;
                 
                 // Write extent header
-                let header_ptr = i_block_ptr as *mut Ext4ExtentHeader;
+                let header_ptr = i_block_ptr as *mut Ext2ExtentHeader;
                 *header_ptr = eh;
                 
                 // Write extent after header
                 let extent_ptr = i_block_ptr
-                    .add(core::mem::size_of::<Ext4ExtentHeader>()) as *mut Ext4Extent;
+                    .add(core::mem::size_of::<Ext2ExtentHeader>()) as *mut Ext2Extent;
                 *extent_ptr = extent;
                 
                 // Copy back the modified array
@@ -1819,19 +1819,19 @@ impl Ext4FileSystem {
         new_dir_inode.i_mtime = current_time;
         new_dir_inode.i_ctime = current_time;
         new_dir_inode.i_atime = current_time;
-        console_println!("ext4: create_dir - Updating inode {} with block ptr and size", new_dir_inode_num);
+        console_println!("ext2: create_dir - Updating inode {} with block ptr and size", new_dir_inode_num);
         self.write_inode_to_table(new_dir_inode_num, &new_dir_inode)?;
 
         // 5. Add entry for the new directory in its parent directory
         console_println!(
-            "ext4: create_dir - Adding direntry for new dir '{}' (inode {}) into parent dir {}",
+            "ext2: create_dir - Adding direntry for new dir '{}' (inode {}) into parent dir {}",
             dirname_component, new_dir_inode_num, parent_dir_inode_num
         );
         self.add_direntry(
             parent_dir_inode_num,
             new_dir_inode_num,
             dirname_component.as_str(),
-            EXT4_FT_DIR,
+            EXT2_FT_DIR,
         )?;
 
         // 6. Update parent directory's link count and times
@@ -1842,23 +1842,23 @@ impl Ext4FileSystem {
         let parent_links_count_val = parent_dir_inode_to_update.i_links_count; // Local copy for printing
         self.write_inode_to_table(parent_dir_inode_num, &parent_dir_inode_to_update)?;
         console_println!(
-            "ext4: create_dir - Incremented link count of parent dir {} to {}.", 
+            "ext2: create_dir - Incremented link count of parent dir {} to {}.", 
             parent_dir_inode_num, parent_links_count_val
         );
 
         let dir_entry_obj = FileEntry::new_directory(dirname_component.as_str(), new_dir_inode_num as u64)?;
 
         // Update cache if this is a directory in the root directory (inode 2)
-        if parent_dir_inode_num == EXT4_ROOT_INODE {
+        if parent_dir_inode_num == EXT2_ROOT_INODE {
             if self.files.push(dir_entry_obj.clone()).is_err() {
-                console_println!("ext4: create_directory - Warning: File cache full, new directory not added to cache");
+                console_println!("ext2: create_directory - Warning: File cache full, new directory not added to cache");
             } else {
-                console_println!("ext4: create_directory - Added '{}' to file cache", dirname_component);
+                console_println!("ext2: create_directory - Added '{}' to file cache", dirname_component);
             }
         }
 
         console_println!(
-            "✅ ext4: create_directory - Directory '{}' created successfully with inode {} in parent dir {}.", 
+            "✅ ext2: create_directory - Directory '{}' created successfully with inode {} in parent dir {}.", 
             dirname_component, new_dir_inode_num, parent_dir_inode_num
         );
         Ok(dir_entry_obj)
@@ -1866,7 +1866,7 @@ impl Ext4FileSystem {
 
     fn write_file(&mut self, file: &FileEntry, offset: u64, data: &[u8]) -> FilesystemResult<usize> {
         console_println!(
-            "ext4: write_file to '{}' (inode {}), offset: {}, data_len: {}",
+            "ext2: write_file to '{}' (inode {}), offset: {}, data_len: {}",
             file.name, file.inode, offset, data.len()
         );
 
@@ -1880,20 +1880,20 @@ impl Ext4FileSystem {
         // For now, only allow appending or overwriting from offset 0 for simplicity.
         // True random write is much more complex with extents (splitting, shifting, etc.)
         if offset > original_file_size {
-            console_println!("ext4: write_file - Writing past end of file (offset > size) is not supported yet for arbitrary offsets.");
+            console_println!("ext2: write_file - Writing past end of file (offset > size) is not supported yet for arbitrary offsets.");
             return Err(FilesystemError::IoError); // Or specific error like EOVERFLOW or ENXIO
         }
         // If offset < original_file_size and offset != 0, it's an overwrite of existing data, also complex.
         // if offset != 0 && offset < original_file_size {
-        //     console_println!("ext4: write_file - Overwriting existing file data is not fully supported yet.");
+        //     console_println!("ext2: write_file - Overwriting existing file data is not fully supported yet.");
         //     return Err(FilesystemError::IoError);
         // }
 
         let i_flags = file_inode.i_flags;
         let mut bytes_written_total = 0usize;
 
-        if (i_flags & EXT4_EXTENTS_FL) != 0 {
-            console_println!("ext4: write_file - File uses extents.");
+        if (i_flags & EXT2_EXTENTS_FL) != 0 {
+            console_println!("ext2: write_file - File uses extents.");
             // Simplified extent handling: append/overwrite from start.
             // Assume for now that if offset is 0, we are overwriting and may need to clear old extents.
             // If offset == original_file_size, we are appending.
@@ -1901,7 +1901,7 @@ impl Ext4FileSystem {
             if offset == 0 && original_file_size > 0 {
                 // TODO: Handle overwrite. This would involve freeing old blocks/extents and then proceeding as if appending to an empty file.
                 // For now, this is complex. Let's only properly support append or write to empty file.
-                console_println!("ext4: write_file - Overwriting existing file with extents (offset 0) not fully implemented. Freeing old extents needed.");
+                console_println!("ext2: write_file - Overwriting existing file with extents (offset 0) not fully implemented. Freeing old extents needed.");
                 // For a true overwrite, one would typically call a truncate-like function first, or free existing extents.
                 // For now, let's block this unless it's a write to an effectively empty file (size 0 but had extents somehow).
                 // return Err(FilesystemError::IoError); 
@@ -1912,23 +1912,23 @@ impl Ext4FileSystem {
             let mut current_logical_block = (offset / self.block_size as u64) as u32;
             let mut data_remaining_to_write = data;
             let i_block_copy_for_header_read = file_inode.i_block; // Copy for as_ptr
-            let mut extent_header: Ext4ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_header_read.as_ptr() as *const _) };
+            let mut extent_header: Ext2ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_header_read.as_ptr() as *const _) };
 
-            if extent_header.eh_magic != EXT4_EXT_MAGIC {
+            if extent_header.eh_magic != EXT2_EXT_MAGIC {
                 // Initialize extent header if file is new/empty or header is invalid
                 if original_file_size == 0 && offset == 0 {
-                    console_println!("ext4: write_file - Initializing extent header for new/empty file.");
-                    extent_header.eh_magic = EXT4_EXT_MAGIC;
+                    console_println!("ext2: write_file - Initializing extent header for new/empty file.");
+                    extent_header.eh_magic = EXT2_EXT_MAGIC;
                     extent_header.eh_entries = 0;
                     let i_block_copy_for_size = file_inode.i_block; // Copy for size_of_val
-                    extent_header.eh_max = ((core::mem::size_of_val(&i_block_copy_for_size) - core::mem::size_of::<Ext4ExtentHeader>()) 
-                                            / core::mem::size_of::<Ext4Extent>()) as u16;
+                    extent_header.eh_max = ((core::mem::size_of_val(&i_block_copy_for_size) - core::mem::size_of::<Ext2ExtentHeader>()) 
+                                            / core::mem::size_of::<Ext2Extent>()) as u16;
                     extent_header.eh_depth = 0;
                     extent_header.eh_generation = 0;
                 } else {
                     let eh_magic_val = extent_header.eh_magic; // Local copy for printing
                     console_println!(
-                        "ext4: write_file - Invalid extent magic 0x{:04X} in inode {} and file not empty/new. Offset {}",
+                        "ext2: write_file - Invalid extent magic 0x{:04X} in inode {} and file not empty/new. Offset {}",
                         eh_magic_val, file.inode, offset
                     );
                     return Err(FilesystemError::CorruptedFilesystem);
@@ -1942,7 +1942,7 @@ impl Ext4FileSystem {
                 let current_eh_entries = extent_header.eh_entries; // Local copy
                 let current_eh_max = extent_header.eh_max; // Local copy
                 if current_eh_entries >= current_eh_max {
-                    console_println!("ext4: write_file - Max extents reached in inode direct map. Extent tree needed.");
+                    console_println!("ext2: write_file - Max extents reached in inode direct map. Extent tree needed.");
                     // TODO: Implement extent tree growing (indirect extent blocks)
                     return Err(FilesystemError::FilesystemFull); // Simplified error
                 }
@@ -1953,11 +1953,11 @@ impl Ext4FileSystem {
 
                 let extent_slot_ptr = unsafe { 
                     i_block_copy_for_mut_ptr_write.as_mut_ptr()
-                        .add(core::mem::size_of::<Ext4ExtentHeader>() + (current_eh_entries as usize * core::mem::size_of::<Ext4Extent>()))
-                        as *mut Ext4Extent
+                        .add(core::mem::size_of::<Ext2ExtentHeader>() + (current_eh_entries as usize * core::mem::size_of::<Ext2Extent>()))
+                        as *mut Ext2Extent
                 };
                 
-                let new_extent = Ext4Extent {
+                let new_extent = Ext2Extent {
                     ee_block: current_logical_block, // First logical block this extent covers
                     ee_len: 1, // For simplicity, allocate one block at a time
                     ee_start_hi: 0, // Corrected: new_block_phys is u32, so high bits are 0
@@ -1965,7 +1965,7 @@ impl Ext4FileSystem {
                 };
                 unsafe { *extent_slot_ptr = new_extent };
                 extent_header.eh_entries += 1;
-                console_println!("ext4: write_file - Added extent: logical_blk {}, phys_blk {}, len 1", current_logical_block, new_block_phys);
+                console_println!("ext2: write_file - Added extent: logical_blk {}, phys_blk {}, len 1", current_logical_block, new_block_phys);
 
                 // Write data to this new physical block
                 let bytes_to_write_this_block = core::cmp::min(data_remaining_to_write.len(), self.block_size);
@@ -1978,13 +1978,13 @@ impl Ext4FileSystem {
 
             // Write back the updated extent header into i_block
             unsafe {
-                let header_ptr_mut = i_block_copy_for_mut_ptr_write.as_mut_ptr() as *mut Ext4ExtentHeader;
+                let header_ptr_mut = i_block_copy_for_mut_ptr_write.as_mut_ptr() as *mut Ext2ExtentHeader;
                 *header_ptr_mut = extent_header;
             }
             file_inode.i_block = i_block_copy_for_mut_ptr_write; // Assign back the modified copy
 
         } else {
-            console_println!("ext4: write_file - File does not use extents. Direct/indirect block writing not implemented.");
+            console_println!("ext2: write_file - File does not use extents. Direct/indirect block writing not implemented.");
             return Err(FilesystemError::UnsupportedFilesystem);
         }
 
@@ -1999,23 +1999,23 @@ impl Ext4FileSystem {
         file_inode.i_ctime = current_time;
 
         self.write_inode_to_table(file.inode as u32, &file_inode)?;
-        console_println!("✅ ext4: write_file - Wrote {} bytes to '{}'. New size: {}.", bytes_written_total, file.name, new_size);
+        console_println!("✅ ext2: write_file - Wrote {} bytes to '{}'. New size: {}.", bytes_written_total, file.name, new_size);
 
         Ok(bytes_written_total)
     }
 
     fn delete_file(&mut self, path: &str) -> FilesystemResult<()> {
-        console_println!("ext4: delete_file '{}'", path);
+        console_println!("ext2: delete_file '{}'", path);
 
         let (parent_dir_inode_num, filename_component) =
             self.resolve_path_to_parent_and_final_component(path)?;
 
         if filename_component.is_empty() {
-            console_println!("ext4: delete_file - Filename cannot be empty.");
+            console_println!("ext2: delete_file - Filename cannot be empty.");
             return Err(FilesystemError::InvalidPath);
         }
          if filename_component.as_str() == "." || filename_component.as_str() == ".." {
-            console_println!("ext4: delete_file - Cannot delete '.' or '..'.");
+            console_println!("ext2: delete_file - Cannot delete '.' or '..'.");
             return Err(FilesystemError::InvalidPath);
         }
 
@@ -2024,15 +2024,15 @@ impl Ext4FileSystem {
             self.find_entry_in_dir(parent_dir_inode_num, filename_component.as_str())?
                 .ok_or_else(|| {
                     console_println!(
-                        "ext4: delete_file - File '{}' not found in parent_dir_inode {}.",
+                        "ext2: delete_file - File '{}' not found in parent_dir_inode {}.",
                         filename_component, parent_dir_inode_num
                     );
                     FilesystemError::FileNotFound
                 })?;
 
-        if entry_data.file_type == EXT4_FT_DIR {
+        if entry_data.file_type == EXT2_FT_DIR {
             console_println!(
-                "ext4: delete_file - '{}' is a directory. Use delete_directory.",
+                "ext2: delete_file - '{}' is a directory. Use delete_directory.",
                 filename_component
             );
             return Err(FilesystemError::IsADirectory); // EISDIR equivalent
@@ -2040,7 +2040,7 @@ impl Ext4FileSystem {
 
         let target_inode_num = entry_data.inode;
         console_println!(
-            "ext4: delete_file - Found '{}' (inode {}). Entry in block {}, offset {}",
+            "ext2: delete_file - Found '{}' (inode {}). Entry in block {}, offset {}",
             filename_component, target_inode_num, block_num_of_entry, entry_offset_in_block
         );
 
@@ -2048,17 +2048,17 @@ impl Ext4FileSystem {
         let mut file_inode = self.read_inode(target_inode_num)?;
 
         // 3. Free Data Blocks based on extents
-        if (file_inode.i_flags & EXT4_EXTENTS_FL) != 0 {
-            console_println!("ext4: delete_file - File uses extents. Freeing blocks...");
+        if (file_inode.i_flags & EXT2_EXTENTS_FL) != 0 {
+            console_println!("ext2: delete_file - File uses extents. Freeing blocks...");
             let i_block_copy_for_header_read = file_inode.i_block; // Copy for safe read
-            let extent_header: Ext4ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_header_read.as_ptr() as *const _) };
-            if extent_header.eh_magic == EXT4_EXT_MAGIC {
+            let extent_header: Ext2ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_header_read.as_ptr() as *const _) };
+            if extent_header.eh_magic == EXT2_EXT_MAGIC {
                 if extent_header.eh_depth == 0 { 
                     let num_entries = extent_header.eh_entries;
                     let i_block_copy_for_extents_ptr = file_inode.i_block; // Copy for safe ptr ops
                     let extents_ptr_start = unsafe { // Added unsafe block for .add
                         i_block_copy_for_extents_ptr.as_ptr()
-                        .add(core::mem::size_of::<Ext4ExtentHeader>()) as *const Ext4Extent
+                        .add(core::mem::size_of::<Ext2ExtentHeader>()) as *const Ext2Extent
                     };
                     
                     for i in 0..num_entries {
@@ -2073,13 +2073,13 @@ impl Ext4FileSystem {
                         }
                     }
                 } else {
-                    console_println!("ext4: delete_file - Extent tree depth > 0 not supported for freeing yet.");
+                    console_println!("ext2: delete_file - Extent tree depth > 0 not supported for freeing yet.");
                 }
             } else {
-                console_println!("ext4: delete_file - Invalid extent magic in inode {}, cannot free blocks.", target_inode_num);
+                console_println!("ext2: delete_file - Invalid extent magic in inode {}, cannot free blocks.", target_inode_num);
             }
         } else {
-            console_println!("ext4: delete_file - File does not use extents. Direct/indirect block freeing not implemented.");
+            console_println!("ext2: delete_file - File does not use extents. Direct/indirect block freeing not implemented.");
         }
 
         // 4. Clear Inode Contents 
@@ -2088,7 +2088,7 @@ impl Ext4FileSystem {
         file_inode.i_links_count = links_count_val;
 
         if links_count_val == 0 {
-            console_println!("ext4: delete_file - Links count is 0 for inode {}. Proceeding to full free.", target_inode_num);
+            console_println!("ext2: delete_file - Links count is 0 for inode {}. Proceeding to full free.", target_inode_num);
             file_inode.i_dtime = 0; // Placeholder for current time
             file_inode.i_size_lo = 0;
             file_inode.i_size_high = 0;
@@ -2102,23 +2102,23 @@ impl Ext4FileSystem {
             file_inode.i_dtime = 0; 
             self.write_inode_to_table(target_inode_num, &file_inode)?;
             console_println!(
-                "ext4: delete_file - Decremented links_count for inode {} to {}. Data blocks remain (hard links).",
+                "ext2: delete_file - Decremented links_count for inode {} to {}. Data blocks remain (hard links).",
                 target_inode_num, links_count_val
             );
         }
 
         // 7. Remove Directory Entry (Simplified: set inode to 0)
         console_println!(
-            "ext4: delete_file - Removing direntry for '{}' from block {} at offset {}",
+            "ext2: delete_file - Removing direntry for '{}' from block {} at offset {}",
             filename_component, block_num_of_entry, entry_offset_in_block
         );
         let mut dir_block_data = self.read_block_data(block_num_of_entry as u64)?;
         unsafe {
-            let entry_ptr_mut = dir_block_data.as_mut_ptr().add(entry_offset_in_block) as *mut Ext4DirEntry;
+            let entry_ptr_mut = dir_block_data.as_mut_ptr().add(entry_offset_in_block) as *mut Ext2DirEntry;
             (*entry_ptr_mut).inode = 0; 
         }
         self.write_block_data_internal(block_num_of_entry, &dir_block_data)?;
-        console_println!("ext4: delete_file - Marked direntry inode as 0.");
+        console_println!("ext2: delete_file - Marked direntry inode as 0.");
 
         // 8. Update parent directory's mtime and ctime
         let mut parent_inode_to_update = self.read_inode(parent_dir_inode_num)?;
@@ -2126,33 +2126,33 @@ impl Ext4FileSystem {
         parent_inode_to_update.i_mtime = current_time;
         parent_inode_to_update.i_ctime = current_time;
         self.write_inode_to_table(parent_dir_inode_num, &parent_inode_to_update)?;
-        console_println!("ext4: delete_file - Updated parent dir {} timestamps.", parent_dir_inode_num);
+        console_println!("ext2: delete_file - Updated parent dir {} timestamps.", parent_dir_inode_num);
         
         // Update self.files cache if it was root dir; proper caching needed for general case
-        if parent_dir_inode_num == EXT4_ROOT_INODE {
+        if parent_dir_inode_num == EXT2_ROOT_INODE {
              self.files.retain(|f| f.name != filename_component.as_str() || f.inode != target_inode_num as u64);
         }
 
-        console_println!("✅ ext4: delete_file - '{}' processed.", path);
+        console_println!("✅ ext2: delete_file - '{}' processed.", path);
         Ok(())
     }
 
     fn delete_directory(&mut self, path: &str) -> FilesystemResult<()> {
-        console_println!("ext4: delete_directory '{}'", path);
+        console_println!("ext2: delete_directory '{}'", path);
 
         let (parent_dir_inode_num, dirname_component) =
             self.resolve_path_to_parent_and_final_component(path)?;
 
         if dirname_component.is_empty() {
-            console_println!("ext4: delete_directory - Directory name cannot be empty.");
+            console_println!("ext2: delete_directory - Directory name cannot be empty.");
             return Err(FilesystemError::InvalidPath);
         }
         if dirname_component.as_str() == "." || dirname_component.as_str() == ".." {
-            console_println!("ext4: delete_directory - Cannot delete '.' or '..'.");
+            console_println!("ext2: delete_directory - Cannot delete '.' or '..'.");
             return Err(FilesystemError::InvalidPath);
         }
-        if parent_dir_inode_num == EXT4_ROOT_INODE && dirname_component.as_str() == "/" { // Trying to delete root itself
-             console_println!("ext4: delete_directory - Cannot delete root directory.");
+        if parent_dir_inode_num == EXT2_ROOT_INODE && dirname_component.as_str() == "/" { // Trying to delete root itself
+             console_println!("ext2: delete_directory - Cannot delete root directory.");
             return Err(FilesystemError::InvalidPath);
         }
 
@@ -2161,15 +2161,15 @@ impl Ext4FileSystem {
             self.find_entry_in_dir(parent_dir_inode_num, dirname_component.as_str())?
                 .ok_or_else(|| {
                     console_println!(
-                        "ext4: delete_directory - Directory '{}' not found in parent_dir_inode {}.",
+                        "ext2: delete_directory - Directory '{}' not found in parent_dir_inode {}.",
                         dirname_component, parent_dir_inode_num
                     );
                     FilesystemError::DirectoryNotFound
                 })?;
 
-        if entry_data.file_type != EXT4_FT_DIR {
+        if entry_data.file_type != EXT2_FT_DIR {
             console_println!(
-                "ext4: delete_directory - '{}' is not a directory.",
+                "ext2: delete_directory - '{}' is not a directory.",
                 dirname_component
             );
             return Err(FilesystemError::NotADirectory);
@@ -2177,7 +2177,7 @@ impl Ext4FileSystem {
 
         let dir_to_delete_inode_num = entry_data.inode;
         console_println!(
-            "ext4: delete_directory - Found dir '{}' (inode {}). Entry in block {}, offset {}",
+            "ext2: delete_directory - Found dir '{}' (inode {}). Entry in block {}, offset {}",
             dirname_component, dir_to_delete_inode_num, block_num_of_entry, entry_offset_in_block
         );
 
@@ -2188,7 +2188,7 @@ impl Ext4FileSystem {
         let dir_inode_links_count_val = dir_inode.i_links_count; // Local copy for printing
         if dir_inode_links_count_val > 2 { 
             console_println!(
-                "ext4: delete_directory - Directory '{}' (inode {}) not empty (links_count: {} > 2). Contains subdirectories?", 
+                "ext2: delete_directory - Directory '{}' (inode {}) not empty (links_count: {} > 2). Contains subdirectories?", 
                 dirname_component, dir_to_delete_inode_num, dir_inode_links_count_val
             );
             return Err(FilesystemError::DirectoryNotEmpty);
@@ -2196,21 +2196,21 @@ impl Ext4FileSystem {
         
         // Check if this directory has corrupted extents (from old buggy mkdir)
         let mut has_corrupted_extent = false;
-        if (dir_inode.i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (dir_inode.i_flags & EXT2_EXTENTS_FL) != 0 {
             let i_block_copy_for_corruption_check = dir_inode.i_block;
-            let extent_header: Ext4ExtentHeader = unsafe { 
+            let extent_header: Ext2ExtentHeader = unsafe { 
                 core::ptr::read(i_block_copy_for_corruption_check.as_ptr() as *const _) 
             };
-            if extent_header.eh_magic == EXT4_EXT_MAGIC && extent_header.eh_entries > 0 {
+            if extent_header.eh_magic == EXT2_EXT_MAGIC && extent_header.eh_entries > 0 {
                 let i_block_copy_for_extent_ptr = dir_inode.i_block;
                 let extent_ptr = unsafe {
                     i_block_copy_for_extent_ptr.as_ptr()
-                        .add(core::mem::size_of::<Ext4ExtentHeader>()) as *const Ext4Extent
+                        .add(core::mem::size_of::<Ext2ExtentHeader>()) as *const Ext2Extent
                 };
                 let first_extent = unsafe { *extent_ptr };
                 if first_extent.ee_start_lo == 0 && first_extent.ee_len == 0 {
                     console_println!(
-                        "ext4: delete_directory - Directory '{}' (inode {}) has corrupted extent (PhysicalStartLo=0, Len=0). Allowing deletion.", 
+                        "ext2: delete_directory - Directory '{}' (inode {}) has corrupted extent (PhysicalStartLo=0, Len=0). Allowing deletion.", 
                         dirname_component, dir_to_delete_inode_num
                     );
                     has_corrupted_extent = true;
@@ -2224,7 +2224,7 @@ impl Ext4FileSystem {
             match self.find_entry_in_dir(dir_to_delete_inode_num, ".") {
                 Ok(Some((dot_entry,_,_))) => {
                     if dot_entry.inode != dir_to_delete_inode_num {
-                        console_println!("ext4: delete_directory - Corrupted '.' entry in dir {}", dir_to_delete_inode_num);
+                        console_println!("ext2: delete_directory - Corrupted '.' entry in dir {}", dir_to_delete_inode_num);
                         return Err(FilesystemError::CorruptedFilesystem);
                     }
                 } 
@@ -2237,7 +2237,7 @@ impl Ext4FileSystem {
                     let dotdot_entry_inode_val_del = dotdot_entry.inode; // Local copy for printing
                     if dotdot_entry_inode_val_del != parent_dir_inode_num {
                          console_println!(
-                            "ext4: delete_directory - Corrupted '..' entry in dir {}. Expected parent {}, found {}", 
+                            "ext2: delete_directory - Corrupted '..' entry in dir {}. Expected parent {}, found {}", 
                             dir_to_delete_inode_num, parent_dir_inode_num, dotdot_entry_inode_val_del
                         );
                         return Err(FilesystemError::CorruptedFilesystem);
@@ -2252,13 +2252,13 @@ impl Ext4FileSystem {
         is_empty = true; // Assume empty until proven otherwise
 
         if !has_corrupted_extent {
-            if (dir_inode_for_empty_check.i_flags & EXT4_EXTENTS_FL) != 0 {
+            if (dir_inode_for_empty_check.i_flags & EXT2_EXTENTS_FL) != 0 {
                 let i_block_copy_for_extent_header_check = dir_inode_for_empty_check.i_block; // Copy for safe read
-                let extent_header_check: Ext4ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_extent_header_check.as_ptr() as *const _) };
-                if extent_header_check.eh_magic == EXT4_EXT_MAGIC && extent_header_check.eh_depth == 0 {
+                let extent_header_check: Ext2ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_extent_header_check.as_ptr() as *const _) };
+                if extent_header_check.eh_magic == EXT2_EXT_MAGIC && extent_header_check.eh_depth == 0 {
                     let i_block_copy_for_extents_ptr_check = dir_inode_for_empty_check.i_block; // Copy for safe ptr ops
                     let extents_start_ptr_check = unsafe { // Added unsafe block for .add
-                        i_block_copy_for_extents_ptr_check.as_ptr().add(core::mem::size_of::<Ext4ExtentHeader>()) as *const Ext4Extent
+                        i_block_copy_for_extents_ptr_check.as_ptr().add(core::mem::size_of::<Ext2ExtentHeader>()) as *const Ext2Extent
                     };
                     'extent_empty_loop: for i in 0..extent_header_check.eh_entries {
                         let extent = unsafe { *extents_start_ptr_check.add(i as usize) };
@@ -2269,7 +2269,7 @@ impl Ext4FileSystem {
                             let mut offset_check = 0;
                             while offset_check < self.block_size {
                                 let entry_ptr_check = unsafe { // Added unsafe block for .add
-                                    block_data_check.as_ptr().add(offset_check) as *const Ext4DirEntry
+                                    block_data_check.as_ptr().add(offset_check) as *const Ext2DirEntry
                                 };
                                 let entry_check = unsafe { *entry_ptr_check };
                                 if entry_check.inode == 0 || entry_check.rec_len == 0 {
@@ -2283,7 +2283,7 @@ impl Ext4FileSystem {
                                     let name_str_check = core::str::from_utf8(name_slice_check).unwrap_or("");
                                     if name_str_check != "." && name_str_check != ".." {
                                         is_empty = false;
-                                        console_println!("ext4: delete_directory - Directory '{}' not empty. Found: '{}'", dirname_component, name_str_check);
+                                        console_println!("ext2: delete_directory - Directory '{}' not empty. Found: '{}'", dirname_component, name_str_check);
                                         break 'extent_empty_loop;
                                     }
                                 }
@@ -2303,7 +2303,7 @@ impl Ext4FileSystem {
                     let mut offset_check = 0;
                     while offset_check < self.block_size {
                         let entry_ptr_check = unsafe { // Added unsafe block for .add
-                            block_data_check.as_ptr().add(offset_check) as *const Ext4DirEntry
+                            block_data_check.as_ptr().add(offset_check) as *const Ext2DirEntry
                         };
                         let entry_check = unsafe { *entry_ptr_check };
 
@@ -2318,7 +2318,7 @@ impl Ext4FileSystem {
                             let name_str_check = core::str::from_utf8(name_slice_check).unwrap_or("");
                             if name_str_check != "." && name_str_check != ".." {
                                 is_empty = false;
-                                console_println!("ext4: delete_directory - Directory '{}' not empty. Found: '{}'", dirname_component, name_str_check);
+                                console_println!("ext2: delete_directory - Directory '{}' not empty. Found: '{}'", dirname_component, name_str_check);
                                 break 'direct_empty_loop;
                             }
                         }
@@ -2330,7 +2330,7 @@ impl Ext4FileSystem {
             }
         } else {
             // Skip emptiness check for corrupted directories and assume they're empty
-            console_println!("ext4: delete_directory - Skipping emptiness check for corrupted directory '{}'", dirname_component);
+            console_println!("ext2: delete_directory - Skipping emptiness check for corrupted directory '{}'", dirname_component);
         }
         
         if !is_empty {
@@ -2338,16 +2338,16 @@ impl Ext4FileSystem {
         }
 
         // 4. Free Data Blocks of the directory
-        if (dir_inode.i_flags & EXT4_EXTENTS_FL) != 0 {
-            console_println!("ext4: delete_directory - Directory '{}' uses extents. Freeing blocks...", dirname_component);
+        if (dir_inode.i_flags & EXT2_EXTENTS_FL) != 0 {
+            console_println!("ext2: delete_directory - Directory '{}' uses extents. Freeing blocks...", dirname_component);
             let i_block_copy_for_header_read_free = dir_inode.i_block; // Copy for safe read
-            let extent_header: Ext4ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_header_read_free.as_ptr() as *const _) };
-            if extent_header.eh_magic == EXT4_EXT_MAGIC {
+            let extent_header: Ext2ExtentHeader = unsafe { core::ptr::read(i_block_copy_for_header_read_free.as_ptr() as *const _) };
+            if extent_header.eh_magic == EXT2_EXT_MAGIC {
                 if extent_header.eh_depth == 0 {
                     let num_entries = extent_header.eh_entries;
                     let i_block_copy_for_extents_ptr_free = dir_inode.i_block; // Copy for safe ptr ops
                     let extents_ptr_start = unsafe { // Added unsafe block for .add
-                        i_block_copy_for_extents_ptr_free.as_ptr().add(core::mem::size_of::<Ext4ExtentHeader>()) as *const Ext4Extent
+                        i_block_copy_for_extents_ptr_free.as_ptr().add(core::mem::size_of::<Ext2ExtentHeader>()) as *const Ext2Extent
                     };
                     
                     for i in 0..num_entries {
@@ -2357,7 +2357,7 @@ impl Ext4FileSystem {
                         
                         // Skip freeing corrupted extents
                         if phys_start_block == 0 && num_blocks_in_extent == 0 {
-                            console_println!("ext4: delete_directory - Skipping freeing of corrupted extent (PhysicalStartLo=0, Len=0)");
+                            console_println!("ext2: delete_directory - Skipping freeing of corrupted extent (PhysicalStartLo=0, Len=0)");
                             continue;
                         }
                         
@@ -2369,15 +2369,15 @@ impl Ext4FileSystem {
                         }
                     }
                 } else {
-                    console_println!("ext4: delete_directory - Directory '{}' uses multi-level extents. Not supported for deletion.", dirname_component);
+                    console_println!("ext2: delete_directory - Directory '{}' uses multi-level extents. Not supported for deletion.", dirname_component);
                     return Err(FilesystemError::UnsupportedFilesystem);
                 }
             } else {
-                console_println!("ext4: delete_directory - Directory '{}' uses invalid extent magic. Cannot free blocks.", dirname_component);
+                console_println!("ext2: delete_directory - Directory '{}' uses invalid extent magic. Cannot free blocks.", dirname_component);
                 return Err(FilesystemError::CorruptedFilesystem);
             }
         } else {
-            console_println!("ext4: delete_directory - Directory '{}' does not use extents. Direct/indirect block freeing not implemented.", dirname_component);
+            console_println!("ext2: delete_directory - Directory '{}' does not use extents. Direct/indirect block freeing not implemented.", dirname_component);
         }
 
         // 5. Clear Inode Contents
@@ -2402,16 +2402,16 @@ impl Ext4FileSystem {
         self.free_inode(dir_to_delete_inode_num)?;
 
         // 8. Remove the directory entry from parent directory
-        console_println!("ext4: delete_directory - Removing entry '{}' from parent dir {}", dirname_component, parent_dir_inode_num);
+        console_println!("ext2: delete_directory - Removing entry '{}' from parent dir {}", dirname_component, parent_dir_inode_num);
         self.remove_direntry_from_parent(parent_dir_inode_num, block_num_of_entry, entry_offset_in_block)?;
 
         // Update cache if this was a directory in the root directory (inode 2)
-        if parent_dir_inode_num == EXT4_ROOT_INODE {
+        if parent_dir_inode_num == EXT2_ROOT_INODE {
             self.files.retain(|f| f.name != dirname_component.as_str() || f.inode != dir_to_delete_inode_num as u64);
-            console_println!("ext4: delete_directory - Removed '{}' from file cache", dirname_component);
+            console_println!("ext2: delete_directory - Removed '{}' from file cache", dirname_component);
         }
 
-        console_println!("✅ ext4: delete_directory - '{}' processed.", path);
+        console_println!("✅ ext2: delete_directory - '{}' processed.", path);
         Ok(())
     }
 
@@ -2420,7 +2420,7 @@ impl Ext4FileSystem {
     /// Returns the inode number of the final component in the path.
     fn resolve_path_to_inode(&self, full_path: &str) -> FilesystemResult<u32> {
         console_println!("resolve_path_to_inode: Resolving path '{}'", full_path);
-        let mut current_inode_num = EXT4_ROOT_INODE;
+        let mut current_inode_num = EXT2_ROOT_INODE;
 
         // Normalize path: remove leading/trailing slashes, handle multiple slashes
         let mut normalized_path = heapless::String::<256>::new();
@@ -2448,7 +2448,7 @@ impl Ext4FileSystem {
         console_println!("resolve_path_to_inode: Normalized to '{}'", path_str);
 
         if path_str.is_empty() || path_str == "/" { // Path is root
-            return Ok(EXT4_ROOT_INODE);
+            return Ok(EXT2_ROOT_INODE);
         }
 
         let components = path_str.split('/');
@@ -2474,7 +2474,7 @@ impl Ext4FileSystem {
         }
         
         if component_count == 0 { // e.g. path was only slashes after normalization like "///"
-             return Ok(EXT4_ROOT_INODE);
+             return Ok(EXT2_ROOT_INODE);
         }
 
         Ok(current_inode_num)
@@ -2537,7 +2537,7 @@ impl Ext4FileSystem {
         if components.is_empty() { // Path was effectively root or empty string
             if !normalized_path_str.is_empty() && normalized_path_str != "/" { // e.g. path was "myfile" considered as final component
                  let final_comp_str = heapless::String::try_from(normalized_path_str.as_str()).map_err(|_| FilesystemError::FilenameTooLong)?; // Corrected
-                 return Ok((EXT4_ROOT_INODE, final_comp_str));
+                 return Ok((EXT2_ROOT_INODE, final_comp_str));
             }
             // This case should ideally not be hit if creating/deleting, as a name is needed.
             // For lookup of "/", parent is root, final comp is effectively root itself, or an error.
@@ -2548,7 +2548,7 @@ impl Ext4FileSystem {
         let final_component = components.pop().unwrap(); // Known to be non-empty from above
         let final_component_str = heapless::String::try_from(final_component).map_err(|_| FilesystemError::FilenameTooLong)?; // Corrected
 
-        let mut current_parent_inode_num = EXT4_ROOT_INODE;
+        let mut current_parent_inode_num = EXT2_ROOT_INODE;
 
         // Traverse remaining components to find the parent directory
         for component_name in components {
@@ -2562,7 +2562,7 @@ impl Ext4FileSystem {
 
             match self.find_entry_in_dir(current_parent_inode_num, component_name)? {
                 Some((entry, _, _)) => {
-                    if entry.file_type != EXT4_FT_DIR {
+                    if entry.file_type != EXT2_FT_DIR {
                         console_println!(
                             "resolve_path_to_parent_and_final_component: Path component '{}' is not a directory.",
                             component_name
@@ -2585,13 +2585,13 @@ impl Ext4FileSystem {
     }
 
     /// Finds a directory entry within a given directory inode.
-    /// Returns `Ok(Some((Ext4DirEntry, block_num, offset_in_block)))` if found,
+    /// Returns `Ok(Some((Ext2DirEntry, block_num, offset_in_block)))` if found,
     /// `Ok(None)` if not found, or an error.
     fn find_entry_in_dir(
         &self,
         dir_inode_num: u32,
         entry_name: &str,
-    ) -> FilesystemResult<Option<(Ext4DirEntry, u32, usize)>> {
+    ) -> FilesystemResult<Option<(Ext2DirEntry, u32, usize)>> {
         console_println!(
             "dbg: ENTER find_entry_in_dir: Searching for '{}' in dir_inode {}",
             entry_name, dir_inode_num
@@ -2601,11 +2601,11 @@ impl Ext4FileSystem {
         let i_flags = dir_inode.i_flags;
         let i_size_lo = dir_inode.i_size_lo;
 
-        if (i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (i_flags & EXT2_EXTENTS_FL) != 0 {
             console_println!("dbg: find_entry_in_dir: Using EXTENT path for inode {}", dir_inode_num);
             // Directory uses extents
             let i_block_copy = dir_inode.i_block; // Copy to avoid direct packed access for header
-            let extent_header: Ext4ExtentHeader = unsafe { core::ptr::read(i_block_copy.as_ptr() as *const _) };
+            let extent_header: Ext2ExtentHeader = unsafe { core::ptr::read(i_block_copy.as_ptr() as *const _) };
             
             let eh_magic = extent_header.eh_magic; // Local copy
             let eh_entries = extent_header.eh_entries; // Local copy
@@ -2616,7 +2616,7 @@ impl Ext4FileSystem {
                 eh_magic, eh_entries, eh_depth
             );
 
-            if eh_magic != EXT4_EXT_MAGIC {
+            if eh_magic != EXT2_EXT_MAGIC {
                 console_println!("find_entry_in_dir: Invalid extent magic 0x{:04X}", eh_magic);
                 return Err(FilesystemError::CorruptedFilesystem);
             }
@@ -2632,18 +2632,18 @@ impl Ext4FileSystem {
                     core::mem::size_of_val(&i_block_copy) // Size of the i_block array (60 bytes)
                 )
             };
-            let extents_byte_offset_after_header = core::mem::size_of::<Ext4ExtentHeader>();
+            let extents_byte_offset_after_header = core::mem::size_of::<Ext2ExtentHeader>();
 
             for i in 0..eh_entries {
-                let current_extent_offset_in_bytes = extents_byte_offset_after_header + (i as usize * core::mem::size_of::<Ext4Extent>());
+                let current_extent_offset_in_bytes = extents_byte_offset_after_header + (i as usize * core::mem::size_of::<Ext2Extent>());
                 
-                if current_extent_offset_in_bytes + core::mem::size_of::<Ext4Extent>() > i_block_bytes.len() {
+                if current_extent_offset_in_bytes + core::mem::size_of::<Ext2Extent>() > i_block_bytes.len() {
                     console_println!("dbg: find_entry_in_dir (EXTENT_PATH): Extent {} at offset {} would read out of i_block bounds.", i, current_extent_offset_in_bytes);
                     break; 
                 }
 
                 let extent = unsafe { 
-                    let extent_ptr = i_block_bytes.as_ptr().add(current_extent_offset_in_bytes) as *const Ext4Extent;
+                    let extent_ptr = i_block_bytes.as_ptr().add(current_extent_offset_in_bytes) as *const Ext2Extent;
                     *extent_ptr 
                 };
                 let physical_start_block = extent.ee_start_lo; // ee_start_hi assumed 0 for simplicity
@@ -2665,7 +2665,7 @@ impl Ext4FileSystem {
                     let mut offset_in_block = 0;
                     while offset_in_block < self.block_size {
                         let entry_ptr = unsafe {
-                            block_data.as_ptr().add(offset_in_block) as *const Ext4DirEntry
+                            block_data.as_ptr().add(offset_in_block) as *const Ext2DirEntry
                         };
                         let entry = unsafe { *entry_ptr };
 
@@ -2734,7 +2734,7 @@ impl Ext4FileSystem {
                 while offset_in_block < self.block_size {
                     // This part is identical to the extent case, could be refactored
                     let entry_ptr = unsafe { // Added unsafe block for .add
-                        block_data.as_ptr().add(offset_in_block) as *const Ext4DirEntry
+                        block_data.as_ptr().add(offset_in_block) as *const Ext2DirEntry
                     };
                     let entry = unsafe { *entry_ptr };
 
@@ -2796,7 +2796,7 @@ impl Ext4FileSystem {
         Ok(None)
     }
 
-    // == Private helper functions for ext4 write operations ==
+    // == Private helper functions for ext2 write operations ==
 
     /// Reads a bitmap block from disk.
     /// The bitmap is assumed to be one block in size.
@@ -2887,7 +2887,7 @@ impl Ext4FileSystem {
     /// Frees an inode in group 0.
     /// Clears the bit in the inode bitmap and updates superblock/GDT free counts.
     fn free_inode(&mut self, inode_num: u32) -> FilesystemResult<()> {
-        if inode_num == 0 || inode_num == EXT4_ROOT_INODE { // Cannot free inode 0 or root inode
+        if inode_num == 0 || inode_num == EXT2_ROOT_INODE { // Cannot free inode 0 or root inode
             console_println!("free_inode: Attempt to free invalid inode_num: {}", inode_num);
             return Err(FilesystemError::IoError);
         }
@@ -3005,13 +3005,13 @@ impl Ext4FileSystem {
     }
 
     /// List directory entries from extent-based inode
-    fn list_directory_from_extents(&self, dir_inode: &Ext4Inode, result_vec: &mut Vec<(heapless::String<64>, usize, bool), 32>) -> FilesystemResult<()> {
+    fn list_directory_from_extents(&self, dir_inode: &Ext2Inode, result_vec: &mut Vec<(heapless::String<64>, usize, bool), 32>) -> FilesystemResult<()> {
         // Copy i_block array to avoid packed field alignment issues
         let i_block_copy = dir_inode.i_block;
         
         // Parse extent header
-        let extent_header: Ext4ExtentHeader = unsafe {
-            let header_ptr = i_block_copy.as_ptr() as *const Ext4ExtentHeader;
+        let extent_header: Ext2ExtentHeader = unsafe {
+            let header_ptr = i_block_copy.as_ptr() as *const Ext2ExtentHeader;
             *header_ptr
         };
         
@@ -3022,7 +3022,7 @@ impl Ext4FileSystem {
         console_println!("   🔍 Directory extent header: magic=0x{:04x}, entries={}, depth={}", 
             eh_magic, eh_entries, eh_depth);
         
-        if eh_magic != EXT4_EXT_MAGIC {
+        if eh_magic != EXT2_EXT_MAGIC {
             console_println!("   ❌ Invalid extent magic for directory");
             return Err(FilesystemError::CorruptedFilesystem);
         }
@@ -3033,7 +3033,7 @@ impl Ext4FileSystem {
         }
         
         // Parse extent entries
-        let extents_start = core::mem::size_of::<Ext4ExtentHeader>();
+        let extents_start = core::mem::size_of::<Ext2ExtentHeader>();
         let i_block_bytes = unsafe {
             core::slice::from_raw_parts(
                 i_block_copy.as_ptr() as *const u8,
@@ -3042,15 +3042,15 @@ impl Ext4FileSystem {
         };
         
         for i in 0..eh_entries as usize {
-            let extent_offset = extents_start + i * core::mem::size_of::<Ext4Extent>();
+            let extent_offset = extents_start + i * core::mem::size_of::<Ext2Extent>();
             
-            if extent_offset + core::mem::size_of::<Ext4Extent>() > i_block_bytes.len() {
+            if extent_offset + core::mem::size_of::<Ext2Extent>() > i_block_bytes.len() {
                 console_println!("   ⚠️ Directory extent {} extends beyond i_block", i);
                 break;
             }
             
-            let extent: Ext4Extent = unsafe {
-                let extent_ptr = (i_block_bytes.as_ptr().add(extent_offset)) as *const Ext4Extent;
+            let extent: Ext2Extent = unsafe {
+                let extent_ptr = (i_block_bytes.as_ptr().add(extent_offset)) as *const Ext2Extent;
                 *extent_ptr
             };
             
@@ -3088,7 +3088,7 @@ impl Ext4FileSystem {
     }
     
     /// List directory entries from traditional direct block pointers
-    fn list_directory_from_blocks(&self, dir_inode: &Ext4Inode, result_vec: &mut Vec<(heapless::String<64>, usize, bool), 32>) -> FilesystemResult<()> {
+    fn list_directory_from_blocks(&self, dir_inode: &Ext2Inode, result_vec: &mut Vec<(heapless::String<64>, usize, bool), 32>) -> FilesystemResult<()> {
         // Copy i_block array to avoid packed field alignment issues
         let i_block_copy = dir_inode.i_block;
         
@@ -3129,8 +3129,8 @@ impl Ext4FileSystem {
                 break;
             }
             
-            let dir_entry: Ext4DirEntry = unsafe {
-                let entry_ptr = (block_data.as_ptr().add(offset)) as *const Ext4DirEntry;
+            let dir_entry: Ext2DirEntry = unsafe {
+                let entry_ptr = (block_data.as_ptr().add(offset)) as *const Ext2DirEntry;
                 *entry_ptr
             };
             
@@ -3169,10 +3169,10 @@ impl Ext4FileSystem {
                         // Skip "." and ".." entries for file listing
                         if filename != "." && filename != ".." {
                             // First try using file_type from directory entry
-                            let mut is_directory = file_type == EXT4_FT_DIR;
+                            let mut is_directory = file_type == EXT2_FT_DIR;
                             
                             // If file_type is 0 or doesn't match expected values, check inode mode as fallback
-                            if file_type == 0 || (file_type != EXT4_FT_DIR && file_type != EXT4_FT_REG_FILE) {
+                            if file_type == 0 || (file_type != EXT2_FT_DIR && file_type != EXT2_FT_REG_FILE) {
                                 console_println!("   🔍 file_type={} unreliable, checking inode mode for '{}'", file_type, filename);
                                 match self.read_inode(inode) {
                                     Ok(entry_inode) => {
@@ -3216,19 +3216,19 @@ impl Ext4FileSystem {
     }
 
     fn remove_direntry_from_parent(&mut self, parent_dir_inode_num: u32, block_num_of_entry: u32, entry_offset_in_block: usize) -> FilesystemResult<()> {
-        console_println!("ext4: remove_direntry_from_parent - Removing entry from parent dir inode {} at block {}, offset {}", parent_dir_inode_num, block_num_of_entry, entry_offset_in_block);
+        console_println!("ext2: remove_direntry_from_parent - Removing entry from parent dir inode {} at block {}, offset {}", parent_dir_inode_num, block_num_of_entry, entry_offset_in_block);
         
         // Read the directory block containing the entry to remove
         let mut block_data = self.read_block_data(block_num_of_entry as u64)?;
         
         // Verify we have the expected entry at the given offset
         let entry_ptr = unsafe {
-            block_data.as_ptr().add(entry_offset_in_block) as *const Ext4DirEntry
+            block_data.as_ptr().add(entry_offset_in_block) as *const Ext2DirEntry
         };
         let entry = unsafe { *entry_ptr };
         
         if entry.inode == 0 {
-            console_println!("ext4: remove_direntry_from_parent - Entry already deleted at offset {}", entry_offset_in_block);
+            console_println!("ext2: remove_direntry_from_parent - Entry already deleted at offset {}", entry_offset_in_block);
             return Ok(());
         }
         
@@ -3236,29 +3236,29 @@ impl Ext4FileSystem {
         let entry_inode_val = entry.inode;
         let entry_rec_len_val = entry.rec_len;
         let entry_name_len_val = entry.name_len;
-        console_println!("ext4: remove_direntry_from_parent - Found entry at offset {}: inode={}, rec_len={}, name_len={}", 
+        console_println!("ext2: remove_direntry_from_parent - Found entry at offset {}: inode={}, rec_len={}, name_len={}", 
             entry_offset_in_block, entry_inode_val, entry_rec_len_val, entry_name_len_val);
         
         // Mark the entry as deleted by setting inode to 0
         unsafe {
-            let entry_ptr_mut = block_data.as_mut_ptr().add(entry_offset_in_block) as *mut Ext4DirEntry;
+            let entry_ptr_mut = block_data.as_mut_ptr().add(entry_offset_in_block) as *mut Ext2DirEntry;
             (*entry_ptr_mut).inode = 0;
             // Keep rec_len and other fields as they are for proper directory traversal
         }
         
-        console_println!("ext4: remove_direntry_from_parent - Marked entry as deleted (inode=0)");
+        console_println!("ext2: remove_direntry_from_parent - Marked entry as deleted (inode=0)");
         
         // Write the updated block back to disk
         self.write_block_data_internal(block_num_of_entry, &block_data)?;
         
-        console_println!("ext4: remove_direntry_from_parent - Updated directory block {} written to disk", block_num_of_entry);
+        console_println!("ext2: remove_direntry_from_parent - Updated directory block {} written to disk", block_num_of_entry);
         
         Ok(())
     }
-} // Closing brace for impl Ext4FileSystem
+} // Closing brace for impl Ext2FileSystem
 
-// Implementation of the FileSystem trait for Ext4FileSystem
-impl FileSystem for Ext4FileSystem {
+// Implementation of the FileSystem trait for Ext2FileSystem
+impl FileSystem for Ext2FileSystem {
     fn list_files(&self) -> FilesystemResult<Vec<(heapless::String<64>, usize), 32>> {
         if !self.is_mounted() {
             return Err(FilesystemError::NotMounted);
@@ -3271,7 +3271,7 @@ impl FileSystem for Ext4FileSystem {
             let name_str = heapless::String::try_from(entry.name.as_str())
                 .map_err(|_| FilesystemError::FilenameTooLong)?;
             if result_vec.push((name_str, entry.size)).is_err() {
-                console_println!("ext4: list_files - Result vector full.");
+                console_println!("ext2: list_files - Result vector full.");
                 break;
             }
         }
@@ -3283,7 +3283,7 @@ impl FileSystem for Ext4FileSystem {
             return Err(FilesystemError::NotMounted);
         }
         
-        console_println!("ext4: list_directory('{}')", path);
+        console_println!("ext2: list_directory('{}')", path);
         
         // Resolve the path to get the directory inode
         let dir_inode_num = self.resolve_path_to_inode(path)?;
@@ -3292,24 +3292,24 @@ impl FileSystem for Ext4FileSystem {
         // Check if it's actually a directory
         let i_mode = dir_inode.i_mode;
         if (i_mode & 0xF000) != 0x4000 {
-            console_println!("ext4: list_directory - Path '{}' is not a directory", path);
+            console_println!("ext2: list_directory - Path '{}' is not a directory", path);
             return Err(FilesystemError::NotADirectory);
         }
         
-        console_println!("ext4: list_directory - Reading directory inode {}", dir_inode_num);
+        console_println!("ext2: list_directory - Reading directory inode {}", dir_inode_num);
         
         let mut result_vec = Vec::new();
         
         // Parse directory entries from the directory inode
         let i_flags = dir_inode.i_flags;
         
-        if (i_flags & EXT4_EXTENTS_FL) != 0 {
+        if (i_flags & EXT2_EXTENTS_FL) != 0 {
             self.list_directory_from_extents(&dir_inode, &mut result_vec)?;
         } else {
             self.list_directory_from_blocks(&dir_inode, &mut result_vec)?;
         }
         
-        console_println!("ext4: list_directory - Found {} entries in '{}'", result_vec.len(), path);
+        console_println!("ext2: list_directory - Found {} entries in '{}'", result_vec.len(), path);
         Ok(result_vec)
     }
 
@@ -3317,7 +3317,7 @@ impl FileSystem for Ext4FileSystem {
         if !self.is_mounted() {
             return Err(FilesystemError::NotMounted);
         }
-        console_println!("ext4 FS trait: read_file '{}'", path);
+        console_println!("ext2 FS trait: read_file '{}'", path);
         let inode_num = self.resolve_path_to_inode(path)?;
         // Create a temporary FileEntry; size will be determined by read_inode in read_file_content
         let temp_file_entry = FileEntry::new_file(path, inode_num as u64, 0)?; 
@@ -3357,45 +3357,45 @@ impl FileSystem for Ext4FileSystem {
     // == Write Operations ==
     fn create_file(&mut self, path: &str) -> FilesystemResult<FileEntry> {
         if !self.is_mounted() { return Err(FilesystemError::NotMounted); }
-        // Calls the existing method on Ext4FileSystem struct
-        Ext4FileSystem::create_file(self, path)
+        // Calls the existing method on Ext2FileSystem struct
+        Ext2FileSystem::create_file(self, path)
     }
 
     fn create_directory(&mut self, path: &str) -> FilesystemResult<FileEntry> {
         if !self.is_mounted() { return Err(FilesystemError::NotMounted); }
-        Ext4FileSystem::create_directory(self, path)
+        Ext2FileSystem::create_directory(self, path)
     }
 
     fn write_file(&mut self, file: &FileEntry, offset: u64, data: &[u8]) -> FilesystemResult<usize> {
         if !self.is_mounted() { return Err(FilesystemError::NotMounted); }
-        Ext4FileSystem::write_file(self, file, offset, data)
+        Ext2FileSystem::write_file(self, file, offset, data)
     }
 
     fn delete_file(&mut self, path: &str) -> FilesystemResult<()> {
         if !self.is_mounted() { return Err(FilesystemError::NotMounted); }
-        Ext4FileSystem::delete_file(self, path)
+        Ext2FileSystem::delete_file(self, path)
     }
 
     fn delete_directory(&mut self, path: &str) -> FilesystemResult<()> {
         if !self.is_mounted() { return Err(FilesystemError::NotMounted); }
-        Ext4FileSystem::delete_directory(self, path)
+        Ext2FileSystem::delete_directory(self, path)
     }
     
     fn truncate_file(&mut self, file: &FileEntry, new_size: u64) -> FilesystemResult<()> {
         if !self.is_mounted() { return Err(FilesystemError::NotMounted); }
-        // Calls the existing method on Ext4FileSystem struct
-        // Ext4FileSystem::truncate_file(self, file, new_size) 
+        // Calls the existing method on Ext2FileSystem struct
+        // Ext2FileSystem::truncate_file(self, file, new_size) 
         // For now, since the main truncate_file is a basic stub:
-        console_println!("ext4 FS Trait: truncate_file for '{}' to size {} - NOT IMPLEMENTED in main struct", file.name, new_size);
+        console_println!("ext2 FS Trait: truncate_file for '{}' to size {} - NOT IMPLEMENTED in main struct", file.name, new_size);
         Err(FilesystemError::UnsupportedFilesystem)
     }
 
     fn sync(&mut self) -> FilesystemResult<()> {
-        // For ext4, fsync would involve ensuring all dirty metadata and data are written to disk.
+        // For ext2, fsync would involve ensuring all dirty metadata and data are written to disk.
         // This includes superblock, group descriptors, inode table, block bitmaps, inode bitmaps,
         // and any modified file data blocks.
         // For now, this is a placeholder.
-        console_println!("Ext4FileSystem: sync() called, placeholder.");
+        console_println!("Ext2FileSystem: sync() called, placeholder.");
         Ok(())
     }
-} // This is the correct closing brace for impl FileSystem for Ext4FileSystem
+} // This is the correct closing brace for impl FileSystem for Ext2FileSystem

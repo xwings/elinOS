@@ -275,7 +275,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  ✅ Auto-scaling buffer sizes\n")?;
     syscall::sys_print("  ✅ Hardware-adaptive memory management\n")?;
     syscall::sys_print("  ✅ VirtIO device auto-detection\n")?;
-    syscall::sys_print("  ✅ Modular filesystem (FAT32 + ext4)\n")?;
+    syscall::sys_print("  ✅ Modular filesystem (FAT32 + ext2)\n")?;
     syscall::sys_print("  ✅ Experimental kernel design\n")?;
     
     Ok(())
@@ -433,7 +433,7 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
             syscall::sys_print("Type: ")?;
             match fs_type {
                 crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
-                crate::filesystem::FilesystemType::Ext4 => syscall::sys_print("ext4")?,
+                crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
                 crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
             }
             syscall::sys_print("\n")?;
@@ -501,7 +501,7 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
             syscall::sys_print(" (from ")?;
             match fs_type {
                 crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
-                crate::filesystem::FilesystemType::Ext4 => syscall::sys_print("ext4")?,
+                crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
                 crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
             }
             syscall::sys_print(" filesystem)\n")?;

@@ -2,7 +2,7 @@
 // Supports multiple filesystem types with automatic detection
 
 pub mod fat32;
-pub mod ext4;
+pub mod ext2;
 pub mod traits;
 
 use spin::Mutex;
@@ -11,14 +11,14 @@ use heapless::Vec;
 
 pub use traits::{FileSystem, FileEntry, FilesystemError, FilesystemResult};
 use fat32::Fat32FileSystem;
-use ext4::Ext4FileSystem;
+use ext2::Ext2FileSystem;
 
 /// Filesystem type detection
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FilesystemType {
     Unknown,
     Fat32,
-    Ext4,
+    Ext2,
 }
 
 impl core::fmt::Display for FilesystemType {
@@ -26,7 +26,7 @@ impl core::fmt::Display for FilesystemType {
         match self {
             FilesystemType::Unknown => write!(f, "Unknown"),
             FilesystemType::Fat32 => write!(f, "FAT32"),
-            FilesystemType::Ext4 => write!(f, "ext4"),
+            FilesystemType::Ext2 => write!(f, "ext2"),
         }
     }
 }
@@ -34,7 +34,7 @@ impl core::fmt::Display for FilesystemType {
 /// Unified filesystem container
 pub enum Filesystem {
     Fat32(Fat32FileSystem),
-    Ext4(Ext4FileSystem),
+    Ext2(Ext2FileSystem),
     None,
 }
 
@@ -67,12 +67,12 @@ impl UnifiedFileSystem {
                 self.filesystem = Filesystem::Fat32(fat32_fs);
                 console_println!("✅ FAT32 filesystem mounted successfully");
             }
-            FilesystemType::Ext4 => {
-                console_println!("🗂️  Mounting ext4 filesystem...");
-                let mut ext4_fs = Ext4FileSystem::new();
-                ext4_fs.init()?;
-                self.filesystem = Filesystem::Ext4(ext4_fs);
-                console_println!("✅ ext4 filesystem mounted successfully");
+            FilesystemType::Ext2 => {
+                console_println!("🗂️  Mounting ext2 filesystem...");
+                let mut ext2_fs = Ext2FileSystem::new();
+                ext2_fs.init()?;
+                self.filesystem = Filesystem::Ext2(ext2_fs);
+                console_println!("✅ ext2 filesystem mounted successfully");
             }
             FilesystemType::Unknown => {
                 console_println!("❌ No supported filesystem detected");
@@ -92,7 +92,7 @@ impl UnifiedFileSystem {
     pub fn is_initialized(&self) -> bool {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.is_initialized(),
-            Filesystem::Ext4(fs) => fs.is_initialized(),
+            Filesystem::Ext2(fs) => fs.is_initialized(),
             Filesystem::None => false,
         }
     }
@@ -101,7 +101,7 @@ impl UnifiedFileSystem {
     pub fn is_mounted(&self) -> bool {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.is_mounted(),
-            Filesystem::Ext4(fs) => fs.is_mounted(),
+            Filesystem::Ext2(fs) => fs.is_mounted(),
             Filesystem::None => false,
         }
     }
@@ -112,7 +112,7 @@ impl FileSystem for UnifiedFileSystem {
     fn list_files(&self) -> FilesystemResult<Vec<(heapless::String<64>, usize), 32>> {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.list_files(),
-            Filesystem::Ext4(fs) => fs.list_files(),
+            Filesystem::Ext2(fs) => fs.list_files(),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -120,7 +120,7 @@ impl FileSystem for UnifiedFileSystem {
     fn list_directory(&self, path: &str) -> FilesystemResult<Vec<(heapless::String<64>, usize, bool), 32>> {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.list_directory(path),
-            Filesystem::Ext4(fs) => fs.list_directory(path),
+            Filesystem::Ext2(fs) => fs.list_directory(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -128,7 +128,7 @@ impl FileSystem for UnifiedFileSystem {
     fn read_file(&self, filename: &str) -> FilesystemResult<Vec<u8, 4096>> {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.read_file(filename),
-            Filesystem::Ext4(fs) => fs.read_file(filename),
+            Filesystem::Ext2(fs) => fs.read_file(filename),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -136,7 +136,7 @@ impl FileSystem for UnifiedFileSystem {
     fn file_exists(&self, filename: &str) -> bool {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.file_exists(filename),
-            Filesystem::Ext4(fs) => fs.file_exists(filename),
+            Filesystem::Ext2(fs) => fs.file_exists(filename),
             Filesystem::None => false,
         }
     }
@@ -144,7 +144,7 @@ impl FileSystem for UnifiedFileSystem {
     fn get_filesystem_info(&self) -> Option<(u16, u32, u16)> {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.get_filesystem_info(),
-            Filesystem::Ext4(fs) => fs.get_filesystem_info(),
+            Filesystem::Ext2(fs) => fs.get_filesystem_info(),
             Filesystem::None => None,
         }
     }
@@ -152,7 +152,7 @@ impl FileSystem for UnifiedFileSystem {
     fn is_initialized(&self) -> bool {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.is_initialized(),
-            Filesystem::Ext4(fs) => fs.is_initialized(),
+            Filesystem::Ext2(fs) => fs.is_initialized(),
             Filesystem::None => false,
         }
     }
@@ -160,7 +160,7 @@ impl FileSystem for UnifiedFileSystem {
     fn is_mounted(&self) -> bool {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.is_mounted(),
-            Filesystem::Ext4(fs) => fs.is_mounted(),
+            Filesystem::Ext2(fs) => fs.is_mounted(),
             Filesystem::None => false,
         }
     }
@@ -169,7 +169,7 @@ impl FileSystem for UnifiedFileSystem {
     fn create_file(&mut self, path: &str) -> FilesystemResult<FileEntry> {
         match &mut self.filesystem {
             Filesystem::Fat32(fs) => fs.create_file(path),
-            Filesystem::Ext4(fs) => fs.create_file(path),
+            Filesystem::Ext2(fs) => fs.create_file(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -177,7 +177,7 @@ impl FileSystem for UnifiedFileSystem {
     fn create_directory(&mut self, path: &str) -> FilesystemResult<FileEntry> {
         match &mut self.filesystem {
             Filesystem::Fat32(fs) => fs.create_directory(path),
-            Filesystem::Ext4(fs) => fs.create_directory(path),
+            Filesystem::Ext2(fs) => fs.create_directory(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -185,7 +185,7 @@ impl FileSystem for UnifiedFileSystem {
     fn write_file(&mut self, file: &FileEntry, offset: u64, data: &[u8]) -> FilesystemResult<usize> {
         match &mut self.filesystem {
             Filesystem::Fat32(fs) => fs.write_file(file, offset, data),
-            Filesystem::Ext4(fs) => fs.write_file(file, offset, data),
+            Filesystem::Ext2(fs) => fs.write_file(file, offset, data),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -193,7 +193,7 @@ impl FileSystem for UnifiedFileSystem {
     fn delete_file(&mut self, path: &str) -> FilesystemResult<()> {
         match &mut self.filesystem {
             Filesystem::Fat32(fs) => fs.delete_file(path),
-            Filesystem::Ext4(fs) => fs.delete_file(path),
+            Filesystem::Ext2(fs) => fs.delete_file(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -201,7 +201,7 @@ impl FileSystem for UnifiedFileSystem {
     fn delete_directory(&mut self, path: &str) -> FilesystemResult<()> {
         match &mut self.filesystem {
             Filesystem::Fat32(fs) => fs.delete_directory(path),
-            Filesystem::Ext4(fs) => fs.delete_directory(path),
+            Filesystem::Ext2(fs) => fs.delete_directory(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -209,7 +209,7 @@ impl FileSystem for UnifiedFileSystem {
     fn truncate_file(&mut self, file: &FileEntry, new_size: u64) -> FilesystemResult<()> {
         match &mut self.filesystem {
             Filesystem::Fat32(fs) => fs.truncate_file(file, new_size),
-            Filesystem::Ext4(fs) => fs.truncate_file(file, new_size),
+            Filesystem::Ext2(fs) => fs.truncate_file(file, new_size),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -217,7 +217,7 @@ impl FileSystem for UnifiedFileSystem {
     fn sync(&mut self) -> FilesystemResult<()> {
         match &mut self.filesystem {
             Filesystem::Fat32(fs) => fs.sync(),
-            Filesystem::Ext4(fs) => fs.sync(),
+            Filesystem::Ext2(fs) => fs.sync(),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
     }
@@ -249,45 +249,45 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
         }
         Err(e) => {
             console_println!("filesystem::detect_filesystem_type: Failed to read sector 0 for FAT32 check: {:?}", e);
-            // Don't return error yet, try ext4
+            // Don't return error yet, try ext2
         }
     }
 
-    // Try ext4 detection (check Superblock Magic)
-    console_println!("filesystem::detect_filesystem_type: Attempting to read sectors for ext4 superblock check...");
-    const EXT4_SUPERBLOCK_OFFSET: usize = 1024;
+    // Try ext2 detection (check Superblock Magic)
+    console_println!("filesystem::detect_filesystem_type: Attempting to read sectors for ext2 superblock check...");
+    const EXT2_SUPERBLOCK_OFFSET: usize = 1024;
     const SECTOR_SIZE: usize = 512;
-    let start_sector = EXT4_SUPERBLOCK_OFFSET / SECTOR_SIZE; // Should be sector 2
+    let start_sector = EXT2_SUPERBLOCK_OFFSET / SECTOR_SIZE; // Should be sector 2
     let mut sb_buffer = [0u8; 1024];
 
     for i in 0..2 {
         let current_sector_to_read = (start_sector + i) as u64;
-        console_println!("filesystem::detect_filesystem_type: Reading ext4 SB sector {}", current_sector_to_read);
+        console_println!("filesystem::detect_filesystem_type: Reading ext2 SB sector {}", current_sector_to_read);
         let mut sector_buf = [0u8; SECTOR_SIZE];
         match disk_device.read_blocks(current_sector_to_read, &mut sector_buf) {
             Ok(_) => {
-                console_println!("filesystem::detect_filesystem_type: Successfully read ext4 SB sector {}", current_sector_to_read);
+                console_println!("filesystem::detect_filesystem_type: Successfully read ext2 SB sector {}", current_sector_to_read);
                 sb_buffer[i * SECTOR_SIZE..(i + 1) * SECTOR_SIZE].copy_from_slice(&sector_buf);
             }
             Err(e) => {
-                console_println!("filesystem::detect_filesystem_type: Failed to read ext4 SB sector {}: {:?}", current_sector_to_read, e);
-                // If we can't read these, it's unlikely ext4, or there's a general disk issue.
+                console_println!("filesystem::detect_filesystem_type: Failed to read ext2 SB sector {}: {:?}", current_sector_to_read, e);
+                // If we can't read these, it's unlikely ext2, or there's a general disk issue.
                 return Ok(FilesystemType::Unknown); // Return Unknown, don't mask with IoError yet
             }
         }
     }
 
-    // Parse ext4 superblock magic from sb_buffer
-    // ext4 magic 0xEF53 is at offset 0x38 (56) within the 1024-byte superblock data
+    // Parse ext2 superblock magic from sb_buffer
+    // ext2 magic 0xEF53 is at offset 0x38 (56) within the 1024-byte superblock data
     if sb_buffer.len() >= 56 + 2 {
-        let ext4_magic = u16::from_le_bytes([sb_buffer[56], sb_buffer[57]]);
-        if ext4_magic == 0xEF53 {
-            console_println!("filesystem::detect_filesystem_type: ext4 magic 0xEF53 found.");
-            return Ok(FilesystemType::Ext4);
+        let ext2_magic = u16::from_le_bytes([sb_buffer[56], sb_buffer[57]]);
+        if ext2_magic == 0xEF53 {
+            console_println!("filesystem::detect_filesystem_type: ext2 magic 0xEF53 found.");
+            return Ok(FilesystemType::Ext2);
         }
-        console_println!("filesystem::detect_filesystem_type: ext4 magic not found (read 0x{:04X}).", ext4_magic);
+        console_println!("filesystem::detect_filesystem_type: ext2 magic not found (read 0x{:04X}).", ext2_magic);
     } else {
-        console_println!("filesystem::detect_filesystem_type: Superblock buffer too short for ext4 magic check.");
+        console_println!("filesystem::detect_filesystem_type: Superblock buffer too short for ext2 magic check.");
     }
 
     console_println!("filesystem::detect_filesystem_type: No known filesystem type identified.");

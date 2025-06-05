@@ -15,7 +15,7 @@ elinOS features a sophisticated filesystem layer that supports multiple filesyst
 
 ### Key Features
 
-- **Multi-Filesystem Support**: Native FAT32 and ext4 implementations
+- **Multi-Filesystem Support**: Native FAT32 and ext2 implementations
 - **Automatic Detection**: Probes disk structures to identify filesystem type
 - **Unified API**: Single interface for all supported filesystems
 - **Real Parsing**: Actual implementation of filesystem specifications, not simulation
@@ -45,7 +45,7 @@ elinOS features a sophisticated filesystem layer that supports multiple filesyst
 │           Filesystem Implementations                       │
 │                                                             │
 │  ┌─────────────────┐           ┌─────────────────┐          │
-│  │  FAT32 Driver   │           │   ext4 Driver   │          │
+│  │  FAT32 Driver   │           │   ext2 Driver   │          │
 │  │                 │           │                 │          │
 │  │ • Boot Sector   │           │ • Superblock    │          │
 │  │ • FAT Tables    │           │ • Group Desc    │          │
@@ -116,9 +116,9 @@ struct Fat32DirEntry {
 - ✅ **Filesystem Info**: Returns signature, sector count, sector size
 - ❌ **Long Filenames**: Only 8.3 names supported
 
-### ext4 Implementation
+### ext2 Implementation
 
-**Real ext4 driver with superblock and inode parsing:**
+**Real ext2 driver with superblock and inode parsing:**
 
 #### Features
 - **Superblock Validation**: Verifies 0xEF53 magic and filesystem parameters
@@ -130,7 +130,7 @@ struct Fat32DirEntry {
 #### Technical Details
 ```rust
 // Superblock structure (1024 bytes at offset 1024)
-struct Ext4Superblock {
+struct Ext2Superblock {
     s_inodes_count: u32,          // Total inodes
     s_blocks_count_lo: u32,       // Total blocks
     s_log_block_size: u32,        // Block size (1024 << s_log_block_size)
@@ -141,7 +141,7 @@ struct Ext4Superblock {
 }
 
 // Inode structure (256 bytes typical)
-struct Ext4Inode {
+struct Ext2Inode {
     i_mode: u16,                  // File mode and type
     i_size_lo: u32,               // File size
     i_flags: u32,                 // Inode flags
@@ -150,13 +150,13 @@ struct Ext4Inode {
 }
 
 // Extent structures for modern file layout
-struct Ext4ExtentHeader {
+struct Ext2ExtentHeader {
     eh_magic: u16,                // 0xF30A magic
     eh_entries: u16,              // Number of extents
     eh_depth: u16,                // Tree depth (0 = leaf)
 }
 
-struct Ext4Extent {
+struct Ext2Extent {
     ee_block: u32,                // Logical block number
     ee_len: u16,                  // Number of blocks
     ee_start_hi: u16,             // High 16 bits of physical block
@@ -192,12 +192,12 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
         }
     }
     
-    // Step 2: Check ext4 superblock (offset 1024 bytes)
+    // Step 2: Check ext2 superblock (offset 1024 bytes)
     let superblock_sectors = read_sectors(2, 2)?;  // Read 2 sectors starting at sector 2
-    let ext4_magic = u16::from_le_bytes([superblock_sectors[56], superblock_sectors[57]]);
+    let ext2_magic = u16::from_le_bytes([superblock_sectors[56], superblock_sectors[57]]);
     
-    if ext4_magic == 0xEF53 {
-        return Ok(FilesystemType::Ext4);
+    if ext2_magic == 0xEF53 {
+        return Ok(FilesystemType::Ext2);
     }
     
     Ok(FilesystemType::Unknown)
@@ -207,7 +207,7 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
 ### Detection Process
 
 1. **Boot Sector Analysis**: Reads sector 0 and checks for FAT32 signature
-2. **Superblock Analysis**: Reads ext4 superblock at offset 1024 bytes
+2. **Superblock Analysis**: Reads ext2 superblock at offset 1024 bytes
 3. **Magic Number Validation**: Verifies filesystem-specific magic numbers
 4. **Type-Specific Verification**: Additional checks for filesystem validity
 
@@ -234,14 +234,14 @@ pub struct FileEntry {
     pub name: heapless::String<256>,
     pub is_directory: bool,
     pub size: usize,
-    pub inode: u64,  // Cluster (FAT32) or inode number (ext4)
+    pub inode: u64,  // Cluster (FAT32) or inode number (ext2)
 }
 
 // Supported filesystem types
 pub enum FilesystemType {
     Unknown,
     Fat32,
-    Ext4,
+    Ext2,
 }
 ```
 
@@ -295,7 +295,7 @@ pub trait FileSystem {
 
 ### Performance Characteristics
 
-| Operation | FAT32 Time | ext4 Time | Notes |
+| Operation | FAT32 Time | ext2 Time | Notes |
 |-----------|------------|-----------|-------|
 | **Detection** | ~5ms | ~8ms | Includes disk probing |
 | **Mount** | ~15ms | ~25ms | Full directory parsing |
@@ -308,7 +308,7 @@ pub trait FileSystem {
 #### Current Limitations
 - **Read-only Access**: No write/create/delete operations
 - **Single Directory**: Only root directory supported
-- **Limited ext4**: No multi-level extent trees
+- **Limited ext2**: No multi-level extent trees
 - **No Caching**: File contents not cached (re-read each time)
 - **Fixed Buffers**: 4KB maximum file size
 
@@ -375,10 +375,10 @@ elinOS> filesystem            # Calls check_filesystem()
 make create-disk
 make populate-disk
 
-# Create ext4 test disk  
-make create-ext4
+# Create ext2 test disk  
+make create-ext2
 sudo mount -o loop disk.img /mnt
-echo "Hello ext4!" | sudo tee /mnt/hello.txt
+echo "Hello ext2!" | sudo tee /mnt/hello.txt
 sudo umount /mnt
 
 # Run with filesystem

@@ -184,7 +184,7 @@ elinOS> help
 Available commands:
   help       - Show this help
   memory     - Show memory information
-  ext4check  - Check embedded ext4 filesystem
+  ext2check  - Check embedded ext2 filesystem
   disktest   - Test filesystem operations
   ls         - List files
   cat <file> - Show file contents
@@ -233,11 +233,11 @@ ELF Binary Information:
   Section header offset: 0x0
   Section header count: 0
 
-elinOS> ext4check
-EXT4 Filesystem Check
+elinOS> ext2check
+EXT2 Filesystem Check
 ====================
 
-✅ EXT4 filesystem is active and healthy!
+✅ EXT2 filesystem is active and healthy!
 
 📊 Superblock Information:
    Magic: 0xef53 ✅
@@ -263,9 +263,9 @@ Filesystem Block Dump
 ====================
 
 📖 Reading block 0 from embedded filesystem...
-✅ Block 0: Contains ext4 superblock at offset 1024
+✅ Block 0: Contains ext2 superblock at offset 1024
    📊 Magic: 0xef53, Block size: 4096 bytes
-   📁 Filesystem: elinOS embedded ext4
+   📁 Filesystem: elinOS embedded ext2
 
 elinOS> syscall
 System Call Information:

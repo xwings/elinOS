@@ -103,7 +103,7 @@ make check-all      # Run all checks (format, clippy, tests)
 
 # Disk image creation
 make create-disk    # Create test FAT32 disk image
-make create-ext4    # Create test ext4 disk image
+make create-ext2    # Create test ext2 disk image
 ```
 
 ### Build Configuration
@@ -249,7 +249,7 @@ elinOS/
 │   ├── filesystem/        # Filesystem support
 │   │   ├── mod.rs         # VFS layer
 │   │   ├── fat32.rs       # FAT32 implementation
-│   │   └── ext4.rs        # ext4 implementation
+│   │   └── ext2.rs        # ext2 implementation
 │   ├── syscall/           # System call interface
 │   ├── virtio_blk.rs      # VirtIO block driver
 │   └── sbi.rs             # SBI interface

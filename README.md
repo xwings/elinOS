@@ -14,17 +14,14 @@
 
 ### 🧠 **Advanced Memory Management**
 - **Multi-Tier Architecture**: Buddy allocator + Slab allocator + Fallible operations
-- **Dynamic Hardware Detection**: Automatically detects RAM size via SBI and adapts all allocations accordingly
-- **Zero Hardcoded Values**: Scales from 8MB to 8GB+ systems seamlessly
-- **Inspired by Maestro OS**: Implements fallible allocation patterns with transaction rollback
 - **Memory Zones**: DMA, Normal, and High memory zone support with automatic detection
-- **Performance**: ~10x faster small allocations, ~3x faster large allocations, ~5x less fragmentation
+- **Performance**: Smaller footprint, faster small allocations, faster large allocations, less fragmentation
 
-### 💾 **Real Filesystem Support**
-- **Multi-Filesystem**: Native FAT32 and ext4 implementations with real parsing
+### 💾 **Filesystem Support**
+- **Multi-Filesystem**: Native FAT32 and ext2 implementations with real parsing
 - **Automatic Detection**: Probes boot sectors and superblocks to identify filesystem type
 - **FAT32 Features**: Boot sector parsing, directory enumeration, cluster chain following, 8.3 filenames
-- **ext4 Features**: Superblock validation, inode parsing, extent tree traversal, group descriptors
+- **ext2 Features**: Superblock validation, inode parsing, extent tree traversal, group descriptors
 - **VirtIO Block Device**: Full VirtIO 1.0/1.1 support with auto-detection and queue management
 - **Dynamic Buffer Sizing**: File buffers scale based on available memory (4KB → 1MB)
 
@@ -67,27 +64,18 @@ cd elinOS
 
 # Build the kernel
 make build
-
-# Run in QEMU with graphics
-make run-graphics
-
-# Run in console mode
-make run
 ```
 
 ### Creating Test Filesystems
 
 ```bash
 # Create a FAT32 test disk with files
-make create-disk
-echo "Hello from FAT32!" > hello.txt
-mcopy -i disk.img hello.txt ::
+make fat32-disk
+make populate-disk
 
-# Create an ext4 test disk with files
-make create-ext4
-sudo mount -o loop disk.img /mnt
-echo "Hello from ext4!" | sudo tee /mnt/hello.txt
-sudo umount /mnt
+# Create an ext2 test disk with files
+make ext2-disk
+make populate-disk
 
 # The kernel will automatically detect and mount the filesystem
 make run
@@ -133,7 +121,7 @@ make run
 │  │ Memory Manager  │ │ Filesystem      │ │ Device Mgmt   │  │
 │  │                 │ │                 │ │               │  │
 │  │ • Buddy Alloc   │ │ • Real FAT32    │ │ • VirtIO 1.1  │  │
-│  │ • Slab Alloc    │ │ • Real ext4     │ │ • Auto-detect │  │
+│  │ • Slab Alloc    │ │ • Real ext2     │ │ • Auto-detect │  │
 │  │ • Fallible Ops  │ │ • Auto-detect   │ │ • SBI Runtime │  │
 │  │ • Transactions  │ │ • Boot Sectors  │ │ • MMIO Queues │  │
 │  └─────────────────┘ └─────────────────┘ └───────────────┘  │
@@ -150,13 +138,18 @@ elinOS> help                    # Show all available commands
 elinOS> config                  # Display dynamic system configuration
 elinOS> memory                  # Show memory layout and allocator statistics
 elinOS> devices                 # List detected VirtIO devices
-elinOS> ls                      # List files (auto-detects FAT32/ext4)
+elinOS> ls                      # List files (auto-detects FAT32/ext2)
 elinOS> cat filename.txt        # Read file contents from filesystem
-elinOS> filesystem             # Show filesystem type and mount status
+elinOS> touch filename.txt      # create empty file
+elinOS> rm filename.txt         # remove empty
+elinOS> cd dirname              # change dir path
+elinOS> mkdir dirname           # create dir
+elinOS> rmdir dirname           # remove dir
+elinOS> filesystem              # Show filesystem type and mount status
 elinOS> syscall                 # Show system call information
 elinOS> version                 # Kernel version and features
-elinOS> shutdown               # Graceful system shutdown via SBI
-elinOS> reboot                 # System reboot via SBI
+elinOS> shutdown                # Graceful system shutdown via SBI
+elinOS> reboot                  # System reboot via SBI
 ```
 
 ## 🔬 Research Applications
@@ -167,7 +160,6 @@ elinOS is designed for:
 - **Filesystem Development**: Implementing and testing new filesystem types
 - **OS experiment**: Learning kernel development concepts with real implementations
 - **Hardware Bring-up**: Porting to new RISC-V platforms and devices
-- **Performance Analysis**: Benchmarking kernel subsystems and allocation patterns
 
 ## 🤝 Contributing
 
@@ -188,17 +180,6 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - Document public APIs thoroughly
 - Include tests for new functionality
 - Ensure memory safety and performance
-
-## 📊 Performance Characteristics
-
-| Metric | Performance | Implementation |
-|--------|-------------|----------------|
-| **Small Allocation (≤1KB)** | ~10x faster than simple heap | Slab allocator with size classes |
-| **Large Allocation (≥4KB)** | ~3x faster than simple heap | Buddy allocator with coalescing |
-| **Memory Fragmentation** | ~5x reduction vs. simple heap | Multi-tier allocation strategy |
-| **Boot Time** | <100ms to interactive shell | Optimized initialization |
-| **Memory Overhead** | <5% of total RAM for kernel | Efficient data structures |
-| **Filesystem Detection** | <10ms for FAT32/ext4 | Direct boot sector/superblock parsing |
 
 ## 🛣️ Roadmap
 

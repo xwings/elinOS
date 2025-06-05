@@ -21,10 +21,10 @@
 - **性能**：小块分配速度提高约 10 倍，大块分配速度提高约 3 倍，碎片减少约 5 倍
 
 ### 💾 **真实文件系统支持**
-- **多文件系统**：原生 FAT32 和 ext4 实现，带真实解析
+- **多文件系统**：原生 FAT32 和 ext2 实现，带真实解析
 - **自动检测**：探测引导扇区和超级块以识别文件系统类型
 - **FAT32 特性**：引导扇区解析、目录枚举、簇链跟踪、8.3 文件名
-- **ext4 特性**：超级块验证、inode 解析、区段树遍历、组描述符
+- **ext2 特性**：超级块验证、inode 解析、区段树遍历、组描述符
 - **VirtIO 块设备**：完整 VirtIO 1.0/1.1 支持，带自动检测和队列管理
 - **动态缓冲区大小**：文件缓冲区根据可用内存动态调整（4KB → 1MB）
 
@@ -83,10 +83,10 @@ make create-disk
 echo "来自 FAT32 的问候!" > hello.txt
 mcopy -i disk.img hello.txt ::
 
-# 创建一个带文件的 ext4 测试磁盘
-make create-ext4
+# 创建一个带文件的 ext2 测试磁盘
+make create-ext2
 sudo mount -o loop disk.img /mnt
-echo "来自 ext4 的问候!" | sudo tee /mnt/hello.txt
+echo "来自 ext2 的问候!" | sudo tee /mnt/hello.txt
 sudo umount /mnt
 
 # 内核将自动检测并挂载文件系统
@@ -134,7 +134,7 @@ make run
 │  │ (Memory Manager)│ │ (Filesystem)    │ │ (Device Mgmt) │  │
 │  │                 │ │                 │ │               │  │
 │  │ • 伙伴分配器    │ │ • 真实 FAT32    │ │ • VirtIO 1.1  │  │
-│  │ • Slab 分配器   │ │ • 真实 ext4     │ │ • 自动检测    │  │
+│  │ • Slab 分配器   │ │ • 真实 ext2     │ │ • 自动检测    │  │
 │  │ • 可失败操作    │ │ • 自动检测      │ │ • SBI 运行时  │  │
 │  │ • 事务          │ │ • 引导扇区      │ │ • MMIO 队列   │  │
 │  └─────────────────┘ └─────────────────┘ └───────────────┘  │
@@ -151,7 +151,7 @@ elinOS> help                    # 显示所有可用命令
 elinOS> config                  # 显示动态系统配置
 elinOS> memory                  # 显示内存布局和分配器统计信息
 elinOS> devices                 # 列出检测到的 VirtIO 设备
-elinOS> ls                      # 列出文件 (自动检测 FAT32/ext4)
+elinOS> ls                      # 列出文件 (自动检测 FAT32/ext2)
 elinOS> cat filename.txt        # 读取文件系统中的文件内容
 elinOS> filesystem             # 显示文件系统类型和挂载状态
 elinOS> syscall                 # 显示系统调用信息
@@ -199,7 +199,7 @@ elinOS 专为以下研究设计：
 | **内存碎片**             | 比简单堆减少约 5 倍          | 多层分配策略                   |
 | **启动时间**             | <100毫秒至交互式 Shell      | 优化的初始化过程               |
 | **内存开销**             | 内核占用总 RAM <5%           | 高效的数据结构                 |
-| **文件系统检测**         | <10毫秒检测 FAT32/ext4      | 直接解析引导扇区/超级块        |
+| **文件系统检测**         | <10毫秒检测 FAT32/ext2      | 直接解析引导扇区/超级块        |
 
 ## 🛣️ 路线图
 

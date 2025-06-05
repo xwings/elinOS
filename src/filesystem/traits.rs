@@ -37,7 +37,7 @@ impl core::fmt::Display for FilesystemError {
             FilesystemError::NotMounted => write!(f, "Filesystem not mounted"),
             FilesystemError::UnsupportedFilesystem => write!(f, "Unsupported filesystem type"),
             FilesystemError::InvalidBootSector => write!(f, "Invalid FAT32 boot sector"),
-            FilesystemError::InvalidSuperblock => write!(f, "Invalid ext4 superblock"),
+            FilesystemError::InvalidSuperblock => write!(f, "Invalid ext2 superblock"),
             FilesystemError::FileNotFound => write!(f, "File not found"),
             FilesystemError::FilenameTooLong => write!(f, "Filename too long"),
             FilesystemError::FilesystemFull => write!(f, "Filesystem full"),
@@ -75,7 +75,7 @@ pub struct FileEntry {
     pub name: heapless::String<256>,
     pub is_directory: bool,
     pub size: usize,
-    pub inode: u64,  // Can be cluster (FAT32) or inode number (ext4)
+    pub inode: u64,  // Can be cluster (FAT32) or inode number (ext2)
 }
 
 impl FileEntry {
