@@ -42,6 +42,19 @@ ifeq ($(OPENSBI),)
     OPENSBI := default
 endif
 
+# Cross-compiler configuration
+RISCV_PREFIX := riscv64-unknown-elf-
+RISCV_CC := $(RISCV_PREFIX)gcc
+RISCV_OBJDUMP := $(RISCV_PREFIX)objdump
+RISCV_OBJCOPY := $(RISCV_PREFIX)objcopy
+RISCV_CFLAGS := -march=rv64gc -mabi=lp64d -static -nostdlib -nostartfiles -ffreestanding -fno-stack-protector
+
+# C programs configuration
+C_PROGRAMS_DIR := examples/c_programs
+C_BUILD_DIR := target/c_programs
+C_SOURCES := $(wildcard $(C_PROGRAMS_DIR)/*.c)
+C_BINARIES := $(patsubst $(C_PROGRAMS_DIR)/%.c,$(C_BUILD_DIR)/%,$(C_SOURCES))
+
 # Disk image configuration
 DISK_SIZE := 32M
 DISK_IMAGE := disk.img
@@ -111,17 +124,54 @@ rebuild: clean build ## Clean and rebuild the kernel
 .PHONY: rebuild-release
 rebuild-release: clean build-release ## Clean and rebuild the kernel (release)
 
+.PHONY: all
+all: build c-programs prepare-disk ## Build kernel, compile C programs, and prepare disk
+
 .PHONY: clean
 clean: ## Clean build artifacts
 	@echo -e "$(COLOR_YELLOW)Cleaning build artifacts...$(COLOR_RESET)"
 	@cargo clean
 	@rm -f $(DISK_IMAGE)
+	@rm -rf $(C_BUILD_DIR)
 	@echo -e "$(COLOR_GREEN)✓ Clean completed$(COLOR_RESET)"
 
 .PHONY: check
 check: ## Check code without building
 	@echo -e "$(COLOR_BLUE)Checking code...$(COLOR_RESET)"
 	@cargo check $(CARGO_FLAGS)
+
+# =============================================================================
+# C Programs Compilation
+# =============================================================================
+
+.PHONY: c-programs
+c-programs: $(C_BINARIES) ## Compile all C example programs
+
+$(C_BUILD_DIR)/%: $(C_PROGRAMS_DIR)/%.c | $(C_BUILD_DIR)
+	@echo -e "$(COLOR_BLUE)Compiling C program: $<$(COLOR_RESET)"
+	@$(RISCV_CC) $(RISCV_CFLAGS) -o $@ $<
+	@echo -e "$(COLOR_GREEN)✓ Compiled: $@$(COLOR_RESET)"
+
+$(C_BUILD_DIR):
+	@mkdir -p $(C_BUILD_DIR)
+
+.PHONY: c-programs-info
+c-programs-info: c-programs ## Show information about compiled C programs
+	@echo -e "$(COLOR_BLUE)C Programs Information:$(COLOR_RESET)"
+	@for binary in $(C_BINARIES); do \
+		if [ -f "$$binary" ]; then \
+			echo -e "$(COLOR_CYAN)$$binary:$(COLOR_RESET)"; \
+			file "$$binary"; \
+			size "$$binary"; \
+			echo ""; \
+		fi; \
+	done
+
+.PHONY: c-programs-clean
+c-programs-clean: ## Clean compiled C programs
+	@echo -e "$(COLOR_YELLOW)Cleaning C programs...$(COLOR_RESET)"
+	@rm -rf $(C_BUILD_DIR)
+	@echo -e "$(COLOR_GREEN)✓ C programs cleaned$(COLOR_RESET)"
 
 # =============================================================================
 # Run Commands
@@ -276,6 +326,13 @@ populate-disk: $(DISK_IMAGE) ## Add test files to disk image
 	@echo "Hello from elinOS, LittleMa, LittleBai" | sudo tee $(DISK_MOUNT)/hello.txt >/dev/null
 	@echo "This is a test file for the elinOS filesystem." | sudo tee $(DISK_MOUNT)/test.txt >/dev/null
 	@echo "README for elinOS test disk" | sudo tee $(DISK_MOUNT)/README.md >/dev/null
+	@echo "C Programs compiled for elinOS" | sudo tee $(DISK_MOUNT)/C_PROGRAMS.txt >/dev/null
+	@for binary in $(C_BINARIES); do \
+		if [ -f "$$binary" ]; then \
+			echo -e "$(COLOR_CYAN)  Copying: $$(basename $$binary)$(COLOR_RESET)"; \
+			sudo cp "$$binary" "$(DISK_MOUNT)"; \
+		fi; \
+	done	
 	@sudo umount $(DISK_MOUNT) 2>/dev/null || true
 	@rmdir $(DISK_MOUNT) 2>/dev/null || true
 	@echo -e "$(COLOR_GREEN)✓ Disk populated with test files$(COLOR_RESET)"
@@ -315,6 +372,8 @@ env-check: ## Check development environment
 	@rustup target list --installed | grep $(TARGET) >/dev/null && echo -e "  $(COLOR_GREEN)✓ $(TARGET) installed$(COLOR_RESET)" || echo -e "  $(COLOR_RED)✗ $(TARGET) not installed$(COLOR_RESET)"
 	@echo -e "$(COLOR_BOLD)QEMU:$(COLOR_RESET)"
 	@$(QEMU) --version 2>/dev/null | head -1 || echo -e "  $(COLOR_RED)✗ QEMU not found$(COLOR_RESET)"
+	@echo -e "$(COLOR_BOLD)RISC-V Cross-Compiler:$(COLOR_RESET)"
+	@$(RISCV_CC) --version 2>/dev/null | head -1 || echo -e "  $(COLOR_RED)✗ $(RISCV_CC) not found$(COLOR_RESET)"
 	@echo -e "$(COLOR_BOLD)OpenSBI Firmware:$(COLOR_RESET)"
 	@test -f "$(OPENSBI)" && echo -e "  $(COLOR_GREEN)✓ $(OPENSBI)$(COLOR_RESET)" || echo -e "  $(COLOR_YELLOW)⚠ Using default firmware$(COLOR_RESET)"
 

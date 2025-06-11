@@ -571,16 +571,56 @@ pub fn get_max_file_size() -> usize {
 
 /// Convenience functions for memory allocation
 pub fn allocate_memory(size: usize) -> Option<usize> {
+    console_println!("🔍 Memory allocation request: {} bytes", size);
+    
+    // First try our custom allocator
     let mut manager = MEMORY_MANAGER.lock();
     match manager.try_allocate(size) {
-        Ok(ptr) => Some(ptr as usize),
-        Err(_) => None,
+        Ok(ptr) => {
+            console_println!("✅ Custom allocator succeeded: 0x{:x}", ptr as usize);
+            Some(ptr as usize)
+        }
+        Err(_) => {
+            console_println!("⚠️  Custom allocator failed, trying direct heap allocation");
+            drop(manager); // Release lock before using global allocator
+            
+            // Try to allocate directly from the initialized heap
+            // We need to get a pointer from the global allocator somehow
+            // For now, let's try a simple bump allocator approach
+            unsafe {
+                if let Some(heap_slice) = &mut HEAP_SPACE {
+                    // Simple bump allocator - allocate from the heap space
+                    let align = 8; // 8-byte alignment
+                    let aligned_size = (size + align - 1) & !(align - 1);
+                    
+                    // We need to track current position - use a static variable
+                    static mut SIMPLE_HEAP_POS: usize = 0;
+                    
+                    if SIMPLE_HEAP_POS + aligned_size <= heap_slice.len() {
+                        let ptr = heap_slice.as_mut_ptr().add(SIMPLE_HEAP_POS);
+                        SIMPLE_HEAP_POS += aligned_size;
+                        console_println!("✅ Direct heap allocation: {} bytes at 0x{:x}", size, ptr as usize);
+                        return Some(ptr as usize);
+                    } else {
+                        console_println!("❌ Direct heap exhausted: needed {}, available {}", 
+                                       aligned_size, heap_slice.len() - SIMPLE_HEAP_POS);
+                    }
+                }
+            }
+            
+            console_println!("❌ All allocation methods failed for {} bytes", size);
+            None
+        }
     }
 }
 
 pub fn deallocate_memory(addr: usize, size: usize) {
+    console_println!("🗑️  Deallocating {} bytes at 0x{:x}", size, addr);
     let mut manager = MEMORY_MANAGER.lock();
     manager.deallocate(addr as *mut u8, size);
+    
+    // For the simple bump allocator, we don't actually deallocate (just track)  
+    // In a real implementation, we'd maintain a free list
 }
 
 pub fn get_memory_stats() -> MemoryStats {

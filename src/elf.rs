@@ -85,6 +85,8 @@ pub struct ElfSegment {
     pub vaddr: u64,
     pub memsz: u64,
     pub flags: u32,
+    pub data_addr: Option<usize>, // Physical address where data is loaded
+    pub data_size: usize,
 }
 
 pub struct ElfLoader;
@@ -178,20 +180,10 @@ impl ElfLoader {
                     i, p_vaddr, p_vaddr + p_memsz, p_memsz, p_flags);
                 drop(uart);
 
-                // In a real OS, we would map this segment into the process's virtual memory
-                // For now, we'll just record the segment information
-                let segment = ElfSegment {
-                    vaddr: p_vaddr,
-                    memsz: p_memsz,
-                    flags: p_flags,
-                };
+                let mut data_addr = None;
+                let mut data_size = 0;
 
-                if segments.push(segment).is_err() {
-                    return Err(ElfError::LoadError);
-                }
-
-                // TODO: Actually copy segment data to the target address
-                // This would require proper memory management and virtual memory
+                // Copy segment data to allocated memory
                 if p_filesz > 0 {
                     let file_offset = p_offset as usize;
                     let file_size = p_filesz as usize;
@@ -200,9 +192,51 @@ impl ElfLoader {
                         return Err(ElfError::LoadError);
                     }
 
-                    // In a real implementation, we would copy the data:
-                    // let segment_data = &data[file_offset..file_offset + file_size];
-                    // copy_to_virtual_address(ph.p_vaddr, segment_data);
+                    // Get the segment data from the ELF file
+                    let segment_data = &data[file_offset..file_offset + file_size];
+                    
+                    // Allocate memory for the segment
+                    if let Some(allocated_addr) = crate::memory::allocate_memory(p_memsz as usize) {
+                        console_println!("📋 Allocated {} bytes at 0x{:x} for segment at vaddr 0x{:x}", 
+                            p_memsz, allocated_addr, p_vaddr);
+                        
+                        // Copy segment data to allocated memory
+                        unsafe {
+                            let dest_ptr = allocated_addr as *mut u8;
+                            core::ptr::copy_nonoverlapping(
+                                segment_data.as_ptr(),
+                                dest_ptr,
+                                file_size
+                            );
+                            
+                            // Zero out any remaining memory
+                            if p_memsz > p_filesz {
+                                let zero_start = dest_ptr.add(file_size);
+                                let zero_size = (p_memsz - p_filesz) as usize;
+                                core::ptr::write_bytes(zero_start, 0, zero_size);
+                            }
+                        }
+                        
+                        data_addr = Some(allocated_addr);
+                        data_size = p_memsz as usize;
+                        
+                        console_println!("✅ Copied {} bytes to 0x{:x}", file_size, allocated_addr);
+                    } else {
+                        console_println!("❌ Failed to allocate memory for segment");
+                        return Err(ElfError::LoadError);
+                    }
+                }
+
+                let segment = ElfSegment {
+                    vaddr: p_vaddr,
+                    memsz: p_memsz,
+                    flags: p_flags,
+                    data_addr,
+                    data_size,
+                };
+
+                if segments.push(segment).is_err() {
+                    return Err(ElfError::LoadError);
                 }
             }
         }
@@ -318,6 +352,40 @@ impl ElfLoader {
     pub fn is_elf(&self, data: &[u8]) -> bool {
         self.parse_header(data).is_ok()
     }
+
+    /// Execute a loaded ELF binary (simplified kernel execution)
+    pub fn execute_elf(&self, loaded_elf: &LoadedElf) -> Result<(), ElfError> {
+        console_println!("🚀 Executing ELF at entry point 0x{:x}", loaded_elf.entry_point);
+        
+        // Find the executable segment
+        for segment in &loaded_elf.segments {
+            if segment.flags & PF_X != 0 && segment.data_addr.is_some() {
+                let data_addr = segment.data_addr.unwrap();
+                
+                console_println!("📍 Found executable segment at 0x{:x}", data_addr);
+                console_println!("🎯 Virtual address: 0x{:x}, Physical address: 0x{:x}", 
+                    segment.vaddr, data_addr);
+                
+                // Calculate the entry point offset within the segment
+                let entry_offset = (loaded_elf.entry_point - segment.vaddr) as usize;
+                let physical_entry = data_addr + entry_offset;
+                
+                console_println!("🏃 Jumping to physical entry point: 0x{:x}", physical_entry);
+                console_println!("   (Virtual entry: 0x{:x}, Segment base: 0x{:x}, Offset: 0x{:x})",
+                    loaded_elf.entry_point, segment.vaddr, entry_offset);
+                
+                // Execute the program by jumping to the entry point
+                unsafe {
+                    execute_user_program(physical_entry);
+                }
+                
+                return Ok(());
+            }
+        }
+        
+        console_println!("❌ No executable segment found");
+        Err(ElfError::LoadError)
+    }
 }
 
 // Helper function to get segment permissions as string
@@ -332,5 +400,187 @@ pub fn segment_permissions(flags: u32) -> &'static str {
         PF_W | PF_X => "-WX",
         PF_R | PF_W | PF_X => "RWX",
         _ => "???",
+    }
+}
+
+/// Execute user program with temporary syscall support
+unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
+    use core::arch::asm;
+    
+    // Save the current trap handler
+    let mut old_mtvec: usize;
+    asm!("csrr {}, mtvec", out(reg) old_mtvec);
+    
+    // Set our temporary trap handler
+    asm!("csrw mtvec, {}", in(reg) syscall_trap_handler as usize);
+    
+    console_println!("🛡️  Temporary syscall handler installed");
+    
+    // Execute the user function
+    let user_func: extern "C" fn() -> usize = core::mem::transmute(entry_point);
+    let result = user_func();
+    
+    // Restore the original trap handler
+    asm!("csrw mtvec, {}", in(reg) old_mtvec);
+    
+    console_println!("🔄 Original trap handler restored");
+    
+    result
+}
+
+/// Temporary trap handler specifically for user program execution
+#[no_mangle]
+extern "C" fn syscall_trap_handler() {
+    use core::arch::asm;
+    
+    let mut mcause: usize;
+    let mut mepc: usize;
+    let mut a0: usize; // syscall number  
+    let mut a1: usize; // fd
+    let mut a2: usize; // buffer ptr
+    let mut a3: usize; // count
+    
+    unsafe {
+        asm!(
+            "csrr {}, mcause",
+            "csrr {}, mepc",
+            "mv {}, a0",
+            "mv {}, a1", 
+            "mv {}, a2",
+            "mv {}, a3",
+            out(reg) mcause,
+            out(reg) mepc,
+            out(reg) a0,
+            out(reg) a1,
+            out(reg) a2,
+            out(reg) a3
+        );
+    }
+    
+    let exception_code = mcause & 0x7FFFFFFFFFFFFFFF;
+    
+    // Handle system calls (ecall)
+    if exception_code == 8 {
+        console_println!("📞 System call: SYS_{} fd={} ptr=0x{:x} len={}", a0, a1, a2, a3);
+        
+        // Handle SYS_WRITE (64)
+        if a0 == 64 && a1 == 1 { // SYS_WRITE to stdout
+            let message_ptr = a2 as *const u8;
+            let message_len = a3;
+            
+            console_println!("📝 Writing {} bytes to stdout", message_len);
+            
+            // Print the message
+            if message_len > 0 && message_len < 1024 {
+                let mut uart = crate::UART.lock();
+                for i in 0..message_len {
+                    let byte = unsafe { core::ptr::read_volatile(message_ptr.add(i)) };
+                    uart.putchar(byte);
+                }
+                drop(uart);
+                
+                console_println!("✅ Successfully wrote {} bytes", message_len);
+                
+                // Return bytes written and continue
+                unsafe {
+                    asm!(
+                        "mv a0, {}",      // Return bytes written
+                        "csrw mepc, {}",  // Skip ecall instruction
+                        "mret",           // Return to user program
+                        in(reg) message_len,
+                        in(reg) mepc + 4,
+                        options(noreturn)
+                    );
+                }
+            }
+        }
+        
+        // For unsupported syscalls, just return 0 and continue
+        unsafe {
+            asm!(
+                "mv a0, zero",
+                "csrw mepc, {}",
+                "mret", 
+                in(reg) mepc + 4,
+                options(noreturn)
+            );
+        }
+    } else {
+        // Handle other exceptions
+        console_println!("💥 Unhandled exception: code={}", exception_code);
+        
+        // Just return to avoid hanging the system
+        unsafe {
+            asm!(
+                "csrw mepc, {}",
+                "mret",
+                in(reg) mepc + 4,
+                options(noreturn)
+            );
+        }
+    }
+}
+
+/// Execute user program at the given physical address
+/// This is a simplified implementation for kernel-mode execution
+unsafe fn execute_user_program(entry_point: usize) {
+    use core::arch::asm;
+    
+    console_println!("🎬 Setting up execution environment...");
+    
+    // Validate entry point alignment (RISC-V requires 4-byte alignment)
+    if entry_point % 4 != 0 {
+        console_println!("❌ Entry point 0x{:x} is not 4-byte aligned!", entry_point);
+        return;
+    }
+    
+    // Check if entry point looks reasonable (within our allocated memory)
+    if entry_point < 0x80000000 || entry_point > 0x90000000 {
+        console_println!("❌ Entry point 0x{:x} looks suspicious!", entry_point);
+        return;
+    }
+    
+    // Examine the instructions at the entry point
+    console_println!("🔍 Examining instructions at entry point:");
+    let instr_ptr = entry_point as *const u32;
+    for i in 0..4 {
+        let instr = core::ptr::read_volatile(instr_ptr.add(i));
+        console_println!("   0x{:08x}: 0x{:08x}", entry_point + (i * 4), instr);
+    }
+    
+    // Allocate a simple stack for the user program (4KB)
+    if let Some(stack_addr) = crate::memory::allocate_memory(4096) {
+        let stack_top = stack_addr + 4096;
+        console_println!("📚 Allocated stack at 0x{:x}-0x{:x}", stack_addr, stack_top);
+        
+        console_println!("🎯 About to execute user program...");
+        console_println!("   Entry point: 0x{:x}", entry_point);
+        console_println!("   Stack pointer: 0x{:x}", stack_top);
+        
+        console_println!("🚀 Calling user program...");
+        
+        // Much simpler approach - just jump to the code directly
+        // without changing the stack (use kernel stack for now)
+        console_println!("🎯 Attempting direct function call...");
+        
+        let result: usize;
+        
+        // Create a function pointer and call it directly
+        let user_func: extern "C" fn() -> usize = unsafe { 
+            core::mem::transmute(entry_point) 
+        };
+        
+        // With permanent syscall handler, just call the function directly
+        console_println!("🔍 Using permanent syscall handler");
+        result = user_func();
+        
+        console_println!("✅ User function returned successfully!");
+        
+        console_println!("🏁 User program returned with code: {}", result);
+        
+        // Deallocate the stack
+        crate::memory::deallocate_memory(stack_addr, 4096);
+    } else {
+        console_println!("❌ Failed to allocate stack for user program");
     }
 } 

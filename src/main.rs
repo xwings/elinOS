@@ -39,43 +39,7 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
-// Add missing panic functions for no_std environment
-#[no_mangle]
-extern "C" fn rust_begin_unwind(_info: &PanicInfo) -> ! {
-    panic(_info)
-}
-
-#[no_mangle]
-pub extern "C" fn _Unwind_Resume() -> ! {
-    loop {}
-}
-
-#[no_mangle]
-pub extern "C" fn __rust_start_panic(_payload: usize) -> u32 {
-    0
-}
-
-// Add the missing panic_nounwind_fmt function
-#[no_mangle]
-extern "C" fn rust_panic_nounwind_fmt() -> ! {
-    console_println!("KERNEL PANIC: panic_nounwind_fmt called");
-    loop {
-        unsafe {
-            asm!("wfi");
-        }
-    }
-}
-
-// Add the specific function that the linker is looking for
-#[no_mangle]
-pub extern "C" fn _ZN4core9panicking19panic_nounwind_fmt17h53f76bdb9f05922fE() -> ! {
-    console_println!("KERNEL PANIC: core::panicking::panic_nounwind_fmt");
-    loop {
-        unsafe {
-            asm!("wfi");
-        }
-    }
-}
+// The RISC-V target provides panic functions, so we don't need to redefine them
 
 #[link_section = ".text.boot"]
 #[no_mangle]
@@ -108,7 +72,7 @@ pub extern "C" fn main() -> ! {
     }
     
     console_println!("✅ Console system initialized");
-    
+   
     // Initialize memory management
     console_println!("🧠 Initializing memory management...");
     {
@@ -213,7 +177,7 @@ fn shell_loop() -> ! {
             let command_str = core::str::from_utf8(&command_buffer[..buffer_pos])
                 .unwrap_or("invalid");
             
-            execute_command(command_str);
+            let _ = commands::process_command(command_str);
         }
         
         console_println!();

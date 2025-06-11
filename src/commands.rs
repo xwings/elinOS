@@ -145,6 +145,22 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             cmd_cd("/")
         },
         
+        // ELF operations
+        "elf-info" => {
+            syscall::sys_print("Usage: elf-info <filename>\n")?;
+            Ok(())
+        },
+        "elf-load" => {
+            syscall::sys_print("Usage: elf-load <filename>\n")?;
+            Ok(())
+        },
+        "elf-exec" => {
+            syscall::sys_print("Usage: elf-exec <filename>\n")?;
+            Ok(())
+        },
+        "elf-demo" => cmd_elf_demo(),
+
+        
         // System control
         "shutdown" => cmd_shutdown(),
         "reboot" => cmd_reboot(),
@@ -215,6 +231,48 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             cmd_cd(path_arg)
         },
         
+        // ELF commands with arguments
+        cmd if cmd.starts_with("elf-info ") => {
+            let filename = cmd.strip_prefix("elf-info ").unwrap_or("").trim();
+            if filename.is_empty() {
+                syscall::sys_print("Usage: elf-info <filename>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(filename);
+                cmd_elf_info(&full_path)
+            }
+        },
+        cmd if cmd.starts_with("elf-load ") => {
+            let filename = cmd.strip_prefix("elf-load ").unwrap_or("").trim();
+            if filename.is_empty() {
+                syscall::sys_print("Usage: elf-load <filename>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(filename);
+                cmd_elf_load(&full_path)
+            }
+        },
+        cmd if cmd.starts_with("elf-exec ") => {
+            let filename = cmd.strip_prefix("elf-exec ").unwrap_or("").trim();
+            if filename.is_empty() {
+                syscall::sys_print("Usage: elf-exec <filename>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(filename);
+                cmd_elf_exec(&full_path)
+            }
+        },
+        cmd if cmd.starts_with("elf-run ") => {
+            let filename = cmd.strip_prefix("elf-run ").unwrap_or("").trim();
+            if filename.is_empty() {
+                syscall::sys_print("Usage: elf-run <filename>\n")?;
+                Ok(())
+            } else {
+                let full_path = resolve_path(filename);
+                cmd_elf_run(&full_path)
+            }
+        },
+        
         // Empty command
         "" => Ok(()),
         
@@ -236,6 +294,7 @@ pub fn get_available_commands() -> &'static [&'static str] {
         "help", "version", "memory", "devices", "syscall", "fscheck", "config",
         "ls", "cat", "echo", "pwd",
         "touch", "mkdir", "rm", "rmdir", "cd",
+        "elf-info", "elf-load", "elf-exec", "elf-demo",
         "shutdown", "reboot"
     ]
 }
@@ -265,6 +324,12 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  rm <path>       - Remove a file at the specified path\n")?;
     syscall::sys_print("  rmdir <path>    - Remove an empty directory at the specified path\n")?;
     syscall::sys_print("  cd [path]       - Change directory (default: root, use '/', '..')\n")?;
+    
+    syscall::sys_print("\n🔧 ELF Binary Operations:\n")?;
+    syscall::sys_print("  elf-info <file> - Analyze ELF binary structure and headers\n")?;
+    syscall::sys_print("  elf-load <file> - Load ELF binary into memory (parse segments)\n")?;
+    syscall::sys_print("  elf-exec <file> - Prepare ELF binary for execution\n")?;
+    syscall::sys_print("  elf-demo        - Show ELF loader demonstration and status\n")?;
     
     syscall::sys_print("\n⚙️  System Control:\n")?;
     syscall::sys_print("  shutdown        - Shutdown the system via SBI\n")?;
@@ -711,4 +776,229 @@ fn cmd_cd(path_arg: &str) -> Result<(), &'static str> {
     // syscall::sys_print(&new_path_str)?;
     // syscall::sys_print("\n")?;
     Ok(())
+}
+
+// === ELF OPERATIONS ===
+
+fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
+    syscall::sys_print("📋 ELF Binary Analysis: ")?;
+    syscall::sys_print(filename)?;
+    syscall::sys_print("\n")?;
+    
+    // Read file from filesystem
+    match crate::filesystem::read_file(filename) {
+        Ok(file_data) => {
+            // Call ELF info syscall
+            let result = syscall::syscall_handler(
+                crate::syscall::elinos::SYS_ELF_INFO,
+                file_data.as_ptr() as usize,
+                file_data.len(),
+                0,
+                0,
+            );
+            
+            match result {
+                syscall::SysCallResult::Success(_) => Ok(()),
+                syscall::SysCallResult::Error(e) => {
+                    syscall::sys_print("❌ ELF analysis failed: ")?;
+                    syscall::sys_print(e)?;
+                    syscall::sys_print("\n")?;
+                    Err("ELF analysis failed")
+                }
+            }
+        }
+        Err(_) => {
+            syscall::sys_print("❌ File not found: ")?;
+            syscall::sys_print(filename)?;
+            syscall::sys_print("\n")?;
+            Err("File not found")
+        }
+    }
+}
+
+fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
+    syscall::sys_print("🔄 Loading ELF Binary: ")?;
+    syscall::sys_print(filename)?;
+    syscall::sys_print("\n")?;
+    
+    // Read file from filesystem
+    match crate::filesystem::read_file(filename) {
+        Ok(file_data) => {
+            // Call ELF load syscall
+            let result = syscall::syscall_handler(
+                crate::syscall::elinos::SYS_LOAD_ELF,
+                file_data.as_ptr() as usize,
+                file_data.len(),
+                0,
+                0,
+            );
+            
+            match result {
+                syscall::SysCallResult::Success(entry_point) => {
+                    syscall::sys_print("✅ ELF loaded successfully!\n")?;
+                    syscall::sys_print("   Entry point: 0x")?;
+                    let _ = syscall::sys_print_hex(entry_point as u32, 8);
+                    syscall::sys_print("\n")?;
+                    Ok(())
+                }
+                syscall::SysCallResult::Error(e) => {
+                    syscall::sys_print("❌ ELF loading failed: ")?;
+                    syscall::sys_print(e)?;
+                    syscall::sys_print("\n")?;
+                    Err("ELF loading failed")
+                }
+            }
+        }
+        Err(_) => {
+            syscall::sys_print("❌ File not found: ")?;
+            syscall::sys_print(filename)?;
+            syscall::sys_print("\n")?;
+            Err("File not found")
+        }
+    }
+}
+
+fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
+    syscall::sys_print("🚀 Executing ELF Binary: ")?;
+    syscall::sys_print(filename)?;
+    syscall::sys_print("\n")?;
+    
+    // Read file from filesystem
+    match crate::filesystem::read_file(filename) {
+        Ok(file_data) => {
+            // Call ELF exec syscall
+            let result = syscall::syscall_handler(
+                crate::syscall::elinos::SYS_EXEC_ELF,
+                file_data.as_ptr() as usize,
+                file_data.len(),
+                0,
+                0,
+            );
+            
+            match result {
+                syscall::SysCallResult::Success(entry_point) => {
+                    syscall::sys_print("✅ ELF execution prepared!\n")?;
+                    syscall::sys_print("   Entry point: 0x")?;
+                    let _ = syscall::sys_print_hex(entry_point as u32, 8);
+                    syscall::sys_print("\n")?;
+                    syscall::sys_print("⚠️  Note: Actual execution requires virtual memory support\n")?;
+                    Ok(())
+                }
+                syscall::SysCallResult::Error(e) => {
+                    syscall::sys_print("❌ ELF execution failed: ")?;
+                    syscall::sys_print(e)?;
+                    syscall::sys_print("\n")?;
+                    Err("ELF execution failed")
+                }
+            }
+        }
+        Err(_) => {
+            syscall::sys_print("❌ File not found: ")?;
+            syscall::sys_print(filename)?;
+            syscall::sys_print("\n")?;
+            Err("File not found")
+        }
+    }
+}
+
+fn cmd_elf_demo() -> Result<(), &'static str> {
+    syscall::sys_print("🧪 ELF Loader Demonstration\n")?;
+    syscall::sys_print("============================\n\n")?;
+    
+    syscall::sys_print("This demo shows elinOS ELF loading capabilities:\n\n")?;
+    
+    syscall::sys_print("📁 Available ELF files in filesystem:\n")?;
+    
+    // List files in the filesystem
+    let fs = crate::filesystem::FILESYSTEM.lock();
+    match fs.list_files() {
+        Ok(files) => {
+            let mut elf_count = 0;
+            for (name, size) in &files {
+                if name.contains("program") || name.ends_with(".elf") || (!name.contains(".") && *size > 1000) {
+                    syscall::sys_print("  📄 ")?;
+                    syscall::sys_print(name.as_str())?;
+                    syscall::sys_print(" (")?;
+                    let _ = syscall::sys_print_num(*size as u64);
+                    syscall::sys_print(" bytes)\n")?;
+                    elf_count += 1;
+                }
+            }
+            drop(fs);
+            
+            if elf_count == 0 {
+                syscall::sys_print("  (No ELF files found - try running 'make all' to build and copy C programs)\n")?;
+            }
+        }
+        Err(_) => {
+            drop(fs);
+            syscall::sys_print("  ❌ Could not list files\n")?;
+        }
+    }
+    
+    syscall::sys_print("\n💡 Try these commands:\n")?;
+    syscall::sys_print("  elf-info <filename>   - Analyze ELF structure\n")?;
+    syscall::sys_print("  elf-load <filename>   - Load ELF into memory\n")?;
+    syscall::sys_print("  elf-exec <filename>   - Prepare for execution\n")?;
+    syscall::sys_print("  elf-run <filename>    - Actually execute the program!\n")?;
+    
+    syscall::sys_print("\n🔧 Current ELF Loader Status:\n")?;
+    syscall::sys_print("  ✅ ELF64 parsing and validation\n")?;
+    syscall::sys_print("  ✅ RISC-V architecture support\n")?;
+    syscall::sys_print("  ✅ Program header analysis\n")?;
+    syscall::sys_print("  ✅ Segment information display\n")?;
+    syscall::sys_print("  ✅ Memory copying and execution\n")?;
+    syscall::sys_print("  ⚠️  Virtual memory setup (TODO)\n")?;
+    syscall::sys_print("  ⚠️  Process isolation (TODO)\n")?;
+    
+    syscall::sys_print("\n🎯 Ready to execute: elf-run /programs/hello_world\n")?;
+    
+    Ok(())
+}
+
+fn cmd_elf_run(filename: &str) -> Result<(), &'static str> {
+    syscall::sys_print("🚀 Executing ELF binary: ")?;
+    syscall::sys_print(filename)?;
+    syscall::sys_print("\n")?;
+    
+    // Read file from filesystem
+    match crate::filesystem::read_file(filename) {
+        Ok(file_data) => {
+            syscall::sys_print("📄 Read ")?;
+            let _ = syscall::sys_print_num(file_data.len() as u64);
+            syscall::sys_print(" bytes from ")?;
+            syscall::sys_print(filename)?;
+            syscall::sys_print("\n")?;
+            
+            // Execute the ELF via syscall
+            let result = syscall::syscall_handler(
+                crate::syscall::elinos::SYS_EXEC_ELF,
+                file_data.as_ptr() as usize,
+                file_data.len(),
+                0,
+                0,
+            );
+            
+            match result {
+                syscall::SysCallResult::Success(entry_point) => {
+                    syscall::sys_print("✅ ELF execution completed! Entry was: 0x")?;
+                    let _ = syscall::sys_print_hex(entry_point as u32, 8);
+                    syscall::sys_print("\n")?;
+                    Ok(())
+                }
+                syscall::SysCallResult::Error(msg) => {
+                    syscall::sys_print("❌ ELF execution failed: ")?;
+                    syscall::sys_print(msg)?;
+                    syscall::sys_print("\n")?;
+                    Err("ELF execution failed")
+                }
+            }
+        }
+        Err(_) => {
+            syscall::sys_print("❌ File not found: ")?;
+            syscall::sys_print(filename)?;
+            syscall::sys_print("\n")?;
+            Err("File not found")
+        }
+    }
 } 

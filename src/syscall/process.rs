@@ -231,22 +231,49 @@ pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
 }
 
 pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
-    // First load the ELF
-    match sys_load_elf(data_ptr, size) {
-        SysCallResult::Success(entry_point) => {
-            console_println!("Would execute ELF at entry point: 0x{:x}", entry_point);
-            console_println!("NOTE: Actual execution requires virtual memory and process isolation");
+    if data_ptr.is_null() || size == 0 {
+        return SysCallResult::Error("Invalid ELF data pointer or size");
+    }
+
+    // Create slice from raw pointer (unsafe but necessary for kernel)
+    let elf_data = unsafe {
+        core::slice::from_raw_parts(data_ptr, size)
+    };
+
+    let loader = crate::elf::ElfLoader::new();
+    
+    // Load the ELF binary
+    match loader.load_elf(elf_data) {
+        Ok(loaded_elf) => {
+            console_println!("✅ ELF loaded, attempting execution...");
             
-            // TODO: In a real OS, we would use syscalls to:
-            // 1. SYS_CLONE - Create a new process context  
-            // 2. SYS_MMAP - Set up virtual memory mappings
-            // 3. SYS_MMAP - Copy segments to the new address space
-            // 4. SYS_MMAP/SYS_BRK - Set up stack and heap
-            // 5. Architecture-specific - Jump to the entry point
-            
-            SysCallResult::Success(entry_point)
+            // Execute the loaded ELF
+            match loader.execute_elf(&loaded_elf) {
+                Ok(()) => {
+                    console_println!("🎉 ELF execution completed successfully!");
+                    SysCallResult::Success(loaded_elf.entry_point as isize)
+                }
+                Err(err) => {
+                    let error_msg = match err {
+                        crate::elf::ElfError::LoadError => "Failed to execute ELF binary",
+                        _ => "ELF execution error",
+                    };
+                    SysCallResult::Error(error_msg)
+                }
+            }
         }
-        error => error,
+        Err(err) => {
+            let error_msg = match err {
+                crate::elf::ElfError::InvalidMagic => "Invalid ELF magic number",
+                crate::elf::ElfError::UnsupportedClass => "Unsupported ELF class (need ELF64)",
+                crate::elf::ElfError::UnsupportedEndian => "Unsupported endianness (need little-endian)",
+                crate::elf::ElfError::UnsupportedMachine => "Unsupported machine type (need RISC-V)",
+                crate::elf::ElfError::UnsupportedType => "Unsupported ELF type (need executable or shared object)",
+                crate::elf::ElfError::InvalidHeader => "Invalid or corrupted ELF header",
+                crate::elf::ElfError::LoadError => "Error loading ELF segments",
+            };
+            SysCallResult::Error(error_msg)
+        }
     }
 }
 
