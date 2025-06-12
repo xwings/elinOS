@@ -377,15 +377,14 @@ impl Fat32FileSystem {
     }
     
     /// Read file content from a cluster
-    fn read_file_content(&self, file: &FileEntry) -> FilesystemResult<Vec<u8, 4096>> {
-        let mut file_content = Vec::new();
+    fn read_file_content(&self, file: &FileEntry) -> FilesystemResult<heapless::Vec<u8, 32768>> {
+        let mut file_content = heapless::Vec::new();
         
-        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
+        // For simplicity, read from the first cluster only
+        // In a full implementation, we'd follow the cluster chain
+        let cluster = file.inode as u32;
         
-        if !disk_device.is_initialized() {
-            return Err(FilesystemError::DeviceError);
-        }
-
+        // Calculate sector from cluster using existing fields
         let boot_sector = self.boot_sector.ok_or(FilesystemError::NotInitialized)?;
         let sectors_per_cluster = boot_sector.sectors_per_cluster as u32;
         let reserved_sectors = boot_sector.reserved_sectors as u32;
@@ -393,26 +392,36 @@ impl Fat32FileSystem {
         let sectors_per_fat = boot_sector.sectors_per_fat_32;
         
         let data_start = reserved_sectors + (num_fats * sectors_per_fat);
-        let sector = data_start as u64 + ((file.inode as u32 - 2) * sectors_per_cluster) as u64;
+        let sector = data_start + (cluster - 2) * sectors_per_cluster;
         
+        // Read the sector
         let mut sector_buf = [0u8; SECTOR_SIZE];
-        disk_device.read_blocks(sector, &mut sector_buf)
+        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
+        if !disk_device.is_initialized() {
+            return Err(FilesystemError::DeviceError);
+        }
+        disk_device.read_blocks(sector as u64, &mut sector_buf)
             .map_err(|_| FilesystemError::IoError)?;
-        
         drop(disk_device);
         
-        let safe_size = file.size.min(SECTOR_SIZE).min(4096);
+        let safe_size = file.size.min(SECTOR_SIZE).min(32768);
         for i in 0..safe_size {
             let byte_val = sector_buf[i];
             if file_content.push(byte_val).is_err() {
-                break;
-            }
-            if byte_val == 0 && i > 0 {
-                break;
+                break; // Buffer full
             }
         }
-
+        
         Ok(file_content)
+    }
+    
+    fn find_file(&self, filename: &str) -> FilesystemResult<FileEntry> {
+        for file in &self.files {
+            if file.name.as_str() == filename && !file.is_directory {
+                return Ok(file.clone());
+            }
+        }
+        Err(FilesystemError::FileNotFound)
     }
 
     /// Finds the first available free cluster in the FAT.
@@ -701,13 +710,9 @@ impl FileSystem for Fat32FileSystem {
         Ok(result_vec)
     }
     
-    fn read_file(&self, filename: &str) -> FilesystemResult<Vec<u8, 4096>> {
-        for file in &self.files {
-            if file.name.as_str() == filename && !file.is_directory {
-                return self.read_file_content(file);
-            }
-        }
-        Err(FilesystemError::FileNotFound)
+    fn read_file(&self, filename: &str) -> FilesystemResult<heapless::Vec<u8, 32768>> {
+        let file = self.find_file(filename)?;
+        self.read_file_content(&file)
     }
     
     fn file_exists(&self, filename: &str) -> bool {
@@ -728,6 +733,18 @@ impl FileSystem for Fat32FileSystem {
     
     fn is_mounted(&self) -> bool {
         self.mounted
+    }
+
+    fn read_file_to_buffer(&self, filename: &str, buffer: &mut [u8]) -> FilesystemResult<usize> {
+        let content = self.read_file(filename)?;
+        let bytes_to_copy = content.len().min(buffer.len());
+        buffer[..bytes_to_copy].copy_from_slice(&content[..bytes_to_copy]);
+        Ok(bytes_to_copy)
+    }
+    
+    fn get_file_size(&self, filename: &str) -> FilesystemResult<usize> {
+        let file = self.find_file(filename)?;
+        Ok(file.size)
     }
 
     // == Write Operations ==

@@ -93,16 +93,14 @@ pub extern "C" fn main() -> ! {
     }
     console_println!("✅ Memory management ready");
 
-    // Initialize MMU (Memory Management Unit) - disabled due to QEMU RISC-V compatibility
-    console_println!("🗺️  MMU initialization disabled due to QEMU RISC-V compatibility issues");
-    console_println!("⚠️  Running in physical memory mode (all functionality available)");
-    console_println!("💡 Note: This is a QEMU limitation, not an elinOS limitation");
-    // if let Err(e) = memory::mmu::init_mmu() {
-    //     console_println!("❌ MMU initialization failed: {}", e);
-    //     console_println!("⚠️  Continuing without MMU (legacy mode)");
-    // } else {
-    //     console_println!("✅ MMU enabled successfully!");
-    // }
+    // Initialize Virtual Memory Management (Software MMU)
+    console_println!("🗺️  Initializing Virtual Memory Management...");
+    if let Err(e) = memory::mmu::init_mmu() {
+        console_println!("❌ Virtual Memory initialization failed: {}", e);
+        console_println!("⚠️  Continuing in physical memory mode");
+    } else {
+        console_println!("✅ Virtual Memory Management enabled!");
+    }
 
     // Initialize VirtIO disk interface
     console_println!("💾 Initializing VirtIO disk...");

@@ -57,7 +57,7 @@ static mut PROGRAM_BREAK: usize = 0;
 
 // Linux compatible memory management syscall handler
 pub fn handle_memory_syscall(args: &SyscallArgs) -> SysCallResult {
-    match args.syscall_num {
+    match args.syscall_number {
         SYS_MMAP => sys_mmap(args.arg0, args.arg1, args.arg2, args.arg3, args.arg4, args.arg5),
         SYS_MUNMAP => sys_munmap(args.arg0, args.arg1),
         SYS_MPROTECT => sys_mprotect(args.arg0, args.arg1, args.arg2),
@@ -73,7 +73,7 @@ pub fn handle_memory_syscall(args: &SyscallArgs) -> SysCallResult {
         SYS_GETMEMINFO => sys_getmeminfo(),
         SYS_ALLOC_TEST => sys_alloc_test(args.arg0),
         SYS_BUDDY_STATS => sys_buddy_stats(),
-        _ => SysCallResult::Error("Unknown memory management system call"),
+        _ => SysCallResult::Error(crate::syscall::ENOSYS),
     }
 }
 
@@ -88,11 +88,11 @@ fn sys_mmap(addr: usize, length: usize, prot: usize, flags: usize, _fd: usize, _
             console_println!("mmap allocated: 0x{:x}", allocated_addr);
             return SysCallResult::Success(allocated_addr as isize);
         } else {
-            return SysCallResult::Error("Out of memory");
+            return SysCallResult::Error(crate::syscall::ENOMEM);
         }
     }
     
-    SysCallResult::Error("File-backed mmap not yet implemented")
+            SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_munmap(addr: usize, length: usize) -> SysCallResult {
@@ -156,7 +156,7 @@ fn sys_brk(addr: usize) -> SysCallResult {
                     PROGRAM_BREAK = addr;
                     SysCallResult::Success(addr as isize)
                 } else {
-                    SysCallResult::Error("Out of memory")
+                    SysCallResult::Error(crate::syscall::ENOMEM)
                 }
             } else {
                 // Shrinking heap - for now just update the break
@@ -169,7 +169,7 @@ fn sys_brk(addr: usize) -> SysCallResult {
 
 fn sys_mremap(_old_addr: usize, _old_size: usize, _new_size: usize, _flags: usize, _new_addr: usize) -> SysCallResult {
     // TODO: Implement memory remapping
-    SysCallResult::Error("mremap not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_msync(_addr: usize, _length: usize, _flags: usize) -> SysCallResult {
@@ -179,7 +179,7 @@ fn sys_msync(_addr: usize, _length: usize, _flags: usize) -> SysCallResult {
 
 fn sys_mincore(_addr: usize, _length: usize, _vec: usize) -> SysCallResult {
     // TODO: Implement memory residency check
-    SysCallResult::Error("mincore not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_getmeminfo() -> SysCallResult {
@@ -245,7 +245,7 @@ fn sys_alloc_test(size: usize) -> SysCallResult {
         SysCallResult::Success(addr as isize)
     } else {
         console_println!("❌ Allocation failed");
-        SysCallResult::Error("Allocation failed")
+        SysCallResult::Error(crate::syscall::ENOMEM)
     }
 }
 

@@ -19,5 +19,5 @@ pub const SYS_SHUTDOWN: usize = 230;
 // Standardized network syscall handler
 pub fn handle_network_syscall(_args: &SyscallArgs) -> SysCallResult {
     // TODO: Implement network operations
-    SysCallResult::Error("Network operations not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 } 

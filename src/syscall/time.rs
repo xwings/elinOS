@@ -16,5 +16,5 @@ pub const SYS_ALARM: usize = 277;
 // Standardized time syscall handler
 pub fn handle_time_syscall(_args: &SyscallArgs) -> SysCallResult {
     // TODO: Implement time operations
-    SysCallResult::Error("Time operations not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 } 

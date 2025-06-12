@@ -17,7 +17,7 @@ pub const SYS_ELF_INFO: usize = 907;
 
 // elinOS-specific syscall handler
 pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
-    match args.syscall_num {
+    match args.syscall_number {
         SYS_ELINOS_VERSION => sys_elinos_version(),
         SYS_ELINOS_DEBUG => sys_elinos_debug(args.arg0_as_ptr::<u8>()),
         SYS_ELINOS_SHUTDOWN => sys_elinos_shutdown(args.arg0_as_i32()),
@@ -25,7 +25,7 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
         SYS_LOAD_ELF => super::process::sys_load_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_EXEC_ELF => super::process::sys_exec_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_ELF_INFO => super::process::sys_elf_info(args.arg0_as_ptr::<u8>(), args.arg1),
-        _ => SysCallResult::Error("Unknown elinOS system call"),
+        _ => SysCallResult::Error(crate::syscall::ENOSYS),
     }
 }
 
@@ -33,68 +33,68 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
 
 pub fn sys_elinos_version() -> SysCallResult {
     if let Err(e) = crate::syscall::sys_print("elinOS Version Information:\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("===============================================\n\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     
     if let Err(e) = crate::syscall::sys_print("🦀 elinOS v0.1.0\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("RISC-V Experimental Operating System\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("Written in Rust for research and development\n\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     
     if let Err(e) = crate::syscall::sys_print("Architecture:\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  Target: riscv64gc-unknown-none-elf\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  Memory Model: sv39 (future)\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  Privilege Level: Machine Mode\n\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     
     if let Err(e) = crate::syscall::sys_print("Features:\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ VirtIO Block Device Support\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ FAT32/ext2 Filesystem\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ Automatic Filesystem Detection\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ Linux-Compatible System Calls\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ Memory Management\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  ✅ Simple Interactive Shell\n\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     
     if let Err(e) = crate::syscall::sys_print("Build Information:\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  Compiler: rustc (nightly)\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  Built: [compile time]\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     if let Err(e) = crate::syscall::sys_print("  Kernel: elinOS\n") {
-        return SysCallResult::Error(e);
+        return SysCallResult::Error(crate::syscall::EIO);
     }
     
     SysCallResult::Success(0)
@@ -102,7 +102,7 @@ pub fn sys_elinos_version() -> SysCallResult {
 
 fn sys_elinos_debug(msg_ptr: *const u8) -> SysCallResult {
     if msg_ptr.is_null() {
-        return SysCallResult::Error("Invalid debug message pointer");
+        return SysCallResult::Error(crate::syscall::EINVAL);
     }
     
     // Convert raw pointer to string (unsafe but necessary for syscall interface)

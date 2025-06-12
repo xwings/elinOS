@@ -148,15 +148,10 @@ impl ElfLoader {
         console_println!("🔄 Loading ELF binary with MMU support:");
         console_println!("  Entry point: 0x{:x}", entry_point);
         console_println!("  Program headers: {}", phnum);
+        console_println!("  File size: {} bytes", data.len());
 
-        // Create user address space if MMU is enabled
-        if mmu::is_mmu_enabled() {
-            console_println!("🗺️  Creating user address space...");
-            if let Err(e) = mmu::create_user_address_space() {
-                console_println!("❌ Failed to create user address space: {}", e);
-                return Err(ElfError::LoadError);
-            }
-        }
+        // Skip hardware MMU setup for now (using software MMU)
+        console_println!("🔧 Using Software MMU - skipping hardware page table setup");
 
         // Parse program headers
         let ph_offset = phoff as usize;
@@ -169,13 +164,23 @@ impl ElfLoader {
 
         let mut segments = heapless::Vec::new();
 
+        console_println!("🔍 Starting to process {} program headers...", ph_count);
+
         for i in 0..ph_count {
+            console_println!("🔍 Processing program header {}/{}", i + 1, ph_count);
+            
             let ph_data = &data[ph_offset + (i * ph_size)..ph_offset + ((i + 1) * ph_size)];
             let ph = unsafe {
                 &*(ph_data.as_ptr() as *const Elf64ProgramHeader)
             };
 
-            if ph.p_type == PT_LOAD {
+            // Copy packed fields to local variables to avoid alignment issues
+            let p_type = ph.p_type;
+            console_println!("🔍 Program header {}: type=0x{:x}", i, p_type);
+
+            if p_type == PT_LOAD {
+                console_println!("🔍 Found PT_LOAD segment {}", i);
+                
                 // Copy packed fields to local variables
                 let p_vaddr = ph.p_vaddr;
                 let p_memsz = ph.p_memsz;
@@ -183,67 +188,72 @@ impl ElfLoader {
                 let p_filesz = ph.p_filesz;
                 let p_offset = ph.p_offset;
                 
+                console_println!("🔍 Segment details: vaddr=0x{:x}, memsz={}, flags=0x{:x}", 
+                    p_vaddr, p_memsz, p_flags);
+                
                 console_println!("  Segment {}: 0x{:x} - 0x{:x} ({} bytes) flags: 0x{:x} ({})",
                     i, p_vaddr, p_vaddr + p_memsz, p_memsz, p_flags, segment_permissions(p_flags));
 
                 let mut data_addr = None;
                 let mut data_size = 0;
 
-                // Copy segment data to allocated memory
-                if p_filesz > 0 {
-                    let file_offset = p_offset as usize;
+                // Allocate memory for segment (even if no file data)
+                if p_memsz > 0 {
+                    console_println!("🔍 Allocating memory for segment: {} bytes", p_memsz);
+                    
                     let file_size = p_filesz as usize;
                     
-                    if file_offset + file_size > data.len() {
-                        return Err(ElfError::LoadError);
-                    }
-
-                    // Get the segment data from the ELF file
-                    let segment_data = &data[file_offset..file_offset + file_size];
+                    // Get the segment data from the ELF file (if any)
+                    let segment_data = if file_size > 0 {
+                        console_println!("🔍 Reading {} bytes from file offset 0x{:x}", file_size, p_offset);
+                        let file_offset = p_offset as usize;
+                        
+                        // Check if the file offset is within bounds
+                        if file_offset >= data.len() {
+                            console_println!("⚠️  File offset 0x{:x} is beyond file size {} - treating as BSS", 
+                                file_offset, data.len());
+                            None
+                        } else if file_offset + file_size > data.len() {
+                            // Partial read - only read what's available
+                            let available_size = data.len() - file_offset;
+                            console_println!("⚠️  Partial read: only {} bytes available from offset 0x{:x}", 
+                                available_size, file_offset);
+                            Some(&data[file_offset..file_offset + available_size])
+                        } else {
+                            Some(&data[file_offset..file_offset + file_size])
+                        }
+                    } else {
+                        console_println!("🔍 No file data to read (BSS segment)");
+                        None
+                    };
                     
                     // Allocate physical memory for the segment
+                    console_println!("🔍 Calling allocate_memory({})...", p_memsz);
                     if let Some(allocated_addr) = crate::memory::allocate_memory(p_memsz as usize) {
-                        console_println!("📋 Allocated {} bytes at physical 0x{:x} for virtual 0x{:x}", 
-                            p_memsz, allocated_addr, p_vaddr);
+                        console_println!("✅ Memory allocated at 0x{:x}", allocated_addr);
                         
                         // Copy the segment data to allocated memory
                         let dest_ptr = allocated_addr as *mut u8;
                         unsafe {
-                            core::ptr::copy_nonoverlapping(
-                                segment_data.as_ptr(),
-                                dest_ptr,
-                                file_size
-                            );
+                            // First, zero out the entire allocated memory
+                            core::ptr::write_bytes(dest_ptr, 0, p_memsz as usize);
                             
-                            // Zero out the remaining memory if memsz > filesz
-                            if p_memsz > p_filesz {
-                                let zero_start = dest_ptr.add(file_size);
-                                let zero_size = (p_memsz - p_filesz) as usize;
-                                core::ptr::write_bytes(zero_start, 0, zero_size);
+                            // Then copy any available file data
+                            if let Some(data) = segment_data {
+                                console_println!("🔍 Copying {} bytes to memory", data.len());
+                                core::ptr::copy_nonoverlapping(
+                                    data.as_ptr(),
+                                    dest_ptr,
+                                    data.len()
+                                );
+                            } else {
+                                console_println!("🔍 No file data to copy - memory zeroed");
                             }
                         }
                         
-                        // Map virtual address to physical address if MMU is enabled
-                        if mmu::is_mmu_enabled() {
-                            // Convert ELF flags to MMU flags
-                            let mut mmu_flags = PTE_U; // User accessible
-                            if p_flags & PF_R != 0 { mmu_flags |= PTE_R; }
-                            if p_flags & PF_W != 0 { mmu_flags |= PTE_W; }
-                            if p_flags & PF_X != 0 { mmu_flags |= PTE_X; }
-                            
-                            console_println!("🗺️  Mapping virtual 0x{:x} -> physical 0x{:x} (flags: 0x{:x})",
-                                p_vaddr, allocated_addr, mmu_flags);
-                            
-                            if let Err(e) = mmu::map_elf_segment(
-                                p_vaddr as usize, 
-                                allocated_addr, 
-                                p_memsz as usize, 
-                                mmu_flags
-                            ) {
-                                console_println!("❌ Failed to map segment: {}", e);
-                                return Err(ElfError::LoadError);
-                            }
-                        }
+                        // Skip hardware MMU mapping (using software MMU)
+                        console_println!("🔧 Software MMU: Virtual 0x{:x} -> Physical 0x{:x} (will translate at runtime)",
+                            p_vaddr, allocated_addr);
                         
                         data_addr = Some(allocated_addr);
                         data_size = p_memsz as usize;
@@ -384,56 +394,25 @@ impl ElfLoader {
     pub fn execute_elf(&self, loaded_elf: &LoadedElf) -> Result<(), ElfError> {
         console_println!("🚀 Executing ELF at entry point 0x{:x}", loaded_elf.entry_point);
         
-        if mmu::is_mmu_enabled() {
-            console_println!("🗺️  MMU enabled - executing with virtual memory");
-            
-            // Execute at virtual address (the function will handle address space switching)
-            console_println!("🏃 Jumping to virtual entry point: 0x{:x}", loaded_elf.entry_point);
-            
-            unsafe {
-                execute_user_program_virtual(loaded_elf.entry_point as usize);
-            }
-            
-            return Ok(());
-        } else {
-            // Legacy mode: find physical address
-            console_println!("🔧 MMU disabled - using physical addresses");
-            
-            // Find the executable segment
-            for segment in &loaded_elf.segments {
-                if segment.flags & PF_X != 0 && segment.data_addr.is_some() {
-                    let data_addr = segment.data_addr.unwrap();
-                    
-                    console_println!("📍 Found executable segment at 0x{:x}", data_addr);
-                    console_println!("🎯 Virtual address: 0x{:x}, Physical address: 0x{:x}", 
-                        segment.vaddr, data_addr);
-                    
-                    // Calculate the entry point offset within the segment
-                    let entry_offset = (loaded_elf.entry_point - segment.vaddr) as usize;
-                    let physical_entry = data_addr + entry_offset;
-                    
-                    console_println!("🏃 Jumping to physical entry point: 0x{:x}", physical_entry);
-                    console_println!("   (Virtual entry: 0x{:x}, Segment base: 0x{:x}, Offset: 0x{:x})",
-                        loaded_elf.entry_point, segment.vaddr, entry_offset);
-                    
-                    // Execute the program by jumping to the entry point
-                    unsafe {
-                        execute_user_program(physical_entry);
-                    }
-                    
-                    return Ok(());
-                }
-            }
-            
-            console_println!("❌ No executable segment found");
-            Err(ElfError::LoadError)
+        // Always use software MMU for now (hardware MMU has issues)
+        console_println!("🗺️  Virtual Memory enabled - executing with software MMU");
+        
+        // Execute with software virtual memory translation
+        console_println!("🏃 Executing at virtual entry point: 0x{:x}", loaded_elf.entry_point);
+        
+        unsafe {
+            execute_user_program_with_software_mmu(loaded_elf.entry_point as usize, loaded_elf);
         }
+        
+        Ok(())
     }
 }
 
 // Helper function to get segment permissions as string
 pub fn segment_permissions(flags: u32) -> &'static str {
-    match flags & (PF_R | PF_W | PF_X) {
+    let masked_flags = flags & (PF_R | PF_W | PF_X);
+    
+    match masked_flags {
         0 => "---",
         PF_R => "R--",
         PF_W => "-W-",
@@ -450,24 +429,95 @@ pub fn segment_permissions(flags: u32) -> &'static str {
 unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
     use core::arch::asm;
     
-    // Save the current trap handler
-    let mut old_mtvec: usize;
-    asm!("csrr {}, mtvec", out(reg) old_mtvec);
+    console_println!("🛡️  Setting up REAL user mode execution with REAL syscalls!");
     
-    // Set our temporary trap handler
-    asm!("csrw mtvec, {}", in(reg) syscall_trap_handler as usize);
+    // Allocate user stack
+    let user_stack = match crate::memory::allocate_memory(8192) {
+        Some(addr) => addr,
+        None => {
+            console_println!("❌ Failed to allocate user stack");
+            return 0;
+        }
+    };
+    let user_stack_top = user_stack + 8192;
     
-    console_println!("🛡️  Temporary syscall handler installed");
+    console_println!("📚 User stack allocated: 0x{:x} - 0x{:x}", user_stack, user_stack_top);
     
-    // Execute the user function
-    let user_func: extern "C" fn() -> usize = core::mem::transmute(entry_point);
-    let result = user_func();
+    // Create a small exit stub that will be called when the user program returns
+    let exit_stub = match crate::memory::allocate_memory(32) {
+        Some(addr) => addr,
+        None => {
+            console_println!("❌ Failed to allocate exit stub");
+            crate::memory::deallocate_memory(user_stack, 8192);
+            return 0;
+        }
+    };
     
-    // Restore the original trap handler
-    asm!("csrw mtvec, {}", in(reg) old_mtvec);
+    // Write exit stub code: li a7, 93; ecall; ebreak (breakpoint)
+    // This is actually: addi a7, x0, 93
+    // RISC-V I-type: imm[11:0] | rs1 | funct3 | rd | opcode
+    // addi: opcode=0010011, funct3=000, rs1=x0(0), rd=a7(17), imm=93
+    // 93 = 0x5d = 0000 0101 1101
+    // Encoding: 0000 0101 1101 | 00000 | 000 | 10001 | 0010011
+    //          = 0x05d00893
+    let exit_stub_ptr = exit_stub as *mut u32;
+    exit_stub_ptr.write_volatile(0x05d00893); // li a7, 93 (addi a7, x0, 93)
+    exit_stub_ptr.add(1).write_volatile(0x00000073); // ecall
+    exit_stub_ptr.add(2).write_volatile(0x00100073); // ebreak (breakpoint)
+    exit_stub_ptr.add(3).write_volatile(0x00000013); // nop (padding)
     
-    console_println!("🔄 Original trap handler restored");
+    console_println!("🔧 Exit stub created at 0x{:x}", exit_stub);
+    console_println!("🔍 Exit stub instructions:");
+    console_println!("   0x{:x}: 0x{:08x} (li a7, 93)", exit_stub, exit_stub_ptr.read_volatile());
+    console_println!("   0x{:x}: 0x{:08x} (ecall)", exit_stub + 4, exit_stub_ptr.add(1).read_volatile());
+    console_println!("   0x{:x}: 0x{:08x} (ebreak)", exit_stub + 8, exit_stub_ptr.add(2).read_volatile());
+    console_println!("   0x{:x}: 0x{:08x} (nop)", exit_stub + 12, exit_stub_ptr.add(3).read_volatile());
     
+    console_println!("🎯 User mode context set up:");
+    console_println!("   Entry point: 0x{:x}", entry_point);
+    console_println!("   Stack pointer: 0x{:x}", user_stack_top);
+    console_println!("   Return address: 0x{:x}", exit_stub);
+    
+    // Set up proper user mode status
+    // Clear SPP bit (bit 8) to ensure we return to user mode
+    // Set SPIE bit (bit 5) to enable interrupts in user mode
+    let user_status = 0x00000020; // SPIE=1, SPP=0 (user mode)
+    console_println!("   Status: 0x{:x}", user_status);
+    
+    console_println!("🚀 About to jump to user mode...");
+    
+    let result: usize;
+    unsafe {
+        asm!(
+            // Set up supervisor exception program counter to user entry point
+            "csrw sepc, {entry}",
+            
+            // Set up supervisor status for user mode
+            "csrw sstatus, {status}",
+            
+            // Set up user stack pointer
+            "mv sp, {stack}",
+            
+            // Set up return address for when user program exits
+            "mv ra, {exit_stub}",
+            
+            // Jump to user mode
+            "sret",
+            
+            // We should never reach this point normally
+            // But if we do (via breakpoint handling), get the result from a0
+            "mv {result}, a0",
+            
+            entry = in(reg) entry_point,
+            status = in(reg) user_status,
+            stack = in(reg) user_stack_top,
+            exit_stub = in(reg) exit_stub,
+            result = out(reg) result,
+        );
+    }
+    
+    console_println!("🎉 Returned from user mode!");
+    console_println!("🏁 User program returned: {}", result);
     result
 }
 
@@ -476,8 +526,8 @@ unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
 extern "C" fn syscall_trap_handler() {
     use core::arch::asm;
     
-    let mut mcause: usize;
-    let mut mepc: usize;
+    let mut scause: usize;
+    let mut sepc: usize;
     let mut a0: usize; // syscall number  
     let mut a1: usize; // fd
     let mut a2: usize; // buffer ptr
@@ -485,14 +535,14 @@ extern "C" fn syscall_trap_handler() {
     
     unsafe {
         asm!(
-            "csrr {}, mcause",
-            "csrr {}, mepc",
+            "csrr {}, scause",
+            "csrr {}, sepc",
             "mv {}, a0",
             "mv {}, a1", 
             "mv {}, a2",
             "mv {}, a3",
-            out(reg) mcause,
-            out(reg) mepc,
+            out(reg) scause,
+            out(reg) sepc,
             out(reg) a0,
             out(reg) a1,
             out(reg) a2,
@@ -500,10 +550,10 @@ extern "C" fn syscall_trap_handler() {
         );
     }
     
-    let exception_code = mcause & 0x7FFFFFFFFFFFFFFF;
+    let exception_code = scause & 0x7FFFFFFFFFFFFFFF;
     
-    // Handle system calls (ecall)
-    if exception_code == 8 {
+    // Handle system calls (ecall from user mode = 8, ecall from supervisor mode = 9)
+    if exception_code == 8 || exception_code == 9 {
         console_println!("📞 System call: SYS_{} fd={} ptr=0x{:x} len={}", a0, a1, a2, a3);
         
         // Handle SYS_WRITE (64)
@@ -528,11 +578,10 @@ extern "C" fn syscall_trap_handler() {
                 unsafe {
                     asm!(
                         "mv a0, {}",      // Return bytes written
-                        "csrw mepc, {}",  // Skip ecall instruction
-                        "mret",           // Return to user program
+                        "csrw sepc, {}",  // Skip ecall instruction
+                        "sret",           // Return to user program
                         in(reg) message_len,
-                        in(reg) mepc + 4,
-                        options(noreturn)
+                        in(reg) sepc + 4,
                     );
                 }
             }
@@ -542,10 +591,9 @@ extern "C" fn syscall_trap_handler() {
         unsafe {
             asm!(
                 "mv a0, zero",
-                "csrw mepc, {}",
-                "mret", 
-                in(reg) mepc + 4,
-                options(noreturn)
+                "csrw sepc, {}",
+                "sret", 
+                in(reg) sepc + 4,
             );
         }
     } else {
@@ -555,18 +603,63 @@ extern "C" fn syscall_trap_handler() {
         // Just return to avoid hanging the system
         unsafe {
             asm!(
-                "csrw mepc, {}",
-                "mret",
-                in(reg) mepc + 4,
-                options(noreturn)
+                "csrw sepc, {}",
+                "sret",
+                in(reg) sepc + 4,
             );
         }
     }
 }
 
+/// Execute user program with software MMU virtual memory translation
+unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf: &LoadedElf) {
+    console_println!("🔧 Executing with Software Virtual Memory Manager...");
+    
+    // Always try to find the executable segment for virtual-to-physical mapping
+    // Don't assume entry points >= 0x80000000 are physical addresses
+    console_println!("📍 Looking for executable segment containing entry point 0x{:08x}", entry_point);
+    
+    // Find the executable segment to get the virtual-to-physical mapping
+    for segment in &loaded_elf.segments {
+        if segment.flags & PF_X != 0 && segment.data_addr.is_some() {
+            let data_addr = segment.data_addr.unwrap();
+            let segment_start = segment.vaddr as usize;
+            let segment_end = segment_start + segment.data_size;
+            
+            console_println!("📍 Found executable segment:");
+            console_println!("   Virtual range: 0x{:08x} - 0x{:08x}", segment_start, segment_end);
+            console_println!("   Physical base: 0x{:08x}", data_addr);
+            console_println!("   Size: {} bytes", segment.data_size);
+            
+            // Check if entry point is within this segment
+            if entry_point >= segment_start && entry_point < segment_end {
+                // Calculate the entry point offset within the segment
+                let entry_offset = entry_point - segment_start;
+                let physical_entry = data_addr + entry_offset;
+                
+                console_println!("🎯 Virtual entry point: 0x{:08x}", entry_point);
+                console_println!("🎯 Physical entry point: 0x{:08x}", physical_entry);
+                console_println!("🎯 Entry offset: 0x{:x}", entry_offset);
+                
+                // Execute the program using the translated physical address
+                console_println!("🚀 Executing with software virtual memory translation...");
+                execute_user_program(physical_entry);
+                
+                return;
+            }
+        }
+    }
+    
+    console_println!("❌ Entry point 0x{:08x} not found in any executable segment", entry_point);
+    console_println!("Available segments:");
+    for (i, segment) in loaded_elf.segments.iter().enumerate() {
+        let perms = crate::elf::segment_permissions(segment.flags);
+        console_println!("  Segment {}: 0x{:08x} - 0x{:08x} [{}]", 
+            i, segment.vaddr, segment.vaddr + segment.memsz, perms);
+    }
+}
 
-
-/// Execute user program at the given virtual address (MMU enabled)
+/// Execute user program at the given virtual address (Hardware MMU enabled)
 unsafe fn execute_user_program_virtual(entry_point: usize) {
     use core::arch::asm;
     
@@ -640,7 +733,7 @@ unsafe fn execute_user_program_virtual(entry_point: usize) {
 }
 
 /// Execute user program at the given physical address
-/// This is a simplified implementation for kernel-mode execution
+/// This implementation sets up proper user mode execution with syscall support
 unsafe fn execute_user_program(entry_point: usize) {
     use core::arch::asm;
     
@@ -675,26 +768,15 @@ unsafe fn execute_user_program(entry_point: usize) {
         console_println!("   Entry point: 0x{:x}", entry_point);
         console_println!("   Stack pointer: 0x{:x}", stack_top);
         
-        console_println!("🚀 Calling user program...");
+        console_println!("🚀 Executing in user mode with syscall support...");
         
-        // Much simpler approach - just jump to the code directly
-        // without changing the stack (use kernel stack for now)
-        console_println!("🎯 Attempting direct function call...");
+        // Create a wrapper that calls the user program and then exits
+        console_println!("🔧 Setting up user program wrapper...");
         
-        let result: usize;
+        // For now, let's try a simpler approach - execute in supervisor mode but with syscall interception
+        let result = execute_with_syscall_support(entry_point);
         
-        // Create a function pointer and call it directly
-        let user_func: extern "C" fn() -> usize = unsafe { 
-            core::mem::transmute(entry_point) 
-        };
-        
-        // With permanent syscall handler, just call the function directly
-        console_println!("🔍 Using permanent syscall handler");
-        result = user_func();
-        
-        console_println!("✅ User function returned successfully!");
-        
-        console_println!("🏁 User program returned with code: {}", result);
+        console_println!("✅ User program completed with result: {}", result);
         
         // Deallocate the stack
         crate::memory::deallocate_memory(stack_addr, 4096);

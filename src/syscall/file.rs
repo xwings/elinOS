@@ -56,7 +56,7 @@ pub const O_APPEND: i32 = 1024;
 
 // Linux compatible file I/O syscall handler
 pub fn handle_file_syscall(args: &SyscallArgs) -> SysCallResult {
-    match args.syscall_num {
+    match args.syscall_number {
         SYS_WRITE => sys_write(args.arg0_as_i32(), args.arg1_as_ptr::<u8>(), args.arg2),
         SYS_READ => sys_read(args.arg0_as_i32(), args.arg1_as_mut_ptr::<u8>(), args.arg2),
         SYS_OPENAT => sys_openat(*args),
@@ -69,7 +69,7 @@ pub fn handle_file_syscall(args: &SyscallArgs) -> SysCallResult {
         SYS_FTRUNCATE => sys_ftruncate(args.arg0_as_i32(), args.arg1),
         SYS_SYNC => sys_sync(),
         SYS_FSYNC => sys_fsync(args.arg0_as_i32()),
-        _ => SysCallResult::Error("Unknown file I/O system call"),
+        _ => SysCallResult::Error(crate::syscall::ENOSYS),
     }
 }
 
@@ -88,7 +88,7 @@ fn sys_write(fd: i32, buf: *const u8, count: usize) -> SysCallResult {
         SysCallResult::Success(count as isize)
     } else {
         // TODO: File write support with proper file descriptor management
-        SysCallResult::Error("File write not implemented")
+                    SysCallResult::Error(crate::syscall::ENOSYS)
     }
 }
 
@@ -97,7 +97,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
     
     if fd == 0 { // stdin
         // TODO: Implement stdin reading
-        SysCallResult::Error("Stdin read not implemented")
+        SysCallResult::Error(crate::syscall::ENOSYS)
     } else if fd >= 10 { // File descriptors start at 10
         console_println!("📂 SYSCALL: Looking up file descriptor {}", fd);
         
@@ -111,7 +111,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
             None => {
                 console_println!("❌ SYSCALL: Invalid file descriptor {}", fd);
                 drop(file_table);
-                return SysCallResult::Error("Invalid file descriptor");
+                return SysCallResult::Error(crate::syscall::EBADF);
             }
         };
         drop(file_table);
@@ -151,12 +151,12 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
             }
             Err(_) => {
                 console_println!("❌ File not found: {}", filename);
-                SysCallResult::Error("File not found")
+                SysCallResult::Error(crate::syscall::ENOENT)
             }
         }
     } else {
         console_println!("❌ SYSCALL: Invalid file descriptor {}", fd);
-        SysCallResult::Error("Invalid file descriptor")
+        SysCallResult::Error(crate::syscall::EINVAL)
     }
 }
 
@@ -170,7 +170,7 @@ pub fn sys_openat(args: SyscallArgs) -> SysCallResult {
     
     if !fs.is_mounted() {
         console_println!("❌ Filesystem not mounted");
-        return SysCallResult::Error("Filesystem not mounted");
+                    return SysCallResult::Error(crate::syscall::ENODEV);
     }
     
     // Check if file exists using the trait method
@@ -179,7 +179,7 @@ pub fn sys_openat(args: SyscallArgs) -> SysCallResult {
         SysCallResult::Success(3)  // Return a fake file descriptor
     } else {
         console_println!("❌ File '{}' not found", filename);
-        SysCallResult::Error("File not found")
+        SysCallResult::Error(crate::syscall::ENOENT)
     }
 }
 
@@ -191,10 +191,10 @@ fn sys_close(fd: i32) -> SysCallResult {
             SysCallResult::Success(0)
         } else {
             drop(file_table);
-            SysCallResult::Error("Invalid file descriptor")
+            SysCallResult::Error(crate::syscall::EINVAL)
         }
     } else {
-        SysCallResult::Error("Cannot close system file descriptors")
+        SysCallResult::Error(crate::syscall::EPERM)
     }
 }
 
@@ -208,12 +208,12 @@ pub fn sys_unlinkat(args: SyscallArgs) -> SysCallResult {
     
     if !fs.file_exists(filename) {
         console_println!("❌ File '{}' doesn't exist", filename);
-        return SysCallResult::Error("File not found");
+        return SysCallResult::Error(crate::syscall::ENOENT);
     }
     
     // We don't actually implement file deletion yet
     console_println!("⚠️ File deletion not implemented");
-    SysCallResult::Error("Not implemented")
+            SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 pub fn sys_getdents64(args: SyscallArgs) -> SysCallResult {
@@ -233,7 +233,7 @@ pub fn sys_getdents64(args: SyscallArgs) -> SysCallResult {
         }
         Err(_) => {
             console_println!("❌ Failed to list files");
-            SysCallResult::Error("List failed")
+            SysCallResult::Error(crate::syscall::EIO)
         }
     }
 }
@@ -259,10 +259,10 @@ fn sys_newfstatat(dirfd: i32, pathname: *const u8, statbuf: *mut u8, _flags: i32
                     core::ptr::write(statbuf as *mut usize, size);
                     SysCallResult::Success(0)
                 }
-                Err(_) => SysCallResult::Error("File not found")
+                Err(_) => SysCallResult::Error(crate::syscall::ENOENT)
             }
         } else {
-            SysCallResult::Error("Invalid filename")
+            SysCallResult::Error(crate::syscall::EINVAL)
         }
     }
 }
@@ -271,27 +271,27 @@ fn sys_newfstatat(dirfd: i32, pathname: *const u8, statbuf: *mut u8, _flags: i32
 
 fn sys_lseek(_fd: i32, _offset: isize, _whence: i32) -> SysCallResult {
     // TODO: Implement file seek
-    SysCallResult::Error("lseek not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_truncate(_path: *const u8, _length: usize) -> SysCallResult {
     // TODO: Implement file truncation
-    SysCallResult::Error("truncate not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_ftruncate(_fd: i32, _length: usize) -> SysCallResult {
     // TODO: Implement file descriptor truncation
-    SysCallResult::Error("ftruncate not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_sync() -> SysCallResult {
     // TODO: Implement filesystem sync
-    SysCallResult::Error("sync not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_fsync(_fd: i32) -> SysCallResult {
     // TODO: Implement file sync
-    SysCallResult::Error("fsync not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 // Helper function to read file with path (for testing)
@@ -299,7 +299,17 @@ pub fn read_file_by_path(filename: &str) -> Result<Vec<u8, 4096>, &'static str> 
     let fs = filesystem::FILESYSTEM.lock();
     
     match fs.read_file(filename) {
-        Ok(content) => Ok(content),
+        Ok(content) => {
+            // Convert from Vec<u8, 32768> to Vec<u8, 4096>
+            let mut result = heapless::Vec::<u8, 4096>::new();
+            let bytes_to_copy = content.len().min(4096);
+            for i in 0..bytes_to_copy {
+                if result.push(content[i]).is_err() {
+                    break;
+                }
+            }
+            Ok(result)
+        },
         Err(_) => Err("File not found"),
     }
 } 

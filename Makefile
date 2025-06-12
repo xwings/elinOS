@@ -47,13 +47,15 @@ RISCV_PREFIX := riscv64-unknown-elf-
 RISCV_CC := $(RISCV_PREFIX)gcc
 RISCV_OBJDUMP := $(RISCV_PREFIX)objdump
 RISCV_OBJCOPY := $(RISCV_PREFIX)objcopy
-RISCV_CFLAGS := -march=rv64gc -mabi=lp64d -static -nostdlib -nostartfiles -ffreestanding -fno-stack-protector
 
 # C programs configuration
 C_PROGRAMS_DIR := examples/c_programs
 C_BUILD_DIR := target/c_programs
 C_SOURCES := $(wildcard $(C_PROGRAMS_DIR)/*.c)
 C_BINARIES := $(patsubst $(C_PROGRAMS_DIR)/%.c,$(C_BUILD_DIR)/%,$(C_SOURCES))
+
+# RISC-V compiler flags (defined after C_PROGRAMS_DIR)
+RISCV_CFLAGS := -march=rv64gc -mabi=lp64d -static -nostdlib -nostartfiles -ffreestanding -fno-stack-protector -T$(C_PROGRAMS_DIR)/program.ld -fPIC -fno-plt
 
 # Disk image configuration
 DISK_SIZE := 32M

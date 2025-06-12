@@ -4,6 +4,8 @@
 use crate::{UART, elf::{ElfLoader, ElfError}, console_println};
 use core::fmt::Write;
 use super::{SysCallResult, SyscallArgs};
+use crate::trap::USER_PROGRAM_EXITED;
+use super::{ENOSYS, EINVAL, ENOEXEC};
 
 // === LINUX COMPATIBLE PROCESS MANAGEMENT SYSTEM CALL CONSTANTS ===
 pub const SYS_EXIT: usize = 93;        // Linux: exit
@@ -79,61 +81,80 @@ pub const SYS_EXEC_ELF: usize = 901;    // elinOS: execute ELF binary
 pub const SYS_ELF_INFO: usize = 902;    // elinOS: ELF binary info
 
 // Linux compatible process management syscall handler
-pub fn handle_process_syscall(args: &SyscallArgs) -> SysCallResult {
-    match args.syscall_num {
-        SYS_EXIT => sys_exit(args.arg0_as_i32()),
-        SYS_EXIT_GROUP => sys_exit_group(args.arg0_as_i32()),
-        SYS_CLONE => sys_clone(args.arg0, args.arg1, args.arg2, args.arg3, args.arg4),
-        SYS_EXECVE => sys_execve(args.arg0_as_ptr::<u8>(), args.arg1_as_ptr::<*const u8>(), args.arg2_as_ptr::<*const u8>()),
-        SYS_WAITID => sys_waitid(args.arg0_as_i32(), args.arg1_as_i32(), args.arg2_as_mut_ptr::<i32>(), args.arg3_as_i32()),
+pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCallResult {
+    match syscall_num {
+        SYS_EXIT => sys_exit(args.arg0 as isize),
+        SYS_EXIT_GROUP => sys_exit_group(args.arg0 as i32),
         SYS_GETPID => sys_getpid(),
         SYS_GETPPID => sys_getppid(),
+        SYS_FORK => sys_fork(),
+        SYS_CLONE => sys_clone(args.arg0 as usize, args.arg1 as usize, args.arg2 as usize, args.arg3 as usize, args.arg4 as usize),
+        SYS_EXECVE => sys_execve(args.arg0 as *const u8, args.arg1 as *const *const u8, args.arg2 as *const *const u8),
+        SYS_WAIT4 => sys_wait4(args.arg0 as i32, args.arg1 as *mut i32, args.arg2 as i32, args.arg3 as *mut u8),
+        SYS_KILL => sys_kill(args.arg0 as i32, args.arg1 as i32),
         SYS_GETUID => sys_getuid(),
         SYS_GETGID => sys_getgid(),
-        SYS_GETTID => sys_gettid(),
-        SYS_KILL => sys_kill(args.arg0_as_i32(), args.arg1_as_i32()),
-        SYS_TKILL => sys_tkill(args.arg0_as_i32(), args.arg1_as_i32()),
-        SYS_TGKILL => sys_tgkill(args.arg0_as_i32(), args.arg1_as_i32(), args.arg2_as_i32()),
-        SYS_RT_SIGACTION => sys_rt_sigaction(args.arg0_as_i32(), args.arg1, args.arg2),
-        
-        // elinOS-specific ELF syscalls
-        SYS_LOAD_ELF => sys_load_elf(args.arg0_as_ptr::<u8>(), args.arg1),
-        SYS_EXEC_ELF => sys_exec_elf(args.arg0_as_ptr::<u8>(), args.arg1),
-        SYS_ELF_INFO => sys_elf_info(args.arg0_as_ptr::<u8>(), args.arg1),
-        
-        _ => SysCallResult::Error("Unknown process management system call"),
+        SYS_SETUID => sys_setuid(args.arg0 as u32),
+        SYS_SETGID => sys_setgid(args.arg0 as u32),
+        SYS_GETEUID => sys_geteuid(),
+        SYS_GETEGID => sys_getegid(),
+        SYS_SETSID => sys_setsid(),
+        SYS_GETPGID => sys_getpgid(args.arg0 as i32),
+        SYS_SETPGID => sys_setpgid(args.arg0 as i32, args.arg1 as i32),
+        SYS_GETPGRP => sys_getpgrp(),
+        SYS_SCHED_YIELD => sys_sched_yield(),
+        SYS_NANOSLEEP => sys_nanosleep(args.arg0 as *const u8, args.arg1 as *mut u8),
+        SYS_ALARM => sys_alarm(args.arg0 as u32),
+        SYS_PAUSE => sys_pause(),
+        SYS_PRCTL => sys_prctl(args.arg0 as i32, args.arg1 as u64, args.arg2 as u64, args.arg3 as u64, args.arg4 as u64),
+        _ => SysCallResult::Error(ENOSYS), // Function not implemented
     }
 }
 
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
-fn sys_exit(status: i32) -> SysCallResult {
-    console_println!("Process exited with status: {}", status);
-    // In a real OS, this would terminate the process
-    // For now, we just return success
-    SysCallResult::Success(status as isize)
+pub fn sys_exit(exit_code: isize) -> SysCallResult {
+    console_println!("🚪 SYS_EXIT: Program exiting with code {}", exit_code);
+    
+    // Set the global exit flag
+    {
+        let mut exit_flag = USER_PROGRAM_EXITED.lock();
+        *exit_flag = Some(exit_code as i32);
+    }
+    
+    console_println!("🎉 SYS_EXIT flag set - program will exit");
+    console_println!("🎉 Program completed successfully with exit code: {}", exit_code);
+    console_println!("🏁 Returning to shell...");
+    
+    // SYS_EXIT is just a normal syscall - return success
+    SysCallResult::Success(exit_code)
 }
 
 fn sys_exit_group(status: i32) -> SysCallResult {
     console_println!("Process group exited with status: {}", status);
-    // In a real OS, this would terminate the entire process group
+    // In a real OS, this would terminate the process group
+    // For now, we just return success
     SysCallResult::Success(status as isize)
 }
 
+fn sys_fork() -> SysCallResult {
+    console_println!("Fork not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
 fn sys_clone(_flags: usize, _stack: usize, _parent_tid: usize, _child_tid: usize, _tls: usize) -> SysCallResult {
-    // TODO: Implement process cloning/forking
-    SysCallResult::Error("clone not implemented")
+    console_println!("Clone not implemented");
+    SysCallResult::Error(ENOSYS)
 }
 
 fn sys_execve(_filename: *const u8, _argv: *const *const u8, _envp: *const *const u8) -> SysCallResult {
-    // TODO: Implement program execution
-    // This could use the ELF loader once we have file system support
-    SysCallResult::Error("execve not implemented - use load_elf or exec_elf for ELF binaries")
+    console_println!("Execve not implemented");
+    SysCallResult::Error(ENOSYS)
 }
 
 fn sys_waitid(_which: i32, _pid: i32, _status: *mut i32, _options: i32) -> SysCallResult {
     // TODO: Implement wait for child process
-    SysCallResult::Error("waitid not implemented")
+    SysCallResult::Error(ENOSYS)
 }
 
 fn sys_getpid() -> SysCallResult {
@@ -167,30 +188,30 @@ fn sys_gettid() -> SysCallResult {
 }
 
 fn sys_kill(_pid: i32, _sig: i32) -> SysCallResult {
-    // TODO: Implement signal sending to process
-    SysCallResult::Error("kill not implemented")
+    console_println!("Kill not implemented");
+    SysCallResult::Error(ENOSYS)
 }
 
 fn sys_tkill(_tid: i32, _sig: i32) -> SysCallResult {
     // TODO: Implement signal sending to thread
-    SysCallResult::Error("tkill not implemented")
+    SysCallResult::Error(ENOSYS)
 }
 
 fn sys_tgkill(_tgid: i32, _tid: i32, _sig: i32) -> SysCallResult {
     // TODO: Implement signal sending to thread in thread group
-    SysCallResult::Error("tgkill not implemented")
+    SysCallResult::Error(ENOSYS)
 }
 
 fn sys_rt_sigaction(_signum: i32, _act: usize, _oldact: usize) -> SysCallResult {
     // TODO: Implement signal handler registration
-    SysCallResult::Error("rt_sigaction not implemented")
+    SysCallResult::Error(ENOSYS)
 }
 
 // === ELF LOADING SYSTEM CALLS ===
 
 pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     if data_ptr.is_null() || size == 0 {
-        return SysCallResult::Error("Invalid ELF data pointer or size");
+        return SysCallResult::Error(EINVAL);
     }
 
     // Create slice from raw pointer (unsafe but necessary for kernel)
@@ -225,14 +246,14 @@ pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
                 ElfError::InvalidHeader => "Invalid or corrupted ELF header",
                 ElfError::LoadError => "Error loading ELF segments",
             };
-            SysCallResult::Error(error_msg)
+            SysCallResult::Error(ENOEXEC)
         }
     }
 }
 
 pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     if data_ptr.is_null() || size == 0 {
-        return SysCallResult::Error("Invalid ELF data pointer or size");
+        return SysCallResult::Error(EINVAL);
     }
 
     // Create slice from raw pointer (unsafe but necessary for kernel)
@@ -258,7 +279,7 @@ pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
                         crate::elf::ElfError::LoadError => "Failed to execute ELF binary",
                         _ => "ELF execution error",
                     };
-                    SysCallResult::Error(error_msg)
+                    SysCallResult::Error(ENOEXEC)
                 }
             }
         }
@@ -272,14 +293,14 @@ pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
                 crate::elf::ElfError::InvalidHeader => "Invalid or corrupted ELF header",
                 crate::elf::ElfError::LoadError => "Error loading ELF segments",
             };
-            SysCallResult::Error(error_msg)
+            SysCallResult::Error(ENOEXEC)
         }
     }
 }
 
 pub fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
     if data_ptr.is_null() || size == 0 {
-        return SysCallResult::Error("Invalid ELF data pointer or size");
+        return SysCallResult::Error(EINVAL);
     }
 
     let elf_data = unsafe {
@@ -300,7 +321,77 @@ pub fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
                 ElfError::InvalidHeader => "Invalid ELF header",
                 ElfError::LoadError => "ELF load error",
             };
-            SysCallResult::Error(error_msg)
+            SysCallResult::Error(ENOEXEC)
         }
     }
+}
+
+fn sys_wait4(_pid: i32, _status: *mut i32, _options: i32, _rusage: *mut u8) -> SysCallResult {
+    console_println!("Wait4 not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
+fn sys_setuid(_uid: u32) -> SysCallResult {
+    console_println!("Setuid not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
+fn sys_setgid(_gid: u32) -> SysCallResult {
+    console_println!("Setgid not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
+fn sys_geteuid() -> SysCallResult {
+    console_println!("Geteuid not implemented");
+    SysCallResult::Success(0) // Return root
+}
+
+fn sys_getegid() -> SysCallResult {
+    console_println!("Getegid not implemented");
+    SysCallResult::Success(0) // Return root
+}
+
+fn sys_setsid() -> SysCallResult {
+    console_println!("Setsid not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
+fn sys_getpgid(_pid: i32) -> SysCallResult {
+    console_println!("Getpgid not implemented");
+    SysCallResult::Success(1) // Return process group 1
+}
+
+fn sys_setpgid(_pid: i32, _pgid: i32) -> SysCallResult {
+    console_println!("Setpgid not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
+fn sys_getpgrp() -> SysCallResult {
+    console_println!("Getpgrp not implemented");
+    SysCallResult::Success(1) // Return process group 1
+}
+
+fn sys_sched_yield() -> SysCallResult {
+    console_println!("Sched_yield not implemented");
+    SysCallResult::Success(0)
+}
+
+fn sys_nanosleep(_req: *const u8, _rem: *mut u8) -> SysCallResult {
+    console_println!("Nanosleep not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
+fn sys_alarm(_seconds: u32) -> SysCallResult {
+    console_println!("Alarm not implemented");
+    SysCallResult::Success(0)
+}
+
+fn sys_pause() -> SysCallResult {
+    console_println!("Pause not implemented");
+    SysCallResult::Error(ENOSYS)
+}
+
+fn sys_prctl(_option: i32, _arg2: u64, _arg3: u64, _arg4: u64, _arg5: u64) -> SysCallResult {
+    console_println!("Prctl not implemented");
+    SysCallResult::Error(ENOSYS)
 } 

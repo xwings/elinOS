@@ -3,6 +3,43 @@
 use crate::UART;
 use core::fmt::Write;
 
+// Common error codes (Linux-compatible)
+pub const EPERM: isize = 1;      // Operation not permitted
+pub const ENOENT: isize = 2;     // No such file or directory
+pub const ESRCH: isize = 3;      // No such process
+pub const EINTR: isize = 4;      // Interrupted system call
+pub const EIO: isize = 5;        // I/O error
+pub const ENXIO: isize = 6;      // No such device or address
+pub const E2BIG: isize = 7;      // Argument list too long
+pub const ENOEXEC: isize = 8;    // Exec format error
+pub const EBADF: isize = 9;      // Bad file number
+pub const ECHILD: isize = 10;    // No child processes
+pub const EAGAIN: isize = 11;    // Try again
+pub const ENOMEM: isize = 12;    // Out of memory
+pub const EACCES: isize = 13;    // Permission denied
+pub const EFAULT: isize = 14;    // Bad address
+pub const ENOTBLK: isize = 15;   // Block device required
+pub const EBUSY: isize = 16;     // Device or resource busy
+pub const EEXIST: isize = 17;    // File exists
+pub const EXDEV: isize = 18;     // Cross-device link
+pub const ENODEV: isize = 19;    // No such device
+pub const ENOTDIR: isize = 20;   // Not a directory
+pub const EISDIR: isize = 21;    // Is a directory
+pub const EINVAL: isize = 22;    // Invalid argument
+pub const ENFILE: isize = 23;    // File table overflow
+pub const EMFILE: isize = 24;    // Too many open files
+pub const ENOTTY: isize = 25;    // Not a typewriter
+pub const ETXTBSY: isize = 26;   // Text file busy
+pub const EFBIG: isize = 27;     // File too large
+pub const ENOSPC: isize = 28;    // No space left on device
+pub const ESPIPE: isize = 29;    // Illegal seek
+pub const EROFS: isize = 30;     // Read-only file system
+pub const EMLINK: isize = 31;    // Too many links
+pub const EPIPE: isize = 32;     // Broken pipe
+pub const EDOM: isize = 33;      // Math argument out of domain of func
+pub const ERANGE: isize = 34;    // Math result not representable
+pub const ENOSYS: isize = 38;    // Function not implemented
+
 // Import all syscall category modules
 pub mod file;
 pub mod directory;
@@ -29,14 +66,14 @@ pub use elinos::*;
 #[derive(Debug)]
 pub enum SysCallResult {
     Success(isize),
-    Error(&'static str),
+    Error(isize),
 }
 
 impl SysCallResult {
     pub fn as_isize(&self) -> isize {
         match self {
             SysCallResult::Success(val) => *val,
-            SysCallResult::Error(_) => -1,
+            SysCallResult::Error(code) => -*code,
         }
     }
     
@@ -48,7 +85,7 @@ impl SysCallResult {
 // Standardized syscall arguments structure
 #[derive(Debug, Clone, Copy)]
 pub struct SyscallArgs {
-    pub syscall_num: usize,
+    pub syscall_number: usize,
     pub arg0: usize,
     pub arg1: usize,
     pub arg2: usize,
@@ -60,7 +97,7 @@ pub struct SyscallArgs {
 impl SyscallArgs {
     pub fn new(syscall_num: usize, arg0: usize, arg1: usize, arg2: usize, arg3: usize) -> Self {
         Self {
-            syscall_num,
+            syscall_number: syscall_num,
             arg0,
             arg1,
             arg2,
@@ -80,7 +117,7 @@ impl SyscallArgs {
         arg5: usize,
     ) -> Self {
         Self {
-            syscall_num,
+            syscall_number: syscall_num,
             arg0,
             arg1,
             arg2,
@@ -150,15 +187,9 @@ pub fn get_syscall_category(syscall_num: usize) -> &'static str {
     }
 }
 
-// Main system call handler with Linux-compatible dispatch
-pub fn syscall_handler(
-    syscall_num: usize,
-    arg0: usize,
-    arg1: usize,
-    arg2: usize,
-    arg3: usize,
-) -> SysCallResult {
-    let args = SyscallArgs::new(syscall_num, arg0, arg1, arg2, arg3);
+/// Unified system call handler - dispatches all syscalls to appropriate modules
+pub fn handle_syscall(args: SyscallArgs) -> SysCallResult {
+    let syscall_num = args.syscall_number;
     
     match syscall_num {
         // === DEVICE AND I/O MANAGEMENT (Linux numbers) ===
@@ -181,7 +212,7 @@ pub fn syscall_handler(
         
         // === PROCESS MANAGEMENT (Linux numbers - first range) ===
         93..=100       // exit, exit_group, waitid, futex, etc.
-        => process::handle_process_syscall(&args),
+        => process::handle_process_syscall(syscall_num, &args),
         
         // === TIME AND TIMER OPERATIONS (Linux numbers) ===
         101..=115      // nanosleep, getitimer, setitimer, timer_*, clock_*
@@ -189,7 +220,7 @@ pub fn syscall_handler(
         
         // === PROCESS MANAGEMENT (Linux numbers - second range) ===
         129..=178      // kill, getpid, getppid, etc.
-        => process::handle_process_syscall(&args),
+        => process::handle_process_syscall(syscall_num, &args),
         
         // === NETWORK OPERATIONS (Linux numbers) ===
         198..=213      // socket, socketpair, bind, listen, accept, connect, etc.
@@ -202,45 +233,62 @@ pub fn syscall_handler(
         
         // === PROCESS MANAGEMENT (Linux numbers - third range) ===
         220..=221      // clone, execve
-        => process::handle_process_syscall(&args),
+        => process::handle_process_syscall(syscall_num, &args),
         
         // === SYSTEM INFORMATION (Linux numbers) ===
-        160..=168 |    // uname, sethostname, getrlimit, setrlimit, etc.
-        169..=171 |    // gettimeofday, settimeofday, adjtimex  
-        179            // sysinfo
+        970..=979      // elinOS: getsysinfo, getversion, etc.
         => sysinfo::handle_sysinfo_syscall(&args),
         
-        // === ELINOS-SPECIFIC OPERATIONS ===
-        900..=999 => elinos::handle_elinos_syscall(&args),
+        // === elinOS-SPECIFIC OPERATIONS ===
+        900..=949 |    // elinOS: load_elf, exec_elf, elf_info, etc.
+        980..=999      // elinOS: misc operations
+        => elinos::handle_elinos_syscall(&args),
         
-        _ => SysCallResult::Error("Unknown system call"),
+        // === UNKNOWN SYSCALLS ===
+        _ => {
+            crate::console_println!("❓ Unknown syscall: {} (category: {})", 
+                syscall_num, get_syscall_category(syscall_num));
+            SysCallResult::Error(-1)
+        }
     }
+}
+
+/// Legacy syscall handler for backward compatibility
+pub fn syscall_handler(
+    syscall_num: usize,
+    arg0: usize,
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
+) -> SysCallResult {
+    let args = SyscallArgs::new(syscall_num, arg0, arg1, arg2, arg3);
+    handle_syscall(args)
 }
 
 // Utility function for user programs to print using SYS_WRITE
 pub fn sys_print(s: &str) -> Result<(), &'static str> {
-    let result = syscall_handler(SYS_WRITE, 1, s.as_ptr() as usize, s.len(), 0);
+    let result = handle_syscall(SyscallArgs::new(SYS_WRITE, 1, s.as_ptr() as usize, s.len(), 0));
     match result {
         SysCallResult::Success(_) => Ok(()),
-        SysCallResult::Error(e) => Err(e),
+        SysCallResult::Error(_) => Err("Syscall failed"),
     }
 }
 
 // Utility function for memory info using SYS_GETMEMINFO  
 pub fn sys_memory_info() -> Result<(), &'static str> {
-    let result = syscall_handler(memory::SYS_GETMEMINFO, 0, 0, 0, 0);
+    let result = handle_syscall(SyscallArgs::new(memory::SYS_GETMEMINFO, 0, 0, 0, 0));
     match result {
         SysCallResult::Success(_) => Ok(()),
-        SysCallResult::Error(e) => Err(e),
+        SysCallResult::Error(_) => Err("Syscall failed"),
     }
 }
 
 // Utility function for device info using SYS_GETDEVICES
 pub fn sys_device_info() -> Result<(), &'static str> {
-    let result = syscall_handler(device::SYS_GETDEVICES, 0, 0, 0, 0);
+    let result = handle_syscall(SyscallArgs::new(device::SYS_GETDEVICES, 0, 0, 0, 0));
     match result {
         SysCallResult::Success(_) => Ok(()),
-        SysCallResult::Error(e) => Err(e),
+        SysCallResult::Error(_) => Err("Syscall failed"),
     }
 }
 

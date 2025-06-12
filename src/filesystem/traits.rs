@@ -112,8 +112,15 @@ pub trait FileSystem {
     /// List files in a specific directory path
     fn list_directory(&self, path: &str) -> FilesystemResult<Vec<(heapless::String<64>, usize, bool), 32>>;
     
+    /// Read the contents of a file into a provided buffer
+    /// Returns the number of bytes read
+    fn read_file_to_buffer(&self, filename: &str, buffer: &mut [u8]) -> FilesystemResult<usize>;
+    
+    /// Get the size of a file
+    fn get_file_size(&self, filename: &str) -> FilesystemResult<usize>;
+    
     /// Read the contents of a file
-    fn read_file(&self, filename: &str) -> FilesystemResult<Vec<u8, 4096>>;
+    fn read_file(&self, filename: &str) -> FilesystemResult<heapless::Vec<u8, 32768>>;
     
     /// Check if a file exists
     fn file_exists(&self, filename: &str) -> bool;

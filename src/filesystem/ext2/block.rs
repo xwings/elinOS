@@ -26,7 +26,7 @@ impl BlockManager {
         Ok(())
     }
     
-    pub fn read_file_content(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 4096>> {
+    pub fn read_file_content(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 8192>> {
         console_println!("📖 Reading file content of size {}", file_size);
         
         // Copy flags and first block to avoid packed field issues
@@ -60,7 +60,7 @@ impl BlockManager {
     }
     
     /// Read file content from extent-based inode
-    fn read_file_content_from_extents(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 4096>> {
+    fn read_file_content_from_extents(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 8192>> {
         let mut file_content = Vec::new();
         let mut bytes_read = 0;
         
@@ -162,7 +162,7 @@ impl BlockManager {
     }
     
     /// Read file content from traditional direct block pointers
-    fn read_file_content_from_blocks(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 4096>> {
+    fn read_file_content_from_blocks(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 8192>> {
         let mut file_content = Vec::new();
         let mut bytes_read = 0;
         

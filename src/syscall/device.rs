@@ -29,7 +29,7 @@ pub const SYS_GETDEVICES: usize = 950; // elinOS: get device info
 
 // Linux compatible device management syscall handler
 pub fn handle_device_syscall(args: &SyscallArgs) -> SysCallResult {
-    match args.syscall_num {
+    match args.syscall_number {
         SYS_IOCTL => sys_ioctl(args.arg0_as_i32(), args.arg1, args.arg2),
         SYS_FCNTL => sys_fcntl(args.arg0_as_i32(), args.arg1_as_i32(), args.arg2),
         SYS_PIPE2 => sys_pipe2(args.arg0_as_mut_ptr::<i32>(), args.arg1_as_i32()),
@@ -43,7 +43,7 @@ pub fn handle_device_syscall(args: &SyscallArgs) -> SysCallResult {
         SYS_IOPRIO_SET => sys_ioprio_set(args.arg0_as_i32(), args.arg1_as_i32(), args.arg2_as_i32()),
         SYS_IOPRIO_GET => sys_ioprio_get(args.arg0_as_i32(), args.arg1_as_i32()),
         SYS_GETDEVICES => sys_getdevices(),
-        _ => SysCallResult::Error("Unknown device management system call"),
+        _ => SysCallResult::Error(crate::syscall::ENOSYS),
     }
 }
 
@@ -51,62 +51,62 @@ pub fn handle_device_syscall(args: &SyscallArgs) -> SysCallResult {
 
 fn sys_ioctl(_fd: i32, _request: usize, _arg: usize) -> SysCallResult {
     // TODO: Implement I/O control
-    SysCallResult::Error("ioctl not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_fcntl(_fd: i32, _cmd: i32, _arg: usize) -> SysCallResult {
     // TODO: Implement file control
-    SysCallResult::Error("fcntl not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_pipe2(_pipefd: *mut i32, _flags: i32) -> SysCallResult {
     // TODO: Implement pipe creation with flags
-    SysCallResult::Error("pipe2 not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_dup(_oldfd: i32) -> SysCallResult {
     // TODO: Implement file descriptor duplication
-    SysCallResult::Error("dup not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_dup3(_oldfd: i32, _newfd: i32, _flags: i32) -> SysCallResult {
     // TODO: Implement file descriptor duplication to specific fd with flags
-    SysCallResult::Error("dup3 not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_flock(_fd: i32, _operation: i32) -> SysCallResult {
     // TODO: Implement file locking
-    SysCallResult::Error("flock not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_mknodat(_dirfd: i32, _pathname: *const u8, _mode: u32, _dev: u32) -> SysCallResult {
     // TODO: Implement device node creation
-    SysCallResult::Error("mknodat not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_inotify_init1(_flags: i32) -> SysCallResult {
     // TODO: Implement inotify initialization
-    SysCallResult::Error("inotify_init1 not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_inotify_add_watch(_fd: i32, _pathname: *const u8, _mask: u32) -> SysCallResult {
     // TODO: Implement inotify watch addition
-    SysCallResult::Error("inotify_add_watch not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_inotify_rm_watch(_fd: i32, _wd: i32) -> SysCallResult {
     // TODO: Implement inotify watch removal
-    SysCallResult::Error("inotify_rm_watch not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_ioprio_set(_which: i32, _who: i32, _ioprio: i32) -> SysCallResult {
     // TODO: Implement I/O priority setting
-    SysCallResult::Error("ioprio_set not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_ioprio_get(_which: i32, _who: i32) -> SysCallResult {
     // TODO: Implement I/O priority getting
-    SysCallResult::Error("ioprio_get not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 fn sys_getdevices() -> SysCallResult {

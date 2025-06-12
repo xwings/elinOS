@@ -125,7 +125,7 @@ impl FileSystem for UnifiedFileSystem {
         }
     }
     
-    fn read_file(&self, filename: &str) -> FilesystemResult<Vec<u8, 4096>> {
+    fn read_file(&self, filename: &str) -> FilesystemResult<heapless::Vec<u8, 32768>> {
         match &self.filesystem {
             Filesystem::Fat32(fs) => fs.read_file(filename),
             Filesystem::Ext2(fs) => fs.read_file(filename),
@@ -219,6 +219,22 @@ impl FileSystem for UnifiedFileSystem {
             Filesystem::Fat32(fs) => fs.sync(),
             Filesystem::Ext2(fs) => fs.sync(),
             Filesystem::None => Err(FilesystemError::NotMounted),
+        }
+    }
+
+    fn read_file_to_buffer(&self, filename: &str, buffer: &mut [u8]) -> FilesystemResult<usize> {
+        match &self.filesystem {
+            Filesystem::Fat32(fs) => fs.read_file_to_buffer(filename, buffer),
+            Filesystem::Ext2(fs) => fs.read_file_to_buffer(filename, buffer),
+            Filesystem::None => Err(FilesystemError::NotInitialized),
+        }
+    }
+
+    fn get_file_size(&self, filename: &str) -> FilesystemResult<usize> {
+        match &self.filesystem {
+            Filesystem::Fat32(fs) => fs.get_file_size(filename),
+            Filesystem::Ext2(fs) => fs.get_file_size(filename),
+            Filesystem::None => Err(FilesystemError::NotInitialized),
         }
     }
 }
@@ -319,9 +335,18 @@ pub fn list_directory(path: &str) -> FilesystemResult<Vec<(heapless::String<64>,
 }
 
 /// Read a file from the filesystem
-pub fn read_file(filename: &str) -> FilesystemResult<Vec<u8, 4096>> {
+pub fn read_file(filename: &str) -> FilesystemResult<heapless::Vec<u8, 32768>> {
     let fs = FILESYSTEM.lock();
     fs.read_file(filename)
+}
+
+/// Read an ELF file from the filesystem (supports larger files)
+pub fn read_elf_file(filename: &str) -> Result<heapless::Vec<u8, 32768>, &'static str> {
+    // Use the regular read_file with larger buffer
+    match read_file(filename) {
+        Ok(data) => Ok(data),
+        Err(_) => Err("Failed to read ELF file"),
+    }
 }
 
 /// Check if a file exists

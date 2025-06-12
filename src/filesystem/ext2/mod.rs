@@ -152,38 +152,55 @@ impl FileSystem for Ext2FileSystem {
         self.directory_mgr.list_directory(&inode, &self.superblock_mgr, &self.inode_mgr)
     }
     
-    fn read_file(&self, path: &str) -> FilesystemResult<Vec<u8, 4096>> {
+    fn read_file(&self, path: &str) -> FilesystemResult<Vec<u8, 32768>> {
         if !self.is_mounted() {
             return Err(FilesystemError::NotMounted);
         }
         
+        // Resolve the path to get the inode number
         let inode_num = self.resolve_path_to_inode(path)?;
         let inode = self.inode_mgr.read_inode(inode_num, &self.superblock_mgr)?;
         
+        // Check if it's a directory
         if self.directory_mgr.is_directory(&inode) {
             return Err(FilesystemError::IsADirectory);
         }
         
+        // Get file size from inode
         let file_size = self.inode_mgr.get_file_size(&inode);
         
-        // Debug inode details for file reading
-        let mode = inode.i_mode;
-        let size_low = inode.i_size_lo;
-        let size_high = inode.i_size_high;
-        let blocks = inode.i_blocks_lo;
-        let first_block = inode.i_block[0];
-        let uses_extents = inode.uses_extents();
+        // Read file content using block manager (returns Vec<u8, 8192>)
+        let small_buffer = self.block_mgr.read_file_content(&inode, file_size, &self.superblock_mgr)?;
         
-        console_println!("🔍 Reading file '{}' (inode {}):", path, inode_num);
-        console_println!("   Mode: 0x{:04x}", mode);
-        console_println!("   Size (low): {}", size_low);
-        console_println!("   Size (high): {}", size_high);
-        console_println!("   Combined size: {}", file_size);
-        console_println!("   Blocks: {}", blocks);
-        console_println!("   First block: {}", first_block);
-        console_println!("   Uses extents: {}", uses_extents);
+        // Convert to larger buffer size (Vec<u8, 32768>)
+        let mut large_buffer = Vec::<u8, 32768>::new();
+        for byte in small_buffer.iter() {
+            if large_buffer.push(*byte).is_err() {
+                break; // Buffer full
+            }
+        }
         
-        self.block_mgr.read_file_content(&inode, file_size, &self.superblock_mgr)
+        Ok(large_buffer)
+    }
+    
+    fn read_file_to_buffer(&self, filename: &str, buffer: &mut [u8]) -> FilesystemResult<usize> {
+        let content = self.read_file(filename)?;
+        let bytes_to_copy = content.len().min(buffer.len());
+        buffer[..bytes_to_copy].copy_from_slice(&content[..bytes_to_copy]);
+        Ok(bytes_to_copy)
+    }
+    
+    fn get_file_size(&self, filename: &str) -> FilesystemResult<usize> {
+        if !self.is_mounted() {
+            return Err(FilesystemError::NotMounted);
+        }
+        
+        // Resolve the path to get the inode number
+        let inode_num = self.resolve_path_to_inode(filename)?;
+        let inode = self.inode_mgr.read_inode(inode_num, &self.superblock_mgr)?;
+        
+        // Get file size from inode
+        Ok(self.inode_mgr.get_file_size(&inode))
     }
     
     fn file_exists(&self, path: &str) -> bool {

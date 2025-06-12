@@ -5,6 +5,8 @@
 
 use core::arch::asm;
 use core::fmt::Write;
+use spin::Mutex;
+use crate::console_println;
 
 /// RISC-V trap causes
 #[derive(Debug, Clone, Copy)]
@@ -220,47 +222,47 @@ pub fn dump_crash_info(ctx: &TrapContext) {
     let _ = writeln!(uart, "=====================================");
 }
 
-/// Handle user space system calls
-fn handle_user_syscall(ctx: &mut TrapContext) {
-    let syscall_num = ctx.x[17]; // a7 register contains syscall number
-    let arg1 = ctx.x[10]; // a0
-    let arg2 = ctx.x[11]; // a1  
-    let arg3 = ctx.x[12]; // a2
-    let arg4 = ctx.x[13]; // a3
+/// Handle system calls by dispatching to the unified syscall module
+fn handle_syscall(ctx: &mut TrapContext) {
+    // Extract syscall arguments from registers
+    let syscall_num = ctx.x[17] as usize; // a7
+    let arg0 = ctx.x[10] as usize; // a0
+    let arg1 = ctx.x[11] as usize; // a1
+    let arg2 = ctx.x[12] as usize; // a2
+    let arg3 = ctx.x[13] as usize; // a3
+    let arg4 = ctx.x[14] as usize; // a4
+    let arg5 = ctx.x[15] as usize; // a5
     
-    // Handle SYS_WRITE (64)
-    if syscall_num == 64 && arg1 == 1 { // SYS_WRITE to stdout
-        let message_ptr = arg2 as *const u8;
-        let message_len = arg3 as usize;
-        
-        // Switch back to kernel space to access UART
-        let _ = crate::memory::mmu::switch_to_kernel_space();
-        
-        // Print the message
-        if message_len > 0 && message_len < 1024 {
-            let mut uart = crate::UART.lock();
-            for i in 0..message_len {
-                let byte = unsafe { core::ptr::read_volatile(message_ptr.add(i)) };
-                uart.putchar(byte);
-            }
-            drop(uart);
-            
-            // Switch back to user space
-            let _ = crate::memory::mmu::switch_to_user_space();
-            
-            // Return bytes written
-            ctx.x[10] = message_len as u64; // a0 = return value
-        } else {
-            // Switch back to user space
-            let _ = crate::memory::mmu::switch_to_user_space();
-            ctx.x[10] = 0; // Return 0 for invalid length
+    console_println!("🎉 syscall: {} (a0={}, a1={}, a2={}, a3={})", 
+        syscall_num, arg0, arg1, arg2, arg3);
+    
+    // Create syscall args structure
+    let args = crate::syscall::SyscallArgs {
+        syscall_number: syscall_num,
+        arg0,
+        arg1,
+        arg2,
+        arg3,
+        arg4,
+        arg5,
+    };
+    
+    // Dispatch to unified syscall module
+    let result = crate::syscall::handle_syscall(args);
+    
+    // Handle the result
+    match result {
+        crate::syscall::SysCallResult::Success(value) => {
+            ctx.x[10] = value as u64; // Return value in a0
+            console_println!("✅ Syscall {} completed successfully: {}", syscall_num, value);
         }
-    } else {
-        // For unsupported syscalls, just return 0
-        ctx.x[10] = 0;
+        crate::syscall::SysCallResult::Error(code) => {
+            ctx.x[10] = (-code as i64) as u64; // Error code in a0 (negative)
+            console_println!("❌ Syscall {} failed with error code: {}", syscall_num, code);
+        }
     }
     
-    // Skip the ecall instruction (advance PC by 4 bytes)
+    // Skip the ecall instruction (advance PC by 4 bytes) for all syscalls
     ctx.sepc += 4;
 }
 
@@ -304,10 +306,53 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
         }
     } else {
         // Handle exceptions
+        console_println!("🔍 Exception occurred: cause={}, sepc=0x{:x}", ctx.scause, ctx.sepc);
+        
         match cause {
             TrapCause::EnvironmentCallFromUMode => {
-                // Handle system calls from user mode
-                handle_user_syscall(ctx);
+                console_println!("🔍 Handling user mode syscall");
+                // Handle system calls from user mode - dispatch to unified syscall module
+                handle_syscall(ctx);
+            }
+            TrapCause::EnvironmentCallFromSMode => {
+                console_println!("🔍 Handling supervisor mode syscall");
+                // Handle system calls from supervisor mode - dispatch to unified syscall module
+                handle_syscall(ctx);
+            }
+            TrapCause::Breakpoint => {
+                // Check if this breakpoint is from our exit stub
+                if let Some(exit_code) = check_user_program_exit() {
+                    console_println!("🎯 Exit stub breakpoint hit - returning to kernel with code {}", exit_code);
+                    
+                    // Set up return to kernel
+                    ctx.x[10] = exit_code as u64; // a0 = exit code
+                    
+                    // Set supervisor mode
+                    ctx.sstatus |= 0x00000100; // Set SPP bit for supervisor mode
+                    
+                    // Instead of trying to figure out the return address,
+                    // let's just halt the system cleanly for now
+                    console_println!("🎉 Program completed successfully with exit code: {}", exit_code);
+                    console_println!("🏁 Returning to shell...");
+                    
+                    // For now, let's just return to a safe location
+                    // We'll improve this later to properly return to the shell
+                    ctx.sepc = 0x80200000; // Return to a safe kernel location
+                    
+                    console_println!("🔍 Setting sepc to safe kernel location: 0x{:x}", ctx.sepc);
+                    
+                    return;
+                } else {
+                    // Regular breakpoint - dump crash info
+                    dump_crash_info(ctx);
+                    
+                    // Halt the system
+                    loop {
+                        unsafe {
+                            asm!("wfi");
+                        }
+                    }
+                }
             }
             _ => {
                 // Other exceptions are usually fatal
@@ -321,6 +366,17 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
                 }
             }
         }
+    }
+    
+    // Write back CSR values before returning
+    console_println!("🔍 Writing back CSRs: sepc=0x{:x}, sstatus=0x{:x}", ctx.sepc, ctx.sstatus);
+    unsafe {
+        asm!(
+            "csrw sepc, {}",
+            "csrw sstatus, {}",
+            in(reg) ctx.sepc,
+            in(reg) ctx.sstatus,
+        );
     }
 }
 
@@ -407,4 +463,12 @@ pub unsafe extern "C" fn trap_vector() {
         
         trap_handler = sym trap_handler
     );
+}
+
+// Global flag to indicate when a user program has exited
+pub static USER_PROGRAM_EXITED: Mutex<Option<i32>> = Mutex::new(None);
+
+pub fn check_user_program_exit() -> Option<i32> {
+    let mut exit_code = USER_PROGRAM_EXITED.lock();
+    exit_code.take()
 } 

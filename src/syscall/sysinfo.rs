@@ -15,5 +15,5 @@ pub const SYS_SETGID: usize = 306;
 // Standardized system info syscall handler
 pub fn handle_sysinfo_syscall(_args: &SyscallArgs) -> SysCallResult {
     // TODO: Implement system information operations
-    SysCallResult::Error("System information operations not implemented")
+    SysCallResult::Error(crate::syscall::ENOSYS)
 } 
