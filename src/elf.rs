@@ -2,6 +2,7 @@
 // Supports loading and parsing ELF64 binaries for RISC-V
 
 use crate::{UART, console_println};
+use crate::memory::mmu::{self, PTE_R, PTE_W, PTE_X, PTE_U};
 use core::fmt::Write;
 
 // ELF Magic number
@@ -144,11 +145,18 @@ impl ElfLoader {
         let phoff = header.e_phoff;
         let phentsize = header.e_phentsize;
         
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "Loading ELF binary:");
-        let _ = writeln!(uart, "  Entry point: 0x{:x}", entry_point);
-        let _ = writeln!(uart, "  Program headers: {}", phnum);
-        drop(uart);
+        console_println!("🔄 Loading ELF binary with MMU support:");
+        console_println!("  Entry point: 0x{:x}", entry_point);
+        console_println!("  Program headers: {}", phnum);
+
+        // Create user address space if MMU is enabled
+        if mmu::is_mmu_enabled() {
+            console_println!("🗺️  Creating user address space...");
+            if let Err(e) = mmu::create_user_address_space() {
+                console_println!("❌ Failed to create user address space: {}", e);
+                return Err(ElfError::LoadError);
+            }
+        }
 
         // Parse program headers
         let ph_offset = phoff as usize;
@@ -175,10 +183,8 @@ impl ElfLoader {
                 let p_filesz = ph.p_filesz;
                 let p_offset = ph.p_offset;
                 
-                let mut uart = UART.lock();
-                let _ = writeln!(uart, "  Segment {}: 0x{:x} - 0x{:x} ({} bytes) flags: 0x{:x}",
-                    i, p_vaddr, p_vaddr + p_memsz, p_memsz, p_flags);
-                drop(uart);
+                console_println!("  Segment {}: 0x{:x} - 0x{:x} ({} bytes) flags: 0x{:x} ({})",
+                    i, p_vaddr, p_vaddr + p_memsz, p_memsz, p_flags, segment_permissions(p_flags));
 
                 let mut data_addr = None;
                 let mut data_size = 0;
@@ -195,25 +201,47 @@ impl ElfLoader {
                     // Get the segment data from the ELF file
                     let segment_data = &data[file_offset..file_offset + file_size];
                     
-                    // Allocate memory for the segment
+                    // Allocate physical memory for the segment
                     if let Some(allocated_addr) = crate::memory::allocate_memory(p_memsz as usize) {
-                        console_println!("📋 Allocated {} bytes at 0x{:x} for segment at vaddr 0x{:x}", 
+                        console_println!("📋 Allocated {} bytes at physical 0x{:x} for virtual 0x{:x}", 
                             p_memsz, allocated_addr, p_vaddr);
                         
-                        // Copy segment data to allocated memory
+                        // Copy the segment data to allocated memory
+                        let dest_ptr = allocated_addr as *mut u8;
                         unsafe {
-                            let dest_ptr = allocated_addr as *mut u8;
                             core::ptr::copy_nonoverlapping(
                                 segment_data.as_ptr(),
                                 dest_ptr,
                                 file_size
                             );
                             
-                            // Zero out any remaining memory
+                            // Zero out the remaining memory if memsz > filesz
                             if p_memsz > p_filesz {
                                 let zero_start = dest_ptr.add(file_size);
                                 let zero_size = (p_memsz - p_filesz) as usize;
                                 core::ptr::write_bytes(zero_start, 0, zero_size);
+                            }
+                        }
+                        
+                        // Map virtual address to physical address if MMU is enabled
+                        if mmu::is_mmu_enabled() {
+                            // Convert ELF flags to MMU flags
+                            let mut mmu_flags = PTE_U; // User accessible
+                            if p_flags & PF_R != 0 { mmu_flags |= PTE_R; }
+                            if p_flags & PF_W != 0 { mmu_flags |= PTE_W; }
+                            if p_flags & PF_X != 0 { mmu_flags |= PTE_X; }
+                            
+                            console_println!("🗺️  Mapping virtual 0x{:x} -> physical 0x{:x} (flags: 0x{:x})",
+                                p_vaddr, allocated_addr, mmu_flags);
+                            
+                            if let Err(e) = mmu::map_elf_segment(
+                                p_vaddr as usize, 
+                                allocated_addr, 
+                                p_memsz as usize, 
+                                mmu_flags
+                            ) {
+                                console_println!("❌ Failed to map segment: {}", e);
+                                return Err(ElfError::LoadError);
                             }
                         }
                         
@@ -246,9 +274,8 @@ impl ElfLoader {
             segments,
         };
 
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "ELF loaded successfully, entry at 0x{:x}", loaded_elf.entry_point);
-        drop(uart);
+        console_println!("✅ ELF loaded successfully with {} segments, entry at 0x{:x}", 
+            loaded_elf.segments.len(), loaded_elf.entry_point);
 
         Ok(loaded_elf)
     }
@@ -353,38 +380,54 @@ impl ElfLoader {
         self.parse_header(data).is_ok()
     }
 
-    /// Execute a loaded ELF binary (simplified kernel execution)
+    /// Execute a loaded ELF binary with MMU support
     pub fn execute_elf(&self, loaded_elf: &LoadedElf) -> Result<(), ElfError> {
         console_println!("🚀 Executing ELF at entry point 0x{:x}", loaded_elf.entry_point);
         
-        // Find the executable segment
-        for segment in &loaded_elf.segments {
-            if segment.flags & PF_X != 0 && segment.data_addr.is_some() {
-                let data_addr = segment.data_addr.unwrap();
-                
-                console_println!("📍 Found executable segment at 0x{:x}", data_addr);
-                console_println!("🎯 Virtual address: 0x{:x}, Physical address: 0x{:x}", 
-                    segment.vaddr, data_addr);
-                
-                // Calculate the entry point offset within the segment
-                let entry_offset = (loaded_elf.entry_point - segment.vaddr) as usize;
-                let physical_entry = data_addr + entry_offset;
-                
-                console_println!("🏃 Jumping to physical entry point: 0x{:x}", physical_entry);
-                console_println!("   (Virtual entry: 0x{:x}, Segment base: 0x{:x}, Offset: 0x{:x})",
-                    loaded_elf.entry_point, segment.vaddr, entry_offset);
-                
-                // Execute the program by jumping to the entry point
-                unsafe {
-                    execute_user_program(physical_entry);
-                }
-                
-                return Ok(());
+        if mmu::is_mmu_enabled() {
+            console_println!("🗺️  MMU enabled - executing with virtual memory");
+            
+            // Execute at virtual address (the function will handle address space switching)
+            console_println!("🏃 Jumping to virtual entry point: 0x{:x}", loaded_elf.entry_point);
+            
+            unsafe {
+                execute_user_program_virtual(loaded_elf.entry_point as usize);
             }
+            
+            return Ok(());
+        } else {
+            // Legacy mode: find physical address
+            console_println!("🔧 MMU disabled - using physical addresses");
+            
+            // Find the executable segment
+            for segment in &loaded_elf.segments {
+                if segment.flags & PF_X != 0 && segment.data_addr.is_some() {
+                    let data_addr = segment.data_addr.unwrap();
+                    
+                    console_println!("📍 Found executable segment at 0x{:x}", data_addr);
+                    console_println!("🎯 Virtual address: 0x{:x}, Physical address: 0x{:x}", 
+                        segment.vaddr, data_addr);
+                    
+                    // Calculate the entry point offset within the segment
+                    let entry_offset = (loaded_elf.entry_point - segment.vaddr) as usize;
+                    let physical_entry = data_addr + entry_offset;
+                    
+                    console_println!("🏃 Jumping to physical entry point: 0x{:x}", physical_entry);
+                    console_println!("   (Virtual entry: 0x{:x}, Segment base: 0x{:x}, Offset: 0x{:x})",
+                        loaded_elf.entry_point, segment.vaddr, entry_offset);
+                    
+                    // Execute the program by jumping to the entry point
+                    unsafe {
+                        execute_user_program(physical_entry);
+                    }
+                    
+                    return Ok(());
+                }
+            }
+            
+            console_println!("❌ No executable segment found");
+            Err(ElfError::LoadError)
         }
-        
-        console_println!("❌ No executable segment found");
-        Err(ElfError::LoadError)
     }
 }
 
@@ -519,6 +562,81 @@ extern "C" fn syscall_trap_handler() {
             );
         }
     }
+}
+
+
+
+/// Execute user program at the given virtual address (MMU enabled)
+unsafe fn execute_user_program_virtual(entry_point: usize) {
+    use core::arch::asm;
+    
+    // Validate entry point alignment (RISC-V requires 4-byte alignment)
+    if entry_point % 4 != 0 {
+        console_println!("❌ Entry point 0x{:x} is not 4-byte aligned!", entry_point);
+        return;
+    }
+    
+    console_println!("🏃 About to execute at virtual address 0x{:x}", entry_point);
+    
+    console_println!("🔄 User space trap handling already set up by main trap handler");
+    
+    console_println!("🔄 Switching to user address space...");
+    if let Err(e) = crate::memory::mmu::switch_to_user_space() {
+        console_println!("❌ Failed to switch to user space: {}", e);
+        return;
+    }
+    console_println!("✅ Switched to user address space successfully!");
+    
+    // Set up user stack
+    console_println!("📚 Setting up user stack...");
+    let stack_size = 8192; // 8KB stack
+    let stack_vaddr = 0x7FFFF000; // High address for stack
+    
+    // Allocate physical memory for stack
+    let stack_paddr = match crate::memory::allocate_aligned_memory(stack_size, 4096) {
+        Some(addr) => addr,
+        None => {
+            console_println!("❌ Failed to allocate user stack");
+            return;
+        }
+    };
+    
+    // Map stack into user space
+    if let Err(e) = crate::memory::mmu::map_elf_segment(
+        stack_vaddr, 
+        stack_paddr, 
+        stack_size, 
+        crate::memory::mmu::PTE_R | crate::memory::mmu::PTE_W | crate::memory::mmu::PTE_U
+    ) {
+        console_println!("❌ Failed to map user stack: {}", e);
+        return;
+    }
+    
+    let stack_top = stack_vaddr + stack_size - 8; // Leave some space at top
+    console_println!("✅ User stack mapped at 0x{:x} - 0x{:x}, SP will be 0x{:x}", 
+        stack_vaddr, stack_vaddr + stack_size, stack_top);
+    
+    console_println!("🎯 Executing user program...");
+    
+    // Execute the user function with proper stack setup
+    let result: i32;
+    unsafe {
+        use core::arch::asm;
+        asm!(
+            "mv t0, sp",           // Save current kernel stack pointer
+            "mv sp, {stack_top}",  // Set user stack pointer
+            "jalr {entry}",        // Jump to user program
+            "mv sp, t0",           // Restore kernel stack pointer
+            "mv a0, a0",           // Result is already in a0
+            stack_top = in(reg) stack_top,
+            entry = in(reg) entry_point,
+            out("a0") result,      // Explicit register for output
+        );
+    }
+    
+    // Switch back to kernel space for completion message
+    let _ = crate::memory::mmu::switch_to_kernel_space();
+    console_println!("✅ User program completed with result: {}", result);
 }
 
 /// Execute user program at the given physical address

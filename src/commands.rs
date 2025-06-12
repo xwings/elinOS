@@ -110,6 +110,8 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         "help" => cmd_help(),
         "version" => cmd_version(),
         "memory" => cmd_memory(),
+        "heap" => cmd_heap(),
+        "heap-reset" => cmd_heap_reset(),
         "devices" => cmd_devices(),
         "syscall" => cmd_syscall(),
         "fscheck" => cmd_fscheck(),
@@ -1001,4 +1003,47 @@ fn cmd_elf_run(filename: &str) -> Result<(), &'static str> {
             Err("File not found")
         }
     }
+}
+
+/// Show heap usage information
+pub fn cmd_heap() -> Result<(), &'static str> {
+    syscall::sys_print("🧠 Heap Status:\n")?;
+    syscall::sys_print("================\n")?;
+    
+    let (used, total, available) = memory::get_heap_usage();
+    
+    syscall::sys_print("Total heap size: ")?;
+    show_number_kb(total);
+    syscall::sys_print("\nUsed heap: ")?;
+    show_number_kb(used);
+    syscall::sys_print("\nAvailable heap: ")?;
+    show_number_kb(available);
+    
+    let usage_percent = if total > 0 { (used * 100) / total } else { 0 };
+    syscall::sys_print("\nUsage: ")?;
+    show_number(usage_percent);
+    syscall::sys_print("%\n")?;
+    
+    if available == 0 {
+        syscall::sys_print("⚠️  WARNING: Heap is completely exhausted!\n")?;
+    } else if usage_percent > 90 {
+        syscall::sys_print("⚠️  WARNING: Heap usage is very high!\n")?;
+    }
+    
+    Ok(())
+}
+
+/// Reset heap for testing (dangerous)
+pub fn cmd_heap_reset() -> Result<(), &'static str> {
+    syscall::sys_print("⚠️  DANGER: This will reset the heap position!\n")?;
+    syscall::sys_print("This may cause memory corruption if other allocations are active.\n")?;
+    syscall::sys_print("Only use for testing purposes.\n")?;
+    syscall::sys_print("Resetting heap...\n")?;
+    
+    memory::reset_heap_for_testing();
+    
+    syscall::sys_print("✅ Heap position reset to 0\n")?;
+    
+    // Show new heap status
+    cmd_heap()
 } 

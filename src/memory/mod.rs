@@ -6,6 +6,7 @@ pub mod layout;
 pub mod buddy;
 pub mod slab;
 pub mod fallible;
+pub mod mmu;
 
 use spin::Mutex;
 use crate::{sbi, console_println};
@@ -38,6 +39,7 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 // Dynamic heap configuration - calculated at runtime
 static mut HEAP_SPACE: Option<&'static mut [u8]> = None;
 static mut DYNAMIC_HEAP_SIZE: usize = 0;
+static mut SIMPLE_HEAP_POS: usize = 0;
 
 // Enhanced Memory Manager with automatic hardware detection
 pub struct MemoryManager {
@@ -328,6 +330,7 @@ impl MemoryManager {
                         self.heap_start = chosen_heap_start;
                         self.heap_used = 0;
                         DYNAMIC_HEAP_SIZE = actual_heap_size;
+                        SIMPLE_HEAP_POS = 0; // Reset heap position
                         
                         let heap_slice = core::slice::from_raw_parts_mut(
                             chosen_heap_start as *mut u8,
@@ -344,6 +347,8 @@ impl MemoryManager {
                         );
                         console_println!("   Region: 0x{:08x} - 0x{:08x}, Kernel End Est: 0x{:08x}",
                             region.start, region.start.saturating_add(region.size), min_safe_heap_start);
+                        console_println!("   HEAP_SPACE initialized: {} bytes available", 
+                            HEAP_SPACE.as_ref().map(|s| s.len()).unwrap_or(0));
                         return; // Successfully initialized heap
                     }
                 } else {
@@ -357,7 +362,14 @@ impl MemoryManager {
             }
         } 
         // If we reach here, heap_region_opt was None or the chosen region was unusable.
-        console_println!("❌ 최종: Could not find suitable memory region or usable space for heap after all checks.");
+        console_println!("❌ Could not find suitable memory region or usable space for heap after all checks.");
+        console_println!("   Available regions:");
+        for (i, region) in self.detected_regions.iter().enumerate() {
+            console_println!("     Region {}: 0x{:08x} - 0x{:08x} ({} KB) RAM: {} Zone: {:?}",
+                i, region.start, region.start + region.size, region.size / 1024, 
+                region.is_ram, region.zone_type);
+        }
+        console_println!("   Required heap size: {} KB", self.heap_size / 1024);
     }
     
     /// Initialize advanced allocators if memory permits
@@ -571,47 +583,80 @@ pub fn get_max_file_size() -> usize {
 
 /// Convenience functions for memory allocation
 pub fn allocate_memory(size: usize) -> Option<usize> {
-    console_println!("🔍 Memory allocation request: {} bytes", size);
+    allocate_aligned_memory(size, 8) // Default 8-byte alignment
+}
+
+/// Allocate memory with specific alignment
+pub fn allocate_aligned_memory(size: usize, alignment: usize) -> Option<usize> {
+    console_println!("🔍 Memory allocation request: {} bytes (align: {})", size, alignment);
     
     // First try our custom allocator
     let mut manager = MEMORY_MANAGER.lock();
     match manager.try_allocate(size) {
         Ok(ptr) => {
-            console_println!("✅ Custom allocator succeeded: 0x{:x}", ptr as usize);
-            Some(ptr as usize)
+            let addr = ptr as usize;
+            // Check if the returned address meets our alignment requirement
+            if addr % alignment == 0 {
+                console_println!("✅ Custom allocator succeeded: 0x{:x}", addr);
+                Some(addr)
+            } else {
+                console_println!("⚠️  Custom allocator returned unaligned address, trying direct heap");
+                drop(manager);
+                allocate_from_heap_aligned(size, alignment)
+            }
         }
         Err(_) => {
             console_println!("⚠️  Custom allocator failed, trying direct heap allocation");
             drop(manager); // Release lock before using global allocator
-            
-            // Try to allocate directly from the initialized heap
-            // We need to get a pointer from the global allocator somehow
-            // For now, let's try a simple bump allocator approach
-            unsafe {
-                if let Some(heap_slice) = &mut HEAP_SPACE {
-                    // Simple bump allocator - allocate from the heap space
-                    let align = 8; // 8-byte alignment
-                    let aligned_size = (size + align - 1) & !(align - 1);
-                    
-                    // We need to track current position - use a static variable
-                    static mut SIMPLE_HEAP_POS: usize = 0;
-                    
-                    if SIMPLE_HEAP_POS + aligned_size <= heap_slice.len() {
-                        let ptr = heap_slice.as_mut_ptr().add(SIMPLE_HEAP_POS);
-                        SIMPLE_HEAP_POS += aligned_size;
-                        console_println!("✅ Direct heap allocation: {} bytes at 0x{:x}", size, ptr as usize);
-                        return Some(ptr as usize);
-                    } else {
-                        console_println!("❌ Direct heap exhausted: needed {}, available {}", 
-                                       aligned_size, heap_slice.len() - SIMPLE_HEAP_POS);
-                    }
-                }
-            }
-            
-            console_println!("❌ All allocation methods failed for {} bytes", size);
-            None
+            allocate_from_heap_aligned(size, alignment)
         }
     }
+}
+
+/// Allocate from heap with specific alignment
+fn allocate_from_heap_aligned(size: usize, alignment: usize) -> Option<usize> {
+    unsafe {
+        if let Some(heap_slice) = &mut HEAP_SPACE {
+            let heap_start = heap_slice.as_mut_ptr() as usize;
+            let current_pos = heap_start + SIMPLE_HEAP_POS;
+            
+            // Calculate aligned position
+            let aligned_pos = (current_pos + alignment - 1) & !(alignment - 1);
+            let offset_from_heap_start = aligned_pos - heap_start;
+            let aligned_size = (size + alignment - 1) & !(alignment - 1);
+            
+            console_println!("🔍 Heap alignment: pos={}, aligned_pos=0x{:x}, size={}, heap_len={}", 
+                           SIMPLE_HEAP_POS, aligned_pos, aligned_size, heap_slice.len());
+            
+            if offset_from_heap_start + aligned_size <= heap_slice.len() {
+                SIMPLE_HEAP_POS = offset_from_heap_start + aligned_size;
+                console_println!("✅ Direct heap allocation: {} bytes at 0x{:x} (aligned to {})", 
+                               size, aligned_pos, alignment);
+                return Some(aligned_pos);
+            } else {
+                console_println!("❌ Direct heap exhausted: needed {}, available {}", 
+                               aligned_size, heap_slice.len() - offset_from_heap_start);
+                console_println!("💡 Attempting to reset heap position...");
+                
+                // Check if we can reset the heap (dangerous but might work for testing)
+                let reset_aligned_pos = (heap_start + alignment - 1) & !(alignment - 1);
+                let reset_offset = reset_aligned_pos - heap_start;
+                
+                if reset_offset + aligned_size <= heap_slice.len() {
+                    console_println!("🔄 Resetting heap position to 0");
+                    SIMPLE_HEAP_POS = reset_offset + aligned_size;
+                    console_println!("✅ Direct heap allocation after reset: {} bytes at 0x{:x} (aligned to {})", 
+                                   size, reset_aligned_pos, alignment);
+                    return Some(reset_aligned_pos);
+                }
+            }
+        } else {
+            console_println!("❌ HEAP_SPACE is None - heap not initialized!");
+        }
+    }
+    
+    console_println!("❌ All allocation methods failed for {} bytes (align: {})", size, alignment);
+    None
 }
 
 pub fn deallocate_memory(addr: usize, size: usize) {
@@ -638,4 +683,20 @@ pub fn try_allocate_memory(size: usize) -> AllocResult<*mut u8> {
 pub fn is_memory_healthy() -> bool {
     let manager = MEMORY_MANAGER.lock();
     manager.is_healthy()
+}
+
+/// Get heap usage information for debugging
+pub fn get_heap_usage() -> (usize, usize, usize) {
+    unsafe {
+        let heap_size = HEAP_SPACE.as_ref().map(|s| s.len()).unwrap_or(0);
+        (SIMPLE_HEAP_POS, heap_size, heap_size - SIMPLE_HEAP_POS)
+    }
+}
+
+/// Reset heap for testing (dangerous - only for debugging)
+pub fn reset_heap_for_testing() {
+    unsafe {
+        console_println!("⚠️  DANGER: Resetting heap position to 0 for testing");
+        SIMPLE_HEAP_POS = 0;
+    }
 } 

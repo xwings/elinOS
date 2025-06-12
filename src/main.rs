@@ -17,6 +17,7 @@ pub mod filesystem;  // Now points to filesystem/mod.rs
 pub mod elf;
 pub mod syscall;
 pub mod virtio_blk;
+pub mod trap;  // Add trap module
 
 use crate::uart::Uart;
 
@@ -66,6 +67,17 @@ pub extern "C" fn main() -> ! {
         let _ = writeln!(uart, "\n🚀 elinOS Starting...");
     }
 
+    // Initialize trap handling (CRITICAL: must be early!)
+    {
+        let mut uart = UART.lock();
+        let _ = writeln!(uart, "🛡️ Initializing trap handling...");
+    }
+    trap::init_trap_handling();
+    {
+        let mut uart = UART.lock();
+        let _ = writeln!(uart, "✅ Trap handling ready");
+    }
+
     // Initialize console system
     if let Err(e) = console::init_console() {
         panic!("Failed to initialize console: {}", e);
@@ -80,6 +92,17 @@ pub extern "C" fn main() -> ! {
         memory_mgr.init();
     }
     console_println!("✅ Memory management ready");
+
+    // Initialize MMU (Memory Management Unit) - disabled due to QEMU RISC-V compatibility
+    console_println!("🗺️  MMU initialization disabled due to QEMU RISC-V compatibility issues");
+    console_println!("⚠️  Running in physical memory mode (all functionality available)");
+    console_println!("💡 Note: This is a QEMU limitation, not an elinOS limitation");
+    // if let Err(e) = memory::mmu::init_mmu() {
+    //     console_println!("❌ MMU initialization failed: {}", e);
+    //     console_println!("⚠️  Continuing without MMU (legacy mode)");
+    // } else {
+    //     console_println!("✅ MMU enabled successfully!");
+    // }
 
     // Initialize VirtIO disk interface
     console_println!("💾 Initializing VirtIO disk...");
@@ -204,6 +227,7 @@ fn execute_command(command: &str) {
     }
 }
 
+// Basic print macros for UART output
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ({

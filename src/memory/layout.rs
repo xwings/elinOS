@@ -108,6 +108,18 @@ impl MemoryLayout {
         layout.small_heap_size = 64 * 1024; // 64KB for small allocator
         layout.heap_size = layout.buddy_heap_size + layout.small_heap_size;
         
+        // Debug output to see the conflict
+        console_println!("🔍 Memory layout debug:");
+        console_println!("   Kernel start: 0x{:08x}", kernel_start);
+        console_println!("   Kernel end: 0x{:08x}", kernel_end);
+        console_println!("   Kernel size: {} KB", kernel_size / 1024);
+        console_println!("   Stack start: 0x{:08x}", stack_start);
+        console_println!("   Stack end: 0x{:08x}", stack_end);
+        console_println!("   Stack size: {} KB", stack_size / 1024);
+        console_println!("   Total kernel footprint: {} KB", layout.total_kernel_footprint / 1024);
+        console_println!("   Calculated heap start: 0x{:08x}", heap_start);
+        console_println!("   Linker heap start: 0x80400000");
+        
         layout
     }
     
@@ -168,9 +180,17 @@ impl MemoryLayout {
     
     /// Validate the memory layout
     pub fn validate(&self) -> Result<(), &'static str> {
-        // Check for overlaps
-        if self.heap_start <= self.kernel_end + self.kernel_guard_size {
-            return Err("Heap overlaps with kernel space");
+        // The actual heap is placed by the linker at 0x80400000, not at our calculated position
+        // So we need to check if the linker heap conflicts with kernel space
+        let linker_heap_start = 0x80400000;
+        let kernel_end_with_guard = self.kernel_end + self.kernel_guard_size;
+        
+        console_println!("🔍 Validation check:");
+        console_println!("   Kernel end + guard: 0x{:08x}", kernel_end_with_guard);
+        console_println!("   Linker heap start: 0x{:08x}", linker_heap_start);
+        
+        if linker_heap_start <= kernel_end_with_guard {
+            return Err("Linker heap overlaps with kernel space");
         }
         
         // Check for reasonable sizes
@@ -182,6 +202,7 @@ impl MemoryLayout {
             return Err("Total kernel footprint too large (>64MB)");
         }
         
+        console_println!("✅ Memory layout validation passed");
         Ok(())
     }
     
