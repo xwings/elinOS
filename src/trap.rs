@@ -4,7 +4,6 @@
 //! It includes proper trap vector setup and detailed crash information dumping.
 
 use core::arch::asm;
-use core::fmt::Write;
 use spin::Mutex;
 use crate::console_println;
 
@@ -119,21 +118,20 @@ pub fn dump_crash_info(ctx: &TrapContext) {
     let cause = TrapCause::from(ctx.scause);
     let is_interrupt = (ctx.scause & (1 << 63)) != 0;
     
-    let mut uart = crate::UART.lock();
-    let _ = writeln!(uart, "=====================================");
-    let _ = writeln!(uart, "💥 KERNEL TRAP/CRASH DETECTED! 💥");
-    let _ = writeln!(uart, "=====================================");
+    console_println!("=====================================");
+    console_println!("💥 KERNEL TRAP/CRASH DETECTED! 💥");
+    console_println!("=====================================");
     
-    let _ = writeln!(uart, "Trap Type: {}", if is_interrupt { "INTERRUPT" } else { "EXCEPTION" });
-    let _ = writeln!(uart, "Cause: {:?} (0x{:016x})", cause, ctx.scause);
-    let _ = writeln!(uart, "PC (sepc): 0x{:016x}", ctx.sepc);
-    let _ = writeln!(uart, "Trap Value (stval): 0x{:016x}", ctx.stval);
-    let _ = writeln!(uart, "Status (sstatus): 0x{:016x}", ctx.sstatus);
-    let _ = writeln!(uart);
+    console_println!("Trap Type: {}", if is_interrupt { "INTERRUPT" } else { "EXCEPTION" });
+    console_println!("Cause: {:?} (0x{:016x})", cause, ctx.scause);
+    console_println!("PC (sepc): 0x{:016x}", ctx.sepc);
+    console_println!("Trap Value (stval): 0x{:016x}", ctx.stval);
+    console_println!("Status (sstatus): 0x{:016x}", ctx.sstatus);
+    console_println!();
     
     // Dump registers
-    let _ = writeln!(uart, "📋 REGISTER DUMP:");
-    let _ = writeln!(uart, "─────────────────────────────────────");
+    console_println!("📋 REGISTER DUMP:");
+    console_println!("─────────────────────────────────────");
     for i in 0..32 {
         let reg_name = match i {
             0 => "zero",
@@ -172,54 +170,54 @@ pub fn dump_crash_info(ctx: &TrapContext) {
         };
         
         if i % 4 == 0 && i > 0 {
-            let _ = writeln!(uart);
+            console_println!();
         }
-        let _ = write!(uart, "x{:2}({}): 0x{:016x}  ", i, reg_name, ctx.x[i]);
+        console_println!("x{:2}({}): 0x{:016x}  ", i, reg_name, ctx.x[i]);
     }
-    let _ = writeln!(uart);
-    let _ = writeln!(uart);
+    console_println!();
+    console_println!();
     
     // Additional context based on trap type
     match cause {
         TrapCause::IllegalInstruction => {
-            let _ = writeln!(uart, "🚨 ILLEGAL INSTRUCTION at PC: 0x{:016x}", ctx.sepc);
-            let _ = writeln!(uart, "   This usually indicates:");
-            let _ = writeln!(uart, "   - Corrupted code");
-            let _ = writeln!(uart, "   - Jump to invalid address");
-            let _ = writeln!(uart, "   - Unsupported instruction");
+            console_println!("🚨 ILLEGAL INSTRUCTION at PC: 0x{:016x}", ctx.sepc);
+            console_println!("   This usually indicates:");
+            console_println!("   - Corrupted code");
+            console_println!("   - Jump to invalid address");
+            console_println!("   - Unsupported instruction");
         }
         TrapCause::LoadAccessFault | TrapCause::StoreAccessFault => {
-            let _ = writeln!(uart, "🚨 MEMORY ACCESS FAULT");
-            let _ = writeln!(uart, "   Faulting address: 0x{:016x}", ctx.stval);
-            let _ = writeln!(uart, "   PC: 0x{:016x}", ctx.sepc);
-            let _ = writeln!(uart, "   This usually indicates:");
-            let _ = writeln!(uart, "   - Access to unmapped memory");
-            let _ = writeln!(uart, "   - Permission violation");
-            let _ = writeln!(uart, "   - Hardware fault");
+            console_println!("🚨 MEMORY ACCESS FAULT");
+            console_println!("   Faulting address: 0x{:016x}", ctx.stval);
+            console_println!("   PC: 0x{:016x}", ctx.sepc);
+            console_println!("   This usually indicates:");
+            console_println!("   - Access to unmapped memory");
+            console_println!("   - Permission violation");
+            console_println!("   - Hardware fault");
         }
         TrapCause::LoadAddressMisaligned | TrapCause::StoreAddressMisaligned => {
-            let _ = writeln!(uart, "🚨 MISALIGNED MEMORY ACCESS");
-            let _ = writeln!(uart, "   Faulting address: 0x{:016x}", ctx.stval);
-            let _ = writeln!(uart, "   PC: 0x{:016x}", ctx.sepc);
+            console_println!("🚨 MISALIGNED MEMORY ACCESS");
+            console_println!("   Faulting address: 0x{:016x}", ctx.stval);
+            console_println!("   PC: 0x{:016x}", ctx.sepc);
         }
         TrapCause::InstructionAddressMisaligned => {
-            let _ = writeln!(uart, "🚨 MISALIGNED INSTRUCTION FETCH");
-            let _ = writeln!(uart, "   Faulting PC: 0x{:016x}", ctx.stval);
+            console_println!("🚨 MISALIGNED INSTRUCTION FETCH");
+            console_println!("   Faulting PC: 0x{:016x}", ctx.stval);
         }
         TrapCause::Breakpoint => {
-            let _ = writeln!(uart, "🔍 BREAKPOINT HIT at PC: 0x{:016x}", ctx.sepc);
+            console_println!("🔍 BREAKPOINT HIT at PC: 0x{:016x}", ctx.sepc);
         }
         _ => {
-            let _ = writeln!(uart, "ℹ️  Additional debugging info:");
-            let _ = writeln!(uart, "   Raw scause: 0x{:016x}", ctx.scause);
-            let _ = writeln!(uart, "   Raw stval: 0x{:016x}", ctx.stval);
+            console_println!("ℹ️  Additional debugging info:");
+            console_println!("   Raw scause: 0x{:016x}", ctx.scause);
+            console_println!("   Raw stval: 0x{:016x}", ctx.stval);
         }
     }
     
-    let _ = writeln!(uart);
-    let _ = writeln!(uart, "=====================================");
-    let _ = writeln!(uart, "System halted. Reset required.");
-    let _ = writeln!(uart, "=====================================");
+    console_println!();
+    console_println!("=====================================");
+    console_println!("System halted. Reset required.");
+    console_println!("=====================================");
 }
 
 /// Handle system calls by dispatching to the unified syscall module
@@ -291,17 +289,13 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
         let mut uart = crate::UART.lock();
         match cause {
             TrapCause::SupervisorTimerInterrupt => {
-                // Handle timer interrupt
-                let _ = writeln!(uart, "⏰ Timer interrupt");
-                // Clear timer interrupt and set next timer
-                // TODO: Implement proper timer handling
+                console_println!("⏰ Timer interrupt");
             }
             TrapCause::SupervisorExternalInterrupt => {
-                let _ = writeln!(uart, "🔌 External interrupt");
-                // TODO: Handle external interrupts (UART, etc.)
+                console_println!("🔌 External interrupt");
             }
             _ => {
-                let _ = writeln!(uart, "❓ Unknown interrupt: {:?}", cause);
+                console_println!("❓ Unknown interrupt: {:?}", cause);
             }
         }
     } else {

@@ -2,7 +2,6 @@
 #![no_main]
 
 use core::panic::PanicInfo;
-use core::fmt::Write;
 use core::arch::asm;
 use spin::Mutex;
 use heapless;
@@ -64,19 +63,13 @@ pub extern "C" fn main() -> ! {
     {
         let mut uart = UART.lock();
         uart.init();
-        let _ = writeln!(uart, "\n🚀 elinOS Starting...");
     }
+    console_println!("\n🚀 elinOS Starting...");
 
     // Initialize trap handling (CRITICAL: must be early!)
-    {
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "🛡️ Initializing trap handling...");
-    }
+    console_println!("🛡️ Initializing trap handling...");
     trap::init_trap_handling();
-    {
-        let mut uart = UART.lock();
-        let _ = writeln!(uart, "✅ Trap handling ready");
-    }
+    console_println!("✅ Trap handling ready");
 
     // Initialize console system
     if let Err(e) = console::init_console() {
@@ -223,23 +216,6 @@ fn execute_command(command: &str) {
         console_println!("{}", e); // e is the &'static str error message
         console_println!(); // Newline
     }
-}
-
-// Basic print macros for UART output
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ({
-        use core::fmt::Write;
-        let mut uart = $crate::UART.lock();
-        let _ = write!(uart, $($arg)*);
-    });
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\r\n"));
-    ($fmt:expr) => ($crate::print!(concat!($fmt, "\r\n")));
-    ($fmt:expr, $($arg:tt)*) => ($crate::print!(concat!($fmt, "\r\n"), $($arg)*));
 }
 
 // Stack top symbol

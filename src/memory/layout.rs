@@ -208,35 +208,32 @@ impl MemoryLayout {
     
     /// Display detailed memory layout information
     pub fn display(&self) {
-        let mut uart = UART.lock();
+        console_println!("=== Dynamic Memory Layout ===");
+        console_println!("Kernel Image:");
+        console_println!("  Start:  0x{:08x}", self.kernel_start);
+        console_println!("  End:    0x{:08x}", self.kernel_end);
+        console_println!("  Size:   {} KB", self.kernel_size / 1024);
         
-        let _ = writeln!(uart, "=== Dynamic Memory Layout ===");
-        let _ = writeln!(uart, "Kernel Image:");
-        let _ = writeln!(uart, "  Start:  0x{:08x}", self.kernel_start);
-        let _ = writeln!(uart, "  End:    0x{:08x}", self.kernel_end);
-        let _ = writeln!(uart, "  Size:   {} KB", self.kernel_size / 1024);
+        console_println!("Kernel Stack:");
+        console_println!("  Start:  0x{:08x}", self.stack_start);
+        console_println!("  End:    0x{:08x}", self.stack_end);
+        console_println!("  Size:   {} KB", self.stack_size / 1024);
         
-        let _ = writeln!(uart, "Kernel Stack:");
-        let _ = writeln!(uart, "  Start:  0x{:08x}", self.stack_start);
-        let _ = writeln!(uart, "  End:    0x{:08x}", self.stack_end);
-        let _ = writeln!(uart, "  Size:   {} KB", self.stack_size / 1024);
+        console_println!("Safety Guards:");
+        console_println!("  Kernel guard: {} KB", self.kernel_guard_size / 1024);
+        console_println!("  Stack guard:  {} KB", self.stack_guard_size / 1024);
         
-        let _ = writeln!(uart, "Safety Guards:");
-        let _ = writeln!(uart, "  Kernel guard: {} KB", self.kernel_guard_size / 1024);
-        let _ = writeln!(uart, "  Stack guard:  {} KB", self.stack_guard_size / 1024);
-        
-        let _ = writeln!(uart, "Heap Layout:");
-        let _ = writeln!(uart, "  Buddy:   0x{:08x} - 0x{:08x} ({} KB)",
-            self.buddy_heap_start,
-            self.buddy_heap_start + self.buddy_heap_size, 
+        console_println!("Heap Layout:");
+        console_println!("  Buddy:   0x{:08x} - 0x{:08x} ({} KB)",
+            self.buddy_heap_start, self.buddy_heap_start + self.buddy_heap_size,
             self.buddy_heap_size / 1024);
-        let _ = writeln!(uart, "  Small:   0x{:08x} - 0x{:08x} ({} KB)",
-            self.small_heap_start,
-            self.small_heap_start + self.small_heap_size,
+        
+        console_println!("  Small:   0x{:08x} - 0x{:08x} ({} KB)",
+            self.small_heap_start, self.small_heap_start + self.small_heap_size,
             self.small_heap_size / 1024);
         
-        let _ = writeln!(uart, "Total kernel footprint: {} KB", 
-            self.total_kernel_footprint / 1024);
+        console_println!("Total kernel footprint: {} KB",
+            (self.small_heap_start + self.small_heap_size - self.kernel_start) / 1024);
     }
 }
 
