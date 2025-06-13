@@ -3,8 +3,7 @@
 
 use crate::UART;
 use crate::filesystem;
-use crate::console_println;
-use crate::console_print;
+use crate::{console_print, console_println};
 use super::{SysCallResult, SyscallArgs, STDOUT_FD, STDERR_FD};
 use spin::Mutex;
 use heapless::{FnvIndexMap, Vec};
