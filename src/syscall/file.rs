@@ -76,7 +76,9 @@ pub fn handle_file_syscall(args: &SyscallArgs) -> SysCallResult {
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 fn sys_write(fd: i32, buf: *const u8, count: usize) -> SysCallResult {
+    console_println!("[+] SYSCALL: sys_write(fd={}, buf={:p}, count={})", fd, buf, count);
     if fd == STDOUT_FD || fd == STDERR_FD {
+        console_println!("");
         // Write to console
         unsafe {
             let slice = core::slice::from_raw_parts(buf, count);
@@ -85,6 +87,7 @@ fn sys_write(fd: i32, buf: *const u8, count: usize) -> SysCallResult {
                 uart.putchar(byte);
             }
         }
+        console_println!("");
         SysCallResult::Success(count as isize)
     } else {
         // TODO: File write support with proper file descriptor management
