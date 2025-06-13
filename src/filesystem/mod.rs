@@ -360,22 +360,22 @@ pub fn check_filesystem() -> Result<(), FilesystemError> {
     let fs = FILESYSTEM.lock();
     
     console_println!("🔍 Filesystem Check:");
-    console_println!("  Type: {}", fs.get_filesystem_type());
+    console_println!("   Type: {}", fs.get_filesystem_type());
     
     if let Some((signature, total_blocks, block_size)) = fs.get_filesystem_info() {
-        console_println!("  Signature/Magic: 0x{:x} ✅", signature);
-        console_println!("  Mount Status: {} ✅", 
+        console_println!("   Signature/Magic: 0x{:x} ✅", signature);
+        console_println!("   Mount Status: {} ✅", 
             if fs.is_mounted() { "MOUNTED" } else { "UNMOUNTED" });
-        console_println!("  Total Blocks/Sectors: {}", total_blocks);
-        console_println!("  Block/Sector Size: {} bytes", block_size);
-        console_println!("  Storage: VirtIO Block Device");
+        console_println!("   Total Blocks/Sectors: {}", total_blocks);
+        console_println!("   Block/Sector Size: {} bytes", block_size);
+        console_println!("   Storage: VirtIO Block Device");
     }
     
     let file_count = match list_files() {
         Ok(files) => files.len(),
         Err(_) => 0,
     };
-    console_println!("  Files in Cache: {}", file_count);
+    console_println!("   Files in Cache: {}", file_count);
     
     Ok(())
 } 

@@ -3,6 +3,7 @@
 
 use crate::{UART, console_println};
 use crate::memory::mmu::{self, PTE_R, PTE_W, PTE_X, PTE_U};
+use crate::memory;
 use core::fmt::Write;
 
 // ELF Magic number
@@ -142,152 +143,160 @@ impl ElfLoader {
         // Copy packed fields to local variables to avoid alignment issues
         let entry_point = header.e_entry;
         let phnum = header.e_phnum;
-        let phoff = header.e_phoff;
+        let ph_offset = header.e_phoff;
         let phentsize = header.e_phentsize;
         
         console_println!("🔄 Loading ELF binary with MMU support:");
-        console_println!("  Entry point: 0x{:x}", entry_point);
-        console_println!("  Program headers: {}", phnum);
-        console_println!("  File size: {} bytes", data.len());
-
-        // Skip hardware MMU setup for now (using software MMU)
-        console_println!("🔧 Using Software MMU - skipping hardware page table setup");
-
-        // Parse program headers
-        let ph_offset = phoff as usize;
-        let ph_size = phentsize as usize;
-        let ph_count = phnum as usize;
-
-        if ph_offset + (ph_size * ph_count) > data.len() {
+        console_println!("   Entry point: 0x{:x}", entry_point);
+        console_println!("   Program headers: {}", phnum);
+        console_println!("   File size: {} bytes", data.len());
+        
+        if memory::mmu::is_mmu_enabled() {
+            console_println!("🔧 Using Software MMU - skipping hardware page table setup");
+        }
+        
+        let mut segments = heapless::Vec::<ElfSegment, 8>::new();
+        
+        // Calculate the base address for program headers
+        let ph_start = ph_offset as usize;
+        let ph_size = (phnum as usize) * (phentsize as usize);
+        
+        if ph_start + ph_size > data.len() {
             return Err(ElfError::InvalidHeader);
         }
-
-        let mut segments = heapless::Vec::new();
-
+        
+        let ph_count = phnum as usize;
         console_println!("🔍 Starting to process {} program headers...", ph_count);
-
+        
         for i in 0..ph_count {
             console_println!("🔍 Processing program header {}/{}", i + 1, ph_count);
             
-            let ph_data = &data[ph_offset + (i * ph_size)..ph_offset + ((i + 1) * ph_size)];
-            let ph = unsafe {
-                &*(ph_data.as_ptr() as *const Elf64ProgramHeader)
-            };
-
-            // Copy packed fields to local variables to avoid alignment issues
-            let p_type = ph.p_type;
+            let ph_offset_in_data = ph_start + i * (phentsize as usize);
+            
+            if ph_offset_in_data + 56 > data.len() {
+                continue;
+            }
+            
+            let ph_data = &data[ph_offset_in_data..ph_offset_in_data + 56];
+            let p_type = u32::from_le_bytes([ph_data[0], ph_data[1], ph_data[2], ph_data[3]]);
+            
             console_println!("🔍 Program header {}: type=0x{:x}", i, p_type);
-
+            
             if p_type == PT_LOAD {
                 console_println!("🔍 Found PT_LOAD segment {}", i);
                 
-                // Copy packed fields to local variables
-                let p_vaddr = ph.p_vaddr;
-                let p_memsz = ph.p_memsz;
-                let p_flags = ph.p_flags;
-                let p_filesz = ph.p_filesz;
-                let p_offset = ph.p_offset;
+                let p_flags = u32::from_le_bytes([ph_data[4], ph_data[5], ph_data[6], ph_data[7]]);
+                let p_offset = u64::from_le_bytes([
+                    ph_data[8], ph_data[9], ph_data[10], ph_data[11],
+                    ph_data[12], ph_data[13], ph_data[14], ph_data[15]
+                ]) as usize;
+                let p_vaddr = u64::from_le_bytes([
+                    ph_data[16], ph_data[17], ph_data[18], ph_data[19],
+                    ph_data[20], ph_data[21], ph_data[22], ph_data[23]
+                ]);
+                let p_filesz = u64::from_le_bytes([
+                    ph_data[32], ph_data[33], ph_data[34], ph_data[35],
+                    ph_data[36], ph_data[37], ph_data[38], ph_data[39]
+                ]);
+                let p_memsz = u64::from_le_bytes([
+                    ph_data[40], ph_data[41], ph_data[42], ph_data[43],
+                    ph_data[44], ph_data[45], ph_data[46], ph_data[47]
+                ]);
                 
-                console_println!("🔍 Segment details: vaddr=0x{:x}, memsz={}, flags=0x{:x}", 
+                console_println!("🔍 Segment details: vaddr=0x{:x}, memsz={}, flags=0x{:x}",
                     p_vaddr, p_memsz, p_flags);
                 
-                console_println!("  Segment {}: 0x{:x} - 0x{:x} ({} bytes) flags: 0x{:x} ({})",
-                    i, p_vaddr, p_vaddr + p_memsz, p_memsz, p_flags, segment_permissions(p_flags));
-
-                let mut data_addr = None;
-                let mut data_size = 0;
-
-                // Allocate memory for segment (even if no file data)
-                if p_memsz > 0 {
-                    console_println!("🔍 Allocating memory for segment: {} bytes", p_memsz);
-                    
-                    let file_size = p_filesz as usize;
-                    
-                    // Get the segment data from the ELF file (if any)
-                    let segment_data = if file_size > 0 {
-                        console_println!("🔍 Reading {} bytes from file offset 0x{:x}", file_size, p_offset);
-                        let file_offset = p_offset as usize;
-                        
-                        // Check if the file offset is within bounds
-                        if file_offset >= data.len() {
-                            console_println!("⚠️  File offset 0x{:x} is beyond file size {} - treating as BSS", 
-                                file_offset, data.len());
-                            None
-                        } else if file_offset + file_size > data.len() {
-                            // Partial read - only read what's available
-                            let available_size = data.len() - file_offset;
-                            console_println!("⚠️  Partial read: only {} bytes available from offset 0x{:x}", 
-                                available_size, file_offset);
-                            Some(&data[file_offset..file_offset + available_size])
-                        } else {
-                            Some(&data[file_offset..file_offset + file_size])
-                        }
-                    } else {
-                        console_println!("🔍 No file data to read (BSS segment)");
-                        None
-                    };
-                    
-                    // Allocate physical memory for the segment
-                    console_println!("🔍 Calling allocate_memory({})...", p_memsz);
-                    if let Some(allocated_addr) = crate::memory::allocate_memory(p_memsz as usize) {
-                        console_println!("✅ Memory allocated at 0x{:x}", allocated_addr);
-                        
-                        // Copy the segment data to allocated memory
-                        let dest_ptr = allocated_addr as *mut u8;
-                        unsafe {
-                            // First, zero out the entire allocated memory
-                            core::ptr::write_bytes(dest_ptr, 0, p_memsz as usize);
-                            
-                            // Then copy any available file data
-                            if let Some(data) = segment_data {
-                                console_println!("🔍 Copying {} bytes to memory", data.len());
-                                core::ptr::copy_nonoverlapping(
-                                    data.as_ptr(),
-                                    dest_ptr,
-                                    data.len()
-                                );
-                            } else {
-                                console_println!("🔍 No file data to copy - memory zeroed");
-                            }
-                        }
-                        
-                        // Skip hardware MMU mapping (using software MMU)
-                        console_println!("🔧 Software MMU: Virtual 0x{:x} -> Physical 0x{:x} (will translate at runtime)",
-                            p_vaddr, allocated_addr);
-                        
-                        data_addr = Some(allocated_addr);
-                        data_size = p_memsz as usize;
-                        
-                        console_println!("✅ Copied {} bytes to 0x{:x}", file_size, allocated_addr);
-                    } else {
-                        console_println!("❌ Failed to allocate memory for segment");
-                        return Err(ElfError::LoadError);
-                    }
+                console_println!("   Segment {}: 0x{:x} - 0x{:x} ({} bytes) flags: 0x{:x} ({})",
+                    i, p_vaddr, p_vaddr + p_memsz, p_memsz, p_flags,
+                    segment_permissions(p_flags));
+                
+                if p_memsz == 0 {
+                    continue;
                 }
-
-                let segment = ElfSegment {
+                
+                console_println!("🔍 Allocating memory for segment: {} bytes", p_memsz);
+                
+                let file_size = if p_offset < data.len() {
+                    core::cmp::min(p_filesz as usize, data.len() - p_offset)
+                } else {
+                    0
+                };
+                
+                console_println!("🔍 Reading {} bytes from file offset 0x{:x}", file_size, p_offset);
+                
+                let segment_data = if p_offset >= data.len() {
+                    console_println!("⚠️ File offset 0x{:x} is beyond file size {} - treating as BSS",
+                        p_offset, data.len());
+                    &[]
+                } else if p_offset + file_size > data.len() {
+                    let available = data.len() - p_offset;
+                    console_println!("⚠️ Partial read: only {} bytes available from offset 0x{:x}",
+                        available, p_offset);
+                    &data[p_offset..data.len()]
+                } else if file_size == 0 {
+                    console_println!("🔍 No file data to read (BSS segment)");
+                    &[]
+                } else {
+                    &data[p_offset..p_offset + file_size]
+                };
+                
+                console_println!("🔍 Calling allocate_memory({})...", p_memsz);
+                let allocated_addr = if let Some(addr) = memory::allocate_memory(p_memsz as usize) {
+                    console_println!("✅ Memory allocated at 0x{:x}", addr);
+                    
+                    let dest_ptr = addr as *mut u8;
+                    
+                    unsafe {
+                        // Zero the entire allocated memory
+                        core::ptr::write_bytes(dest_ptr, 0, p_memsz as usize);
+                        
+                        // Copy file data if we have any
+                        if !segment_data.is_empty() {
+                            console_println!("🔍 Copying {} bytes to memory", segment_data.len());
+                            core::ptr::copy_nonoverlapping(
+                                segment_data.as_ptr(),
+                                dest_ptr,
+                                segment_data.len()
+                            );
+                        } else {
+                            console_println!("🔍 No file data to copy - memory zeroed");
+                        }
+                    }
+                    
+                    if memory::mmu::is_mmu_enabled() {
+                        console_println!("🔧 Software MMU: Virtual 0x{:x} -> Physical 0x{:x} (will translate at runtime)",
+                            p_vaddr, addr);
+                    }
+                    
+                    if !segment_data.is_empty() {
+                        console_println!("✅ Copied {} bytes to 0x{:x}", file_size, addr);
+                    }
+                    
+                    addr
+                } else {
+                    console_println!("❌ Failed to allocate memory for segment");
+                    return Err(ElfError::LoadError);
+                };
+                
+                if let Err(_) = segments.push(ElfSegment {
                     vaddr: p_vaddr,
                     memsz: p_memsz,
+                    data_addr: Some(allocated_addr),
+                    data_size: file_size,
                     flags: p_flags,
-                    data_addr,
-                    data_size,
-                };
-
-                if segments.push(segment).is_err() {
+                }) {
                     return Err(ElfError::LoadError);
                 }
             }
         }
-
-        let loaded_elf = LoadedElf {
+        
+        console_println!("✅ ELF loaded successfully with {} segments, entry at 0x{:x}",
+            segments.len(), entry_point);
+        
+        Ok(LoadedElf {
             entry_point,
             segments,
-        };
-
-        console_println!("✅ ELF loaded successfully with {} segments, entry at 0x{:x}", 
-            loaded_elf.segments.len(), loaded_elf.entry_point);
-
-        Ok(loaded_elf)
+        })
     }
 
     /// Simple ELF information display

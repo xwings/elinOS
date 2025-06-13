@@ -88,8 +88,8 @@ pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCall
         SYS_GETPID => sys_getpid(),
         SYS_GETPPID => sys_getppid(),
         SYS_FORK => sys_fork(),
-        SYS_CLONE => sys_clone(args.arg0 as usize, args.arg1 as usize, args.arg2 as usize, args.arg3 as usize, args.arg4 as usize),
-        SYS_EXECVE => sys_execve(args.arg0 as *const u8, args.arg1 as *const *const u8, args.arg2 as *const *const u8),
+        SYS_CLONE => sys_clone(),
+        SYS_EXECVE => sys_execve(),
         SYS_WAIT4 => sys_wait4(args.arg0 as i32, args.arg1 as *mut i32, args.arg2 as i32, args.arg3 as *mut u8),
         SYS_KILL => sys_kill(args.arg0 as i32, args.arg1 as i32),
         SYS_GETUID => sys_getuid(),
@@ -130,25 +130,24 @@ pub fn sys_exit(exit_code: isize) -> SysCallResult {
 }
 
 fn sys_exit_group(status: i32) -> SysCallResult {
-    console_println!("Process group exited with status: {}", status);
-    // In a real OS, this would terminate the process group
-    // For now, we just return success
-    SysCallResult::Success(status as isize)
+    console_println!("🚪 Process group exited with status: {}", status);
+    // For now, treat this the same as regular exit
+    sys_exit(status as isize)
 }
 
 fn sys_fork() -> SysCallResult {
-    console_println!("Fork not implemented");
-    SysCallResult::Error(ENOSYS)
+    console_println!("❌ Fork not implemented");
+    SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
 }
 
-fn sys_clone(_flags: usize, _stack: usize, _parent_tid: usize, _child_tid: usize, _tls: usize) -> SysCallResult {
-    console_println!("Clone not implemented");
-    SysCallResult::Error(ENOSYS)
+fn sys_clone() -> SysCallResult {
+    console_println!("❌ Clone not implemented");
+    SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
 }
 
-fn sys_execve(_filename: *const u8, _argv: *const *const u8, _envp: *const *const u8) -> SysCallResult {
-    console_println!("Execve not implemented");
-    SysCallResult::Error(ENOSYS)
+fn sys_execve() -> SysCallResult {
+    console_println!("❌ Execve not implemented");
+    SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
 }
 
 fn sys_waitid(_which: i32, _pid: i32, _status: *mut i32, _options: i32) -> SysCallResult {
@@ -187,7 +186,7 @@ fn sys_gettid() -> SysCallResult {
 }
 
 fn sys_kill(_pid: i32, _sig: i32) -> SysCallResult {
-    console_println!("Kill not implemented");
+    console_println!("❌ Kill not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
@@ -222,13 +221,13 @@ pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     
     match loader.load_elf(elf_data) {
         Ok(loaded_elf) => {
-            console_println!("ELF loaded successfully with {} segments", loaded_elf.segments.len());
-            console_println!("Entry point: 0x{:x}", loaded_elf.entry_point);
+            console_println!("✅ ELF loaded successfully with {} segments", loaded_elf.segments.len());
+            console_println!("📍 Entry point: 0x{:x}", loaded_elf.entry_point);
             
             // Display segment information
             for (i, segment) in loaded_elf.segments.iter().enumerate() {
                 let perms = crate::elf::segment_permissions(segment.flags);
-                console_println!("  Segment {}: 0x{:x} ({} bytes) [{}]", 
+                console_println!("📋 Segment {}: 0x{:x} ({} bytes) [{}]", 
                     i, segment.vaddr, segment.memsz, perms);
             }
             
@@ -326,57 +325,57 @@ pub fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
 }
 
 fn sys_wait4(_pid: i32, _status: *mut i32, _options: i32, _rusage: *mut u8) -> SysCallResult {
-    console_println!("Wait4 not implemented");
+    console_println!("❌ Wait4 not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_setuid(_uid: u32) -> SysCallResult {
-    console_println!("Setuid not implemented");
+    console_println!("❌ Setuid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_setgid(_gid: u32) -> SysCallResult {
-    console_println!("Setgid not implemented");
+    console_println!("❌ Setgid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_geteuid() -> SysCallResult {
-    console_println!("Geteuid not implemented");
+    console_println!("❌ Geteuid not implemented");
     SysCallResult::Success(0) // Return root
 }
 
 fn sys_getegid() -> SysCallResult {
-    console_println!("Getegid not implemented");
+    console_println!("❌ Getegid not implemented");
     SysCallResult::Success(0) // Return root
 }
 
 fn sys_setsid() -> SysCallResult {
-    console_println!("Setsid not implemented");
+    console_println!("❌ Setsid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_getpgid(_pid: i32) -> SysCallResult {
-    console_println!("Getpgid not implemented");
+    console_println!("❌ Getpgid not implemented");
     SysCallResult::Success(1) // Return process group 1
 }
 
 fn sys_setpgid(_pid: i32, _pgid: i32) -> SysCallResult {
-    console_println!("Setpgid not implemented");
+    console_println!("❌ Setpgid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_getpgrp() -> SysCallResult {
-    console_println!("Getpgrp not implemented");
+    console_println!("❌ Getpgrp not implemented");
     SysCallResult::Success(1) // Return process group 1
 }
 
 fn sys_sched_yield() -> SysCallResult {
-    console_println!("Sched_yield not implemented");
+    console_println!("❌ Sched_yield not implemented");
     SysCallResult::Success(0)
 }
 
 fn sys_nanosleep(_req: *const u8, _rem: *mut u8) -> SysCallResult {
-    console_println!("Nanosleep not implemented");
+    console_println!("❌ Nanosleep not implemented");
     SysCallResult::Error(ENOSYS)
 }
 

@@ -259,4 +259,6 @@ pub fn get_memory_layout() -> &'static MemoryLayout {
 pub fn get_kernel_info() -> (usize, usize, usize) {
     let layout = get_memory_layout();
     (layout.kernel_start, layout.kernel_end, layout.kernel_size)
-} 
+}
+
+ 

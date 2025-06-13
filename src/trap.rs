@@ -122,15 +122,15 @@ pub fn dump_crash_info(ctx: &TrapContext) {
     console_println!("=====================================");
     console_println!("💥 KERNEL TRAP/CRASH DETECTED! 💥");
     console_println!("=====================================");
-    
-    console_println!("Trap Type: {}", if is_interrupt { "INTERRUPT" } else { "EXCEPTION" });
-    console_println!("Cause: {:?} (0x{:016x})", cause, ctx.scause);
-    console_println!("PC (sepc): 0x{:016x}", ctx.sepc);
-    console_println!("Trap Value (stval): 0x{:016x}", ctx.stval);
-    console_println!("Status (sstatus): 0x{:016x}", ctx.sstatus);
+    console_println!();
+    console_println!("📋 Trap Type: {}", if is_interrupt { "INTERRUPT" } else { "EXCEPTION" });
+    console_println!("📋 Cause: {:?} (0x{:016x})", cause, ctx.scause);
+    console_println!("📋 PC (sepc): 0x{:016x}", ctx.sepc);
+    console_println!("📋 Trap Value (stval): 0x{:016x}", ctx.stval);
+    console_println!("📋 Status (sstatus): 0x{:016x}", ctx.sstatus);
     console_println!();
     
-    // Dump registers
+    // Detailed register dump
     console_println!("📋 REGISTER DUMP:");
     console_println!("─────────────────────────────────────");
     for i in 0..32 {

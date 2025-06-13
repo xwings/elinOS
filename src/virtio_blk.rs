@@ -7,10 +7,12 @@ use spin::Mutex;
 use crate::console_println;
 use core::{convert::TryInto, cmp::Ord, result::Result::{Ok, Err}};
 use core::ptr::read_volatile;
+use core::fmt;
 
 // === DISK ERRORS ===
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DiskError {
+    NotFound,
     InvalidSector,
     BufferTooSmall,
     ReadError,
@@ -18,18 +20,21 @@ pub enum DiskError {
     DeviceNotFound,
     NotInitialized,
     VirtIOError,
-    IoError,
+    InvalidParameter,
     QueueFull,
+    IoError,
     InvalidDescriptor,
     DeviceNotReady,
-    InvalidParameter,
 }
+
+
 
 impl core::fmt::Display for DiskError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         // Ensure this message always gets out if a DiskError is processed
         console_println!("!! DiskError Formatted: {:?}", self);
         match self {
+            DiskError::NotFound => write!(f, "Disk not found"),
             DiskError::InvalidSector => write!(f, "Invalid sector number"),
             DiskError::BufferTooSmall => write!(f, "Buffer too small"),
             DiskError::ReadError => write!(f, "Disk read error"),
@@ -294,7 +299,7 @@ impl VirtioQueue {
     
     pub fn init(&mut self, size: u16, queue_idx: u16, desc_table: usize, avail_ring: usize, used_ring: usize) -> DiskResult<()> {
         if !size.is_power_of_two() || size == 0 {
-            console_println!("VirtioQueue init error: size {} is not a power of two or is zero.", size);
+            console_println!("❌ VirtioQueue init error: size {} is not a power of two or is zero.", size);
             return Err(DiskError::InvalidParameter);
         }
         self.size = size;
@@ -318,7 +323,7 @@ impl VirtioQueue {
             // last_used_idx should align with device's used_ring.idx if starting fresh.
             self.last_used_idx = read_volatile(&(*used_ring_ptr).idx); 
         }
-        console_println!("VirtioQueue initialized: size={}, idx={}, desc_base=0x{:x}, avail_base=0x{:x}, used_base=0x{:x}", 
+        console_println!("✅ VirtioQueue initialized: size={}, idx={}, desc_base=0x{:x}, avail_base=0x{:x}, used_base=0x{:x}", 
                          self.size, self.queue_index, self.desc_table, self.avail_ring, self.used_ring);
 
         Ok(())
@@ -338,18 +343,18 @@ impl VirtioQueue {
     /// Add a chain of descriptors to the available ring.
     /// Returns the index of the head of the descriptor chain.
     pub fn add_descriptor_chain(&mut self, chain: &[VirtqDesc]) -> DiskResult<u16> {
-        if !self.ready || chain.is_empty() || chain.len() > self.size as usize {
-            console_println!("add_descriptor_chain: Queue not ready, chain empty, or chain too long. Ready: {}, Chain len: {}, Queue size: {}", self.ready, chain.len(), self.size);
-            return Err(DiskError::QueueFull); // Or InvalidParameter
-        }
-
-        let head_index = self.next_avail; 
-
-        if self.get_queue_available_count() < chain.len() as u16 {
-            console_println!("add_descriptor_chain: Not enough free descriptors. Available: {}, Needed: {}", self.get_queue_available_count(), chain.len());
+        if !self.ready {
+            console_println!("❌ add_descriptor_chain: Queue not ready, chain empty, or chain too long. Ready: {}, Chain len: {}, Queue size: {}", self.ready, chain.len(), self.size);
             return Err(DiskError::QueueFull);
         }
         
+        if self.get_queue_available_count() < chain.len() as u16 {
+            console_println!("❌ add_descriptor_chain: Not enough free descriptors. Available: {}, Needed: {}", self.get_queue_available_count(), chain.len());
+            return Err(DiskError::QueueFull);
+        }
+        
+        let head_index = self.next_avail; 
+
         let desc_table_ptr = self.desc_table as *mut VirtqDesc;
 
         // Place descriptors into the descriptor table, adjusting .next pointers
@@ -1085,6 +1090,8 @@ static mut VIRTIO_STATUS_BUFFER: u8 = 0;
 /// Initialize the VirtIO block device
 /// This function should be called during kernel initialization
 pub fn init_virtio_blk() -> DiskResult<()> {
+    console_println!("🚀 Initializing rust-vmm style VirtIO Block Device...");
+    
     let mut device = VIRTIO_BLK.lock();
     device.init()
 }

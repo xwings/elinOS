@@ -26,10 +26,10 @@ pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     // Print the panic message
-    console_println!("KERNEL PANIC: {}", info.message());
+    console_println!("💥 KERNEL PANIC: {}", info.message());
     
     if let Some(location) = info.location() {
-        console_println!("  at {}:{}:{}", location.file(), location.line(), location.column());
+        console_println!("📍 Location: {}:{}:{}", location.file(), location.line(), location.column());
     }
     
     loop {
@@ -64,7 +64,7 @@ pub extern "C" fn main() -> ! {
         let mut uart = UART.lock();
         uart.init();
     }
-    console_println!("\n🚀 elinOS Starting...");
+    console_println!("🚀 elinOS Starting...");
 
     // Initialize trap handling (CRITICAL: must be early!)
     console_println!("🛡️ Initializing trap handling...");
@@ -87,10 +87,10 @@ pub extern "C" fn main() -> ! {
     console_println!("✅ Memory management ready");
 
     // Initialize Virtual Memory Management (Software MMU)
-    console_println!("🗺️  Initializing Virtual Memory Management...");
+    console_println!("🗺️ Initializing Virtual Memory Management...");
     if let Err(e) = memory::mmu::init_mmu() {
         console_println!("❌ Virtual Memory initialization failed: {}", e);
-        console_println!("⚠️  Continuing in physical memory mode");
+        console_println!("⚠️ Continuing in physical memory mode");
     } else {
         console_println!("✅ Virtual Memory Management enabled!");
     }
@@ -127,13 +127,13 @@ fn show_welcome() {
     console_println!("=====================================");
     console_println!("       🦀 Welcome to elinOS! 🦀      ");
     console_println!("=====================================");
-    console_println!("A RISC-V64 Experimental Operating System");
-    console_println!("Written in Rust for learning purposes");
+    console_println!("📋 A RISC-V64 Experimental Operating System");
+    console_println!("📋 Written in Rust for learning purposes");
     console_println!();
-    console_println!("Type 'help' for available commands");
-    console_println!("Type 'version' for system information");
-    console_println!("Type 'memory' for memory layout");
-    console_println!("Type 'shutdown' to exit");
+    console_println!("💡 Type 'help' for available commands");
+    console_println!("💡 Type 'version' for system information");
+    console_println!("💡 Type 'memory' for memory layout");
+    console_println!("💡 Type 'shutdown' to exit");
     console_println!();
 }
 

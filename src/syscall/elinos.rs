@@ -3,6 +3,7 @@
 
 use crate::{sbi, console_println};
 use super::{SysCallResult, SyscallArgs};
+use core::arch::asm;
 
 // === ELINOS-SPECIFIC SYSTEM CALL CONSTANTS (900-999) ===
 pub const SYS_ELINOS_DEBUG: usize = 900;
@@ -20,7 +21,7 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
     match args.syscall_number {
         SYS_ELINOS_VERSION => sys_elinos_version(),
         SYS_ELINOS_DEBUG => sys_elinos_debug(args.arg0_as_ptr::<u8>()),
-        SYS_ELINOS_SHUTDOWN => sys_elinos_shutdown(args.arg0_as_i32()),
+        SYS_ELINOS_SHUTDOWN => sys_elinos_shutdown(),
         SYS_ELINOS_REBOOT => sys_elinos_reboot(),
         SYS_LOAD_ELF => super::process::sys_load_elf(args.arg0_as_ptr::<u8>(), args.arg1),
         SYS_EXEC_ELF => super::process::sys_exec_elf(args.arg0_as_ptr::<u8>(), args.arg1),
@@ -116,23 +117,27 @@ fn sys_elinos_debug(msg_ptr: *const u8) -> SysCallResult {
         core::str::from_utf8_unchecked(core::slice::from_raw_parts(msg_ptr, len))
     };
     
-    console_println!("DEBUG: {}", debug_msg);
+    console_println!("🔍 DEBUG: {}", debug_msg);
     SysCallResult::Success(0)
 }
 
-pub fn sys_elinos_shutdown(_status: i32) -> ! {
+pub fn sys_elinos_shutdown() -> SysCallResult {
     console_println!("💤 System shutdown requested");
-    console_println!("Goodbye from elinOS!");
+    console_println!("🏁 Goodbye from elinOS!");
     
-    // Shutdown the system - this never returns
-    sbi::system_shutdown();
+    // TODO: Implement actual shutdown
+    loop {
+        unsafe { asm!("wfi"); }
+    }
 }
 
 /// SYS_REBOOT - reboot the system  
-pub fn sys_elinos_reboot() -> ! {
+pub fn sys_elinos_reboot() -> SysCallResult {
     console_println!("🔄 System reboot requested");
-    console_println!("Rebooting elinOS...");
+    console_println!("🔄 Rebooting elinOS...");
     
-    // Reset the system - this never returns
-    sbi::system_reset();
+    // TODO: Implement actual reboot
+    loop {
+        unsafe { asm!("wfi"); }
+    }
 } 
