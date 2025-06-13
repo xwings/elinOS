@@ -115,18 +115,17 @@ pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCall
 
 pub fn sys_exit(exit_code: isize) -> SysCallResult {
     console_println!("🚪 SYS_EXIT: Program exiting with code {}", exit_code);
+    console_println!("🎉 Program completed successfully with exit code: {}", exit_code);
+    console_println!("🏁 Returning to shell...");
     
-    // Set the global exit flag
+    // Set the global exit flag so the trap handler knows to jump to shell_loop
+    // instead of returning to user mode
     {
         let mut exit_flag = USER_PROGRAM_EXITED.lock();
         *exit_flag = Some(exit_code as i32);
     }
     
-    console_println!("🎉 SYS_EXIT flag set - program will exit");
-    console_println!("🎉 Program completed successfully with exit code: {}", exit_code);
-    console_println!("🏁 Returning to shell...");
-    
-    // SYS_EXIT is just a normal syscall - return success
+    // Return success - the trap handler will handle the actual transition to shell_loop
     SysCallResult::Success(exit_code)
 }
 

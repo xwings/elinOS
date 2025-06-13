@@ -138,7 +138,8 @@ fn show_welcome() {
 }
 
 // === INTERACTIVE SHELL ===
-fn shell_loop() -> ! {
+#[no_mangle]
+pub fn shell_loop() -> ! {
     // Use dynamic command buffer size based on detected memory
     let command_buffer_size = crate::memory::get_optimal_buffer_size(crate::memory::BufferUsage::Command);
     

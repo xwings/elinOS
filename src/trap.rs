@@ -260,6 +260,18 @@ fn handle_syscall(ctx: &mut TrapContext) {
         }
     }
     
+    // Check if a user program has exited (e.g., via sys_exit)
+    if let Some(exit_code) = check_user_program_exit() {
+        console_println!("🎯 User program exited with code {} - restarting shell", exit_code);
+        
+        // Instead of returning to user mode (which would crash), 
+        // jump directly to shell_loop to restart the shell
+        crate::shell_loop();
+        
+        // This should never be reached since shell_loop never returns
+        return;
+    }
+    
     // Skip the ecall instruction (advance PC by 4 bytes) for all syscalls
     ctx.sepc += 4;
 }
