@@ -6,6 +6,7 @@
 use core::arch::asm;
 use spin::Mutex;
 use crate::console_println;
+use crate::console_print;
 
 /// RISC-V trap causes
 #[derive(Debug, Clone, Copy)]
@@ -172,7 +173,7 @@ pub fn dump_crash_info(ctx: &TrapContext) {
         if i % 4 == 0 && i > 0 {
             console_println!();
         }
-        console_println!("x{:2}({}): 0x{:016x}  ", i, reg_name, ctx.x[i]);
+        console_print!("x{:2}({}): 0x{:016x}  ", i, reg_name, ctx.x[i]);
     }
     console_println!();
     console_println!();

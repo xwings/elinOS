@@ -4,6 +4,7 @@
 use crate::UART;
 use crate::filesystem;
 use crate::console_println;
+use crate::console_print;
 use super::{SysCallResult, SyscallArgs, STDOUT_FD, STDERR_FD};
 use spin::Mutex;
 use heapless::{FnvIndexMap, Vec};
@@ -76,18 +77,15 @@ pub fn handle_file_syscall(args: &SyscallArgs) -> SysCallResult {
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 fn sys_write(fd: i32, buf: *const u8, count: usize) -> SysCallResult {
-    console_println!("[+] SYSCALL: sys_write(fd={}, buf={:p}, count={})", fd, buf, count);
+    
     if fd == STDOUT_FD || fd == STDERR_FD {
-        console_println!("");
         // Write to console
         unsafe {
             let slice = core::slice::from_raw_parts(buf, count);
-            let uart = UART.lock();
             for &byte in slice {
-                uart.putchar(byte);
+                console_print!("{}", byte as char);
             }
         }
-        console_println!("");
         SysCallResult::Success(count as isize)
     } else {
         // TODO: File write support with proper file descriptor management
@@ -96,7 +94,7 @@ fn sys_write(fd: i32, buf: *const u8, count: usize) -> SysCallResult {
 }
 
 fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
-    console_println!("🔍 SYSCALL: sys_read(fd={}, buf={:p}, count={})", fd, buf, count);
+    console_println!("[+] SYSCALL: sys_read(fd={}, buf={:p}, count={})", fd, buf, count);
     
     if fd == 0 { // stdin
         // TODO: Implement stdin reading
@@ -112,7 +110,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
                 name.clone()
             },
             None => {
-                console_println!("❌ SYSCALL: Invalid file descriptor {}", fd);
+                console_println!("[!] SYSCALL: Invalid file descriptor {}", fd);
                 drop(file_table);
                 return SysCallResult::Error(crate::syscall::EBADF);
             }
