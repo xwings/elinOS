@@ -1,4 +1,4 @@
-# elinOS 🦀
+# elinOS
 
 **A Modern RISC-V Experimental Kernel Written in Rust**
 
