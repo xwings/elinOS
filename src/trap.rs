@@ -263,7 +263,7 @@ fn handle_syscall(ctx: &mut TrapContext) {
     
     // Check if a user program has exited (e.g., via sys_exit)
     if let Some(exit_code) = check_user_program_exit() {
-        console_println!("🎯 User program exited with code {} - restarting shell", exit_code);
+        // console_println!("🔍 User program exited with code {} - restarting shell", exit_code);
         
         // Instead of returning to user mode (which would crash), 
         // jump directly to shell_loop to restart the shell
@@ -302,34 +302,34 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
         let mut uart = crate::UART.lock();
         match cause {
             TrapCause::SupervisorTimerInterrupt => {
-                console_println!("⏰ Timer interrupt");
+                console_println!("🔍 Timer interrupt");
             }
             TrapCause::SupervisorExternalInterrupt => {
-                console_println!("🔌 External interrupt");
+                console_println!("🔍 External interrupt");
             }
             _ => {
-                console_println!("❓ Unknown interrupt: {:?}", cause);
+                console_println!("❌ Unknown interrupt: {:?}", cause);
             }
         }
     } else {
         // Handle exceptions
-        console_println!("🔍 Exception occurred: cause={}, sepc=0x{:x}", ctx.scause, ctx.sepc);
+        console_println!("❌ Exception occurred: cause={}, sepc=0x{:x}", ctx.scause, ctx.sepc);
         
         match cause {
             TrapCause::EnvironmentCallFromUMode => {
-                console_println!("🔍 Handling user mode syscall");
+                // console_println!("🔍 Handling user mode syscall");
                 // Handle system calls from user mode - dispatch to unified syscall module
                 handle_syscall(ctx);
             }
             TrapCause::EnvironmentCallFromSMode => {
-                console_println!("🔍 Handling supervisor mode syscall");
+                // console_println!("🔍 Handling supervisor mode syscall");
                 // Handle system calls from supervisor mode - dispatch to unified syscall module
                 handle_syscall(ctx);
             }
             TrapCause::Breakpoint => {
                 // Check if this breakpoint is from our exit stub
                 if let Some(exit_code) = check_user_program_exit() {
-                    console_println!("🎯 Exit stub breakpoint hit - returning to kernel with code {}", exit_code);
+                    //console_println!("🔍 Exit stub breakpoint hit - returning to kernel with code {}", exit_code);
                     
                     // Set up return to kernel
                     ctx.x[10] = exit_code as u64; // a0 = exit code
@@ -339,14 +339,14 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
                     
                     // Instead of trying to figure out the return address,
                     // let's just halt the system cleanly for now
-                    console_println!("🎉 Program completed successfully with exit code: {}", exit_code);
-                    console_println!("🏁 Returning to shell...");
+                    // console_println!("🔍 Program completed successfully with exit code: {}", exit_code);
+                    // console_println!("🔍 Returning to shell...");
                     
                     // For now, let's just return to a safe location
                     // We'll improve this later to properly return to the shell
                     ctx.sepc = 0x80200000; // Return to a safe kernel location
                     
-                    console_println!("🔍 Setting sepc to safe kernel location: 0x{:x}", ctx.sepc);
+                    // console_println!("🔍 Setting sepc to safe kernel location: 0x{:x}", ctx.sepc);
                     
                     return;
                 } else {

@@ -61,14 +61,14 @@ impl UnifiedFileSystem {
         
         match self.fs_type {
             FilesystemType::Fat32 => {
-                console_println!("🗂️  Mounting FAT32 filesystem...");
+                //console_println!("🗂️  Mounting FAT32 filesystem...");
                 let mut fat32_fs = Fat32FileSystem::new();
                 fat32_fs.init()?;
                 self.filesystem = Filesystem::Fat32(fat32_fs);
                 console_println!("✅ FAT32 filesystem mounted successfully");
             }
             FilesystemType::Ext2 => {
-                console_println!("🗂️  Mounting ext2 filesystem...");
+                // console_println!("🗂️  Mounting ext2 filesystem...");
                 let mut ext2_fs = Ext2FileSystem::new();
                 ext2_fs.init()?;
                 self.filesystem = Filesystem::Ext2(ext2_fs);
@@ -241,36 +241,36 @@ impl FileSystem for UnifiedFileSystem {
 
 /// Detect filesystem type by reading specific disk locations
 pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
-    console_println!("filesystem::detect_filesystem_type: Starting detection...");
+    // console_println!("filesystem::detect_filesystem_type: Starting detection...");
     let mut disk_device = crate::virtio_blk::VIRTIO_BLK.lock();
 
     if !disk_device.is_initialized() {
-        console_println!("filesystem::detect_filesystem_type: VirtIO disk not initialized.");
+        // console_println!("filesystem::detect_filesystem_type: VirtIO disk not initialized.");
         return Err(FilesystemError::DeviceError);
     }
 
     // Try FAT32 detection (check Boot Sector Signature)
-    console_println!("filesystem::detect_filesystem_type: Attempting to read sector 0 for FAT32 check...");
+    // console_println!("filesystem::detect_filesystem_type: Attempting to read sector 0 for FAT32 check...");
     let mut sector0_buf = [0u8; 512];
     match disk_device.read_blocks(0, &mut sector0_buf) {
         Ok(_) => {
-            console_println!("filesystem::detect_filesystem_type: Successfully read sector 0.");
+            // console_println!("filesystem::detect_filesystem_type: Successfully read sector 0.");
             // Check for FAT32 signature 0x55AA at offset 510
             if sector0_buf[510] == 0x55 && sector0_buf[511] == 0xAA {
                 // Further checks for FAT32 (e.g., filesystem type string)
                 // For now, assume FAT32 if signature matches
-                console_println!("filesystem::detect_filesystem_type: FAT32 signature found.");
+                // console_println!("filesystem::detect_filesystem_type: FAT32 signature found.");
                 return Ok(FilesystemType::Fat32);
             }
         }
         Err(e) => {
-            console_println!("filesystem::detect_filesystem_type: Failed to read sector 0 for FAT32 check: {:?}", e);
+            // console_println!("filesystem::detect_filesystem_type: Failed to read sector 0 for FAT32 check: {:?}", e);
             // Don't return error yet, try ext2
         }
     }
 
     // Try ext2 detection (check Superblock Magic)
-    console_println!("filesystem::detect_filesystem_type: Attempting to read sectors for ext2 superblock check...");
+    // console_println!("filesystem::detect_filesystem_type: Attempting to read sectors for ext2 superblock check...");
     const EXT2_SUPERBLOCK_OFFSET: usize = 1024;
     const SECTOR_SIZE: usize = 512;
     let start_sector = EXT2_SUPERBLOCK_OFFSET / SECTOR_SIZE; // Should be sector 2
@@ -278,15 +278,15 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
 
     for i in 0..2 {
         let current_sector_to_read = (start_sector + i) as u64;
-        console_println!("filesystem::detect_filesystem_type: Reading ext2 SB sector {}", current_sector_to_read);
+        // console_println!("filesystem::detect_filesystem_type: Reading ext2 SB sector {}", current_sector_to_read);
         let mut sector_buf = [0u8; SECTOR_SIZE];
         match disk_device.read_blocks(current_sector_to_read, &mut sector_buf) {
             Ok(_) => {
-                console_println!("filesystem::detect_filesystem_type: Successfully read ext2 SB sector {}", current_sector_to_read);
+                // console_println!("filesystem::detect_filesystem_type: Successfully read ext2 SB sector {}", current_sector_to_read);
                 sb_buffer[i * SECTOR_SIZE..(i + 1) * SECTOR_SIZE].copy_from_slice(&sector_buf);
             }
             Err(e) => {
-                console_println!("filesystem::detect_filesystem_type: Failed to read ext2 SB sector {}: {:?}", current_sector_to_read, e);
+                // console_println!("filesystem::detect_filesystem_type: Failed to read ext2 SB sector {}: {:?}", current_sector_to_read, e);
                 // If we can't read these, it's unlikely ext2, or there's a general disk issue.
                 return Ok(FilesystemType::Unknown); // Return Unknown, don't mask with IoError yet
             }
@@ -298,15 +298,15 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
     if sb_buffer.len() >= 56 + 2 {
         let ext2_magic = u16::from_le_bytes([sb_buffer[56], sb_buffer[57]]);
         if ext2_magic == 0xEF53 {
-            console_println!("filesystem::detect_filesystem_type: ext2 magic 0xEF53 found.");
+            // console_println!("filesystem::detect_filesystem_type: ext2 magic 0xEF53 found.");
             return Ok(FilesystemType::Ext2);
         }
-        console_println!("filesystem::detect_filesystem_type: ext2 magic not found (read 0x{:04X}).", ext2_magic);
+        // console_println!("filesystem::detect_filesystem_type: ext2 magic not found (read 0x{:04X}).", ext2_magic);
     } else {
-        console_println!("filesystem::detect_filesystem_type: Superblock buffer too short for ext2 magic check.");
+        // console_println!("filesystem::detect_filesystem_type: Superblock buffer too short for ext2 magic check.");
     }
 
-    console_println!("filesystem::detect_filesystem_type: No known filesystem type identified.");
+    // console_println!("filesystem::detect_filesystem_type: No known filesystem type identified.");
     Ok(FilesystemType::Unknown)
 }
 

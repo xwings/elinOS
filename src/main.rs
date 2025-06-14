@@ -26,10 +26,10 @@ pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     // Print the panic message
-    console_println!("💥 KERNEL PANIC: {}", info.message());
+    console_println!("❌  KERNEL PANIC: {}", info.message());
     
     if let Some(location) = info.location() {
-        console_println!("📍 Location: {}:{}:{}", location.file(), location.line(), location.column());
+        console_println!("🔍 Location: {}:{}:{}", location.file(), location.line(), location.column());
     }
     
     loop {
@@ -64,10 +64,11 @@ pub extern "C" fn main() -> ! {
         let mut uart = UART.lock();
         uart.init();
     }
-    console_println!("🚀 elinOS Starting...");
+    console_println!();
+    console_println!();
+    console_println!("elinOS Starting...");
 
     // Initialize trap handling (CRITICAL: must be early!)
-    console_println!("🛡️ Initializing trap handling...");
     trap::init_trap_handling();
     console_println!("✅ Trap handling ready");
 
@@ -76,10 +77,7 @@ pub extern "C" fn main() -> ! {
         panic!("Failed to initialize console: {}", e);
     }
     
-    console_println!("✅ Console system initialized");
-   
     // Initialize memory management
-    console_println!("🧠 Initializing memory management...");
     {
         let mut memory_mgr = memory::MEMORY_MANAGER.lock();
         memory_mgr.init();
@@ -87,7 +85,6 @@ pub extern "C" fn main() -> ! {
     console_println!("✅ Memory management ready");
 
     // Initialize Virtual Memory Management (Software MMU)
-    console_println!("🗺️ Initializing Virtual Memory Management...");
     if let Err(e) = memory::mmu::init_mmu() {
         console_println!("❌ Virtual Memory initialization failed: {}", e);
         console_println!("⚠️ Continuing in physical memory mode");
@@ -96,7 +93,6 @@ pub extern "C" fn main() -> ! {
     }
 
     // Initialize VirtIO disk interface
-    console_println!("💾 Initializing VirtIO disk...");
     if let Err(e) = virtio_blk::init_virtio_blk() {
         console_println!("❌ VirtIO disk initialization failed: {}", e);
     } else {
@@ -104,7 +100,6 @@ pub extern "C" fn main() -> ! {
     }
 
     // Initialize filesystem
-    console_println!("🗂️ Initializing filesystem...");
     match filesystem::init_filesystem() {
         Ok(()) => {
             console_println!("✅ Filesystem initialization successful!");
@@ -125,15 +120,13 @@ pub extern "C" fn main() -> ! {
 // === WELCOME MESSAGE ===
 fn show_welcome() {
     console_println!("=====================================");
-    console_println!("       🦀 Welcome to elinOS! 🦀      ");
+    console_println!("          Welcome to elinOS!         ");
     console_println!("=====================================");
-    console_println!("📋 A RISC-V64 Experimental Operating System");
-    console_println!("📋 Written in Rust for learning purposes");
+    console_println!("  RISC-V64 Operating System written in Rust");
     console_println!();
-    console_println!("💡 Type 'help' for available commands");
-    console_println!("💡 Type 'version' for system information");
-    console_println!("💡 Type 'memory' for memory layout");
-    console_println!("💡 Type 'shutdown' to exit");
+    console_println!("  Type 'help' for available commands");
+    console_println!("  Type 'version' for system information");
+    console_println!("  Type 'shutdown' to exit");
     console_println!();
 }
 

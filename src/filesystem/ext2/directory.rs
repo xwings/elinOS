@@ -270,11 +270,11 @@ impl DirectoryManager {
     }
     
     pub fn remove_directory_entry(&self, parent_inode: u32, name: &str, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("➖ Removing directory entry: '{}' from inode {}", name, parent_inode);
+        //console_println!("➖ Removing directory entry: '{}' from inode {}", name, parent_inode);
         
         // First, find the entry to get its location
         if let Some((_, found_inode, _)) = self.find_entry_in_dir(parent_inode, name, sb_mgr, inode_mgr)? {
-            console_println!("📍 Found entry '{}' with inode {}, proceeding with removal", name, found_inode);
+          //  console_println!("📍 Found entry '{}' with inode {}, proceeding with removal", name, found_inode);
             
             // Read the parent directory inode
             let parent_dir_inode = inode_mgr.read_inode(parent_inode, sb_mgr)?;

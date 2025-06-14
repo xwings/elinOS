@@ -1,11 +1,6 @@
 // Simple Hello World without system calls
 // Just returns a magic value to prove it ran
 
-// Entry point required by linker
-int _start() {
-    int result = main();
-    return result;
-}
 
 int main() {
     // Instead of printing, just do some computation 
@@ -20,3 +15,10 @@ int main() {
     
     return result; // Return 0x9794 (38804 decimal) 
 } 
+
+// Entry point required by linker - ensure it's at the start of text section
+__attribute__((section(".text.start")))
+int _start() {
+    int result = main();
+    return result;
+}

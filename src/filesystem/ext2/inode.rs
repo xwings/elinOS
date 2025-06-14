@@ -63,12 +63,12 @@ impl InodeManager {
         let block_num = inode_table_block + block_offset as u64;
         
         // Debug inode reading calculation
-        console_println!("🔧 Reading inode {} calculation:", inode_num);
-        console_println!("   Group: {}, Local index: {}", group_num, local_inode_index);
-        console_println!("   Inode table block: {}", inode_table_block);
-        console_println!("   Inode size: {}, Block size: {}", self.inode_size, block_size);
-        console_println!("   Inode offset: {}, Block offset: {}, Offset in block: {}", inode_offset, block_offset, offset_in_block);
-        console_println!("   Reading from block: {}", block_num);
+        //console_println!("🔧 Reading inode {} calculation:", inode_num);
+        //console_println!("   Group: {}, Local index: {}", group_num, local_inode_index);
+        //console_println!("   Inode table block: {}", inode_table_block);
+        //console_println!("   Inode size: {}, Block size: {}", self.inode_size, block_size);
+        //console_println!("   Inode offset: {}, Block offset: {}, Offset in block: {}", inode_offset, block_offset, offset_in_block);
+        //console_println!("   Reading from block: {}", block_num);
         
         let block_data = sb_mgr.read_block_data(block_num)?;
         
@@ -87,11 +87,11 @@ impl InodeManager {
         let raw_blocks_lo = inode.i_blocks_lo;
         let raw_block_0 = inode.i_block[0];
         
-        console_println!("🔍 Raw inode {} data:", inode_num);
-        console_println!("   Raw mode: 0x{:04x}", raw_mode);
-        console_println!("   Raw size_lo: {}", raw_size_lo);
-        console_println!("   Raw blocks_lo: {}", raw_blocks_lo);
-        console_println!("   Raw block[0]: {}", raw_block_0);
+        //console_println!("🔍 Raw inode {} data:", inode_num);
+        //console_println!("   Raw mode: 0x{:04x}", raw_mode);
+        //console_println!("   Raw size_lo: {}", raw_size_lo);
+        //console_println!("   Raw blocks_lo: {}", raw_blocks_lo);
+        //console_println!("   Raw block[0]: {}", raw_block_0);
         
         Ok(inode)
     }

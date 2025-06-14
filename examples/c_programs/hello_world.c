@@ -18,13 +18,6 @@ long syscall(long number, long arg1, long arg2, long arg3) {
     return a0;
 }
 
-// Entry point required by linker
-int _start() {
-    int result = main();
-    // Return the result instead of infinite loop
-    return result;
-}
-
 int main() {
     const char* message = "Hello World from C on elinOS!\n";
     
@@ -37,3 +30,11 @@ int main() {
     
     return 0;
 } 
+
+// Entry point required by linker - ensure it's at the start of text section
+__attribute__((section(".text.start")))
+int _start() {
+    int result = main();
+    // Return the result instead of infinite loop
+    return result;
+}

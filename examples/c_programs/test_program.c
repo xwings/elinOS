@@ -18,13 +18,6 @@ long syscall(long number, long arg1, long arg2, long arg3) {
     return a0;
 }
 
-// Entry point required by linker
-void _start() {
-    main();
-    // Exit syscall would go here in a real OS
-    while(1) {} // Infinite loop for now
-}
-
 int main() {
     const char* message = "Hello, World from C!\n";
     
@@ -36,4 +29,12 @@ int main() {
     syscall(SYS_WRITE, STDOUT_FD, (long)message, len);
     
     return 0;
+} 
+
+// Entry point required by linker - ensure it's at the start of text section
+__attribute__((section(".text.start")))
+void _start() {
+    main();
+    // Exit syscall would go here in a real OS
+    while(1) {} // Infinite loop for now
 } 

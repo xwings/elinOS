@@ -28,14 +28,7 @@ void print_string(const char* str) {
     while (str[len] != '\0') len++;
     syscall(SYS_WRITE, STDOUT_FD, (long)str, len, 0);
 }
-
-// Entry point required by linker
-void _start() {
-    main();
-    // Exit syscall would go here in a real OS
-    while(1) {} // Infinite loop for now
-}
-
+    
 int main() {
     print_string("File Test Program for elinOS\n");
     print_string("==============================\n");
@@ -74,3 +67,12 @@ int main() {
     
     return 0;
 } 
+
+
+// Entry point required by linker - ensure it's at the start of text section
+__attribute__((section(".text.start")))
+void _start() {
+    main();
+    // Exit syscall would go here in a real OS
+    while(1) {} // Infinite loop for now
+}

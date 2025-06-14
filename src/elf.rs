@@ -438,7 +438,7 @@ pub fn segment_permissions(flags: u32) -> &'static str {
 unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
     use core::arch::asm;
     
-    console_println!("🛡️  Setting up REAL user mode execution with REAL syscalls!");
+    //console_println!("🛡️  Setting up REAL user mode execution with REAL syscalls!");
     
     // Allocate user stack
     let user_stack = match crate::memory::allocate_memory(8192) {

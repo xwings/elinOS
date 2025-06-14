@@ -122,7 +122,7 @@ impl MemoryManager {
     
     /// Auto-detect memory hardware using SBI and direct probing
     fn detect_memory_hardware(&mut self) {
-        console_println!("🔍 Detecting memory hardware...");
+        // console_println!("🔍 Detecting memory hardware...");
         
         // Get memory regions from SBI
         let sbi_regions = sbi::get_memory_regions();
@@ -488,7 +488,7 @@ impl MemoryManager {
         
         // For now, this is a placeholder since we can't directly control the global allocator
         // In a real implementation, we'd have our own heap allocator we can query
-        console_println!("⚠️  Heap allocation requested: {} bytes", size);
+        // console_println!("⚠️  Heap allocation requested: {} bytes", size);
         
         // Simulate allocation tracking
         self.heap_used += size;
@@ -588,7 +588,7 @@ pub fn allocate_memory(size: usize) -> Option<usize> {
 
 /// Allocate memory with specific alignment
 pub fn allocate_aligned_memory(size: usize, alignment: usize) -> Option<usize> {
-    console_println!("🔍 Memory allocation request: {} bytes (align: {})", size, alignment);
+    // console_println!("🔍 Memory allocation request: {} bytes (align: {})", size, alignment);
     
     // First try our custom allocator
     let mut manager = MEMORY_MANAGER.lock();
@@ -600,13 +600,13 @@ pub fn allocate_aligned_memory(size: usize, alignment: usize) -> Option<usize> {
                 console_println!("✅ Custom allocator succeeded: 0x{:x}", addr);
                 Some(addr)
             } else {
-                console_println!("⚠️  Custom allocator returned unaligned address, trying direct heap");
+                // console_println!("⚠️  Custom allocator returned unaligned address, trying direct heap");
                 drop(manager);
                 allocate_from_heap_aligned(size, alignment)
             }
         }
         Err(_) => {
-            console_println!("⚠️  Custom allocator failed, trying direct heap allocation");
+            // console_println!("⚠️  Custom allocator failed, trying direct heap allocation");
             drop(manager); // Release lock before using global allocator
             allocate_from_heap_aligned(size, alignment)
         }
@@ -625,13 +625,13 @@ fn allocate_from_heap_aligned(size: usize, alignment: usize) -> Option<usize> {
             let offset_from_heap_start = aligned_pos - heap_start;
             let aligned_size = (size + alignment - 1) & !(alignment - 1);
             
-            console_println!("🔍 Heap alignment: pos={}, aligned_pos=0x{:x}, size={}, heap_len={}", 
-                           SIMPLE_HEAP_POS, aligned_pos, aligned_size, heap_slice.len());
+            // console_println!("🔍 Heap alignment: pos={}, aligned_pos=0x{:x}, size={}, heap_len={}", 
+            //                SIMPLE_HEAP_POS, aligned_pos, aligned_size, heap_slice.len());
             
             if offset_from_heap_start + aligned_size <= heap_slice.len() {
                 SIMPLE_HEAP_POS = offset_from_heap_start + aligned_size;
-                console_println!("✅ Direct heap allocation: {} bytes at 0x{:x} (aligned to {})", 
-                               size, aligned_pos, alignment);
+                // console_println!("✅ Direct heap allocation: {} bytes at 0x{:x} (aligned to {})", 
+                //                size, aligned_pos, alignment);
                 return Some(aligned_pos);
             } else {
                 console_println!("❌ Direct heap exhausted: needed {}, available {}", 
@@ -643,7 +643,7 @@ fn allocate_from_heap_aligned(size: usize, alignment: usize) -> Option<usize> {
                 let reset_offset = reset_aligned_pos - heap_start;
                 
                 if reset_offset + aligned_size <= heap_slice.len() {
-                    console_println!("🔄 Resetting heap position to 0");
+                    // console_println!("🔄 Resetting heap position to 0");
                     SIMPLE_HEAP_POS = reset_offset + aligned_size;
                     console_println!("✅ Direct heap allocation after reset: {} bytes at 0x{:x} (aligned to {})", 
                                    size, reset_aligned_pos, alignment);

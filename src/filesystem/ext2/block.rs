@@ -22,28 +22,28 @@ impl BlockManager {
     }
     
     pub fn init(&mut self, _sb_mgr: &SuperblockManager) -> FilesystemResult<()> {
-        console_println!("🧱 Block manager initialized");
+        // console_println!("🧱 Block manager initialized");
         Ok(())
     }
     
     pub fn read_file_content(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 8192>> {
-        console_println!("📖 Reading file content of size {}", file_size);
+        console_println!("🔍Reading file content of size {}", file_size);
         
         // Copy flags and first block to avoid packed field issues
         let i_flags = inode.i_flags;
         let i_blocks_lo = inode.i_blocks_lo;
         let first_block = inode.i_block[0];
         
-        console_println!("   🔍 File details: size={}, blocks={}, first_block={}, uses_extents={}", 
+        console_println!("   - File details: size={}, blocks={}, first_block={}, uses_extents={}", 
             file_size, i_blocks_lo, first_block, (i_flags & EXT2_EXTENTS_FL) != 0);
         
         // If file size is 0 but blocks are allocated, there might be content to read
         // This can happen if the file was created but size wasn't updated properly
         let effective_size = if file_size == 0 && i_blocks_lo > 0 && first_block != 0 {
-            console_println!("   ⚠️  File size is 0 but blocks are allocated, trying to read actual content");
+            //console_println!("   - File size is 0 but blocks are allocated, trying to read actual content");
             sb_mgr.get_block_size() // Read at least one block to see if there's content
         } else if file_size == 0 {
-            console_println!("   ℹ️  File is truly empty (size=0, no blocks allocated)");
+            // console_println!("   - File is truly empty (size=0, no blocks allocated)");
             return Ok(Vec::new());
         } else {
             file_size
@@ -51,10 +51,10 @@ impl BlockManager {
         
         // Check if this inode uses extents
         if (i_flags & EXT2_EXTENTS_FL) != 0 {
-            console_println!("   🌟 File uses extents - reading from extent tree");
+            // console_println!("   - File uses extents - reading from extent tree");
             self.read_file_content_from_extents(inode, effective_size, sb_mgr)
         } else {
-            console_println!("   📋 File uses direct blocks - reading from traditional blocks");
+            //console_println!("   - File uses direct blocks - reading from traditional blocks");
             self.read_file_content_from_blocks(inode, effective_size, sb_mgr)
         }
     }
@@ -135,7 +135,7 @@ impl BlockManager {
                 
                 let block_num = physical_block + block_offset as u64;
                 
-                console_println!("   📍 Reading file block {} (from extent)", block_num);
+                //console_println!("   📍 Reading file block {} (from extent)", block_num);
                 
                 let block_data = match sb_mgr.read_block_data(block_num) {
                     Ok(data) => data,
@@ -169,12 +169,12 @@ impl BlockManager {
         // Copy i_block array to avoid packed field alignment issues
         let i_block_copy = inode.i_block;
         
-        console_println!("   📋 Reading from direct blocks, target size: {}", file_size);
-        console_println!("   🔍 First 5 block numbers: {:?}", &i_block_copy[..5]);
+        // console_println!("   📋 Reading from direct blocks, target size: {}", file_size);
+        //console_println!("   🔍 First 5 block numbers: {:?}", &i_block_copy[..5]);
         
         // Read file data from direct blocks
         for (i, &block_num) in i_block_copy.iter().take(12).enumerate() {
-            console_println!("   📍 Block {}: {}", i, block_num);
+            // console_println!("   📍 Block {}: {}", i, block_num);
             
             if block_num == 0 {
                 console_println!("   ⚠️  Block {} is 0, stopping", i);
@@ -205,7 +205,7 @@ impl BlockManager {
             };
             
             let bytes_to_copy = core::cmp::min(file_size - bytes_read, block_data.len());
-            console_println!("   📝 Copying {} bytes from block {}", bytes_to_copy, block_num);
+            // console_println!("   📝 Copying {} bytes from block {}", bytes_to_copy, block_num);
             
             for i in 0..bytes_to_copy {
                 if file_content.push(block_data[i]).is_err() {
@@ -218,7 +218,7 @@ impl BlockManager {
                 }
             }
             
-            console_println!("   📊 Total bytes read so far: {}", bytes_read);
+            // console_println!("   📊 Total bytes read so far: {}", bytes_read);
         }
         
         console_println!("   ✅ Read {} bytes from block-based file", bytes_read);
@@ -226,19 +226,19 @@ impl BlockManager {
     }
     
     pub fn write_file_content(&self, inode: &mut Ext2Inode, offset: u64, data: &[u8]) -> FilesystemResult<usize> {
-        console_println!("✏️  Writing {} bytes at offset {}", data.len(), offset);
+        // console_println!("✏️  Writing {} bytes at offset {}", data.len(), offset);
         // TODO: Implement actual file writing
         Ok(data.len())
     }
     
     pub fn free_inode_blocks(&self, inode: &Ext2Inode) -> FilesystemResult<()> {
-        console_println!("🗑️  Freeing blocks for inode");
+        // console_println!("🗑️  Freeing blocks for inode");
         // TODO: Implement actual block freeing
         Ok(())
     }
     
     pub fn truncate_file(&self, inode: &mut Ext2Inode, new_size: u64) -> FilesystemResult<()> {
-        console_println!("✂️  Truncating file to {} bytes", new_size);
+        // console_println!("✂️  Truncating file to {} bytes", new_size);
         inode.set_size(new_size);
         Ok(())
     }

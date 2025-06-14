@@ -125,10 +125,8 @@ pub fn sys_elinos_shutdown() -> SysCallResult {
     console_println!("💤 System shutdown requested");
     console_println!("🏁 Goodbye from elinOS!");
     
-    // TODO: Implement actual shutdown
-    loop {
-        unsafe { asm!("wfi"); }
-    }
+    // Call the SBI shutdown function
+    sbi::system_shutdown();
 }
 
 /// SYS_REBOOT - reboot the system  
@@ -136,8 +134,6 @@ pub fn sys_elinos_reboot() -> SysCallResult {
     console_println!("🔄 System reboot requested");
     console_println!("🔄 Rebooting elinOS...");
     
-    // TODO: Implement actual reboot
-    loop {
-        unsafe { asm!("wfi"); }
-    }
+    // Call the SBI reboot function
+    sbi::system_reset();
 } 

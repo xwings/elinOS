@@ -61,7 +61,7 @@ impl Ext2FileSystem {
         
         self.initialized = true;
         self.mounted = true;
-        console_println!("✅ ext2 filesystem mounted successfully");
+        // console_println!("✅ ext2 filesystem mounted successfully");
         Ok(())
     }
     
