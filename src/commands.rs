@@ -286,7 +286,7 @@ pub fn get_available_commands() -> &'static [&'static str] {
 // === INDIVIDUAL COMMAND IMPLEMENTATIONS ===
 
 pub fn cmd_help() -> Result<(), &'static str> {
-    syscall::sys_print("📖 elinOS Commands\n")?;
+    syscall::sys_print("ℹ️ elinOS Commands\n")?;
     syscall::sys_print("===============================================\n\n")?;
     
     syscall::sys_print("ℹ️ System Information:\n")?;
@@ -545,7 +545,7 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
             let fs_type = fs.get_filesystem_type();
             drop(fs);
             
-            syscall::sys_print("📖 Reading file: ")?;
+            syscall::sys_print("ℹ️ Reading file: ")?;
             syscall::sys_print(filename)?;
             syscall::sys_print(" (from ")?;
             match fs_type {

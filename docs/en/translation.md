@@ -37,7 +37,7 @@ Chinese documentation available in the `zh/` folder:
 - ✅ **architecture.md** - System architecture overview
 - 🚧 **development.md** - Development guide (in progress)
 
-## 📖 Key Topics Covered
+## ℹ️ Key Topics Covered
 
 ### System Architecture
 - RISC-V64 kernel implementation

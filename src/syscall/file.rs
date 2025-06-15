@@ -116,7 +116,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         };
         drop(file_table);
         
-        console_println!("📖 SYSCALL: Reading file '{}'", filename.as_str());
+        console_println!("ℹ️ SYSCALL: Reading file '{}'", filename.as_str());
         
         // Read the file content using the filesystem API
         let fs = filesystem::FILESYSTEM.lock();

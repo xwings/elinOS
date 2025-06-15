@@ -305,7 +305,7 @@ Written in Rust for learning purposes
 
 Type 'help' for available commands
 elinOS> help
-📖 elinOS Commands
+ℹ️ elinOS Commands
 ===============================================
 
 🗂️  File Operations (via VirtIO block device):
@@ -336,7 +336,7 @@ Bytes per sector: 512
 Total files: 2 (FAT32 on VirtIO)
 
 elinOS> cat HELLO.TXT
-📖 Reading file: HELLO.TXT (from FAT32 VirtIO disk)
+ℹ️ Reading file: HELLO.TXT (from FAT32 VirtIO disk)
 Content:
 Hello World!
 This is a test file on FAT32 filesystem.
@@ -371,11 +371,11 @@ System shutdown requested with status: 0
 - [开发指南](development.md) - 学习如何扩展命令
 - [快速上手](getting-started.md) - 系统安装和运行
 
-## 📖 完整文档
+## ℹ️ 完整文档
 
 详细的命令说明、参数和示例，请参考英文完整版：
 
-- [📖 英文完整版](../en/commands.md) - 包含所有命令的详细说明和示例
+- [ℹ️ 英文完整版](../en/commands.md) - 包含所有命令的详细说明和示例
 
 ---
 

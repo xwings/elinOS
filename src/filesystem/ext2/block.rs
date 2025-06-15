@@ -192,7 +192,7 @@ impl BlockManager {
                 continue;
             }
             
-            console_println!("   📖 Reading block {} from disk", block_num);
+            console_println!("   ℹ️ Reading block {} from disk", block_num);
             let block_data = match sb_mgr.read_block_data(block_num as u64) {
                 Ok(data) => {
                     console_println!("   ✅ Successfully read block {}, got {} bytes", block_num, data.len());

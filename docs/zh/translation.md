@@ -37,7 +37,7 @@ docs/
 - ✅ **architecture.md** - 系统架构概述
 - 🚧 **development.md** - 开发指南 (进行中)
 
-## 📖 主要涵盖主题
+## ℹ️ 主要涵盖主题
 
 ### 系统架构
 - RISC-V64 内核实现

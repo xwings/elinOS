@@ -81,7 +81,7 @@ make populate-disk
 make run
 ```
 
-## 📖 Documentation
+## ℹ️ Documentation
 
 - **[English Documentation](docs/en/)**
 - **[Memory Management](docs/en/memory.md)** - Advanced memory subsystem details

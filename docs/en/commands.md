@@ -262,7 +262,7 @@ elinOS> diskdump 0
 Filesystem Block Dump
 ====================
 
-📖 Reading block 0 from embedded filesystem...
+ℹ️ Reading block 0 from embedded filesystem...
 ✅ Block 0: Contains ext2 superblock at offset 1024
    ℹ️ Magic: 0xef53, Block size: 4096 bytes
    📁 Filesystem: elinOS embedded ext2

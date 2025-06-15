@@ -30,7 +30,7 @@ impl SuperblockManager {
     
     /// Read and validate superblock from disk
     fn read_superblock(&mut self) -> FilesystemResult<()> {
-        console_println!("📖 Reading ext2 superblock...");
+        console_println!("ℹ️ Reading ext2 superblock...");
         
         let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         
@@ -84,7 +84,7 @@ impl SuperblockManager {
     
     /// Read group descriptor
     fn read_group_descriptor(&mut self) -> FilesystemResult<()> {
-        console_println!("📖 Reading group descriptor...");
+        console_println!("ℹ️ Reading group descriptor...");
         
         let _sb = self.superblock.as_ref().ok_or(FilesystemError::InvalidSuperblock)?;
         
