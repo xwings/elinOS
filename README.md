@@ -12,7 +12,7 @@
 
 ## 🌟 Key Features
 
-### 🧠 **Advanced Memory Management**
+### ℹ️ **Advanced Memory Management**
 - **Multi-Tier Architecture**: Buddy allocator + Slab allocator + Fallible operations
 - **Memory Zones**: DMA, Normal, and High memory zone support with automatic detection
 - **Performance**: Smaller footprint, faster small allocations, faster large allocations, less fragmentation
@@ -25,7 +25,7 @@
 - **VirtIO Block Device**: Full VirtIO 1.0/1.1 support with auto-detection and queue management
 - **Dynamic Buffer Sizing**: File buffers scale based on available memory (4KB → 1MB)
 
-### 🔧 **System Architecture**
+### ℹ️ **System Architecture**
 - **RISC-V 64-bit**: Native support for RV64GC with machine mode and interrupt handling
 - **Linux-Compatible Syscalls**: 50+ system calls including file I/O, memory management, and process control
 - **Rust Safety**: Memory-safe kernel with zero-cost abstractions and comprehensive error handling
@@ -37,7 +37,7 @@
 - **Comprehensive Documentation**: Extensive technical documentation with architecture diagrams
 - **Experiment Focus**: Clear code structure for learning OS development concepts
 
-## 🚀 Quick Start
+## ℹ️ Quick Start
 
 ### Prerequisites
 
@@ -92,7 +92,7 @@ make run
 - **[Debugging](docs/en/debugging.md)** - Debugging tips and techniques
 - **[Translation](docs/en/translation.md)** - Guidelines for translating documentation
 
-## 🎯 System Requirements
+## ℹ️ System Requirements
 
 ### Hardware Support
 - **Architecture**: RISC-V 64-bit (RV64GC)
@@ -105,7 +105,7 @@ make run
 - **QEMU**: 5.0+ with RISC-V system emulation
 - **Build Tools**: GNU Make, GCC toolchain
 
-## 🏗️ Architecture Overview
+## ℹ️Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -131,7 +131,7 @@ make run
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🧪 Available Commands
+## ℹ️ Available Commands
 
 ```bash
 elinOS> help                    # Show all available commands

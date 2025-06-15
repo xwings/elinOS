@@ -239,7 +239,7 @@ fn sys_alloc_test(size: usize) -> SysCallResult {
         
         // Show updated stats
         let stats = memory::get_memory_stats();
-        console_println!("📊 Updated stats: {} allocations, {} bytes allocated", 
+        console_println!("ℹ️ Updated stats: {} allocations, {} bytes allocated", 
                         stats.allocation_count, stats.allocated_bytes);
         
         SysCallResult::Success(addr as isize)

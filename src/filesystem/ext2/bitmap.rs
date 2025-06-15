@@ -16,7 +16,7 @@ impl BitmapManager {
     }
     
     pub fn init(&mut self, sb_mgr: &SuperblockManager) -> FilesystemResult<()> {
-        console_println!("🗺️  Bitmap manager initialized");
+        console_println!("ℹ️  Bitmap manager initialized");
         Ok(())
     }
     

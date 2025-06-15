@@ -29,7 +29,7 @@ fn panic(info: &PanicInfo) -> ! {
     console_println!("❌  KERNEL PANIC: {}", info.message());
     
     if let Some(location) = info.location() {
-        console_println!("🔍 Location: {}:{}:{}", location.file(), location.line(), location.column());
+        console_println!("ℹ️ Location: {}:{}:{}", location.file(), location.line(), location.column());
     }
     
     loop {
@@ -109,7 +109,7 @@ pub extern "C" fn main() -> ! {
         }
     }
     
-    console_println!("🎉 elinOS initialization complete!");
+    console_println!("✅ elinOS initialization complete!");
     console_println!();
     
     // Show welcome message and enter shell

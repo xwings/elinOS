@@ -237,7 +237,7 @@ gdb-multiarch target/riscv64gc-unknown-none-elf/debug/elinOS
 使用 `console_println!` 宏添加调试输出：
 
 ```rust
-console_println!("🔍 调试信息：变量值 = {}", value);
+console_println!("ℹ️ 调试信息：变量值 = {}", value);
 console_println!("📍 执行到函数：{}", function_name);
 ```
 
@@ -414,7 +414,7 @@ cargo clean && cargo build --target riscv64gc-unknown-none-elf
 
 ```rust
 // 在关键位置添加调试输出
-console_println!("🚨 到达关键点：函数 = {}, 行 = {}", 
+console_println!("❌ 到达关键点：函数 = {}, 行 = {}", 
     function_name!(), line!());
 
 // 检查内存地址

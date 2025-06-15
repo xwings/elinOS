@@ -1,4 +1,4 @@
-# 🧠 Enhanced Memory Management for elinOS
+# ℹ️ Enhanced Memory Management for elinOS
 
 ## Overview
 
@@ -38,12 +38,12 @@ Inspired by [Maestro OS](https://github.com/maestro-os/maestro) and modern kerne
 
 ## Key Improvements Inspired by Maestro OS
 
-### 1. **Fallible Allocations** 🛡️
+### 1. **Fallible Allocations** ℹ️
 Unlike many kernels that panic on OOM, elinOS now supports graceful failure handling:
 
 ```rust
 // Old way - can panic
-let buffer = vec![0u8; size]; // 💥 Panic on OOM
+let buffer = vec![0u8; size]; // ❌ Panic on OOM
 
 // New way - graceful handling
 match try_allocate_memory(size) {
@@ -52,12 +52,12 @@ match try_allocate_memory(size) {
     }
     Err(AllocError::OutOfMemory) => {
         // Handle gracefully, maybe try smaller size
-        console_println!("🔄 Memory pressure, using fallback strategy");
+        console_println!("ℹ️ Memory pressure, using fallback strategy");
     }
 }
 ```
 
-### 2. **Transaction System** 🔄
+### 2. **Transaction System** ℹ️
 Atomic allocation operations that can be rolled back on failure:
 
 ```rust
@@ -78,7 +78,7 @@ match result {
     }
     Err(_) => {
         // All allocations were rolled back automatically
-        console_println!("🔄 Transaction failed, all allocations rolled back");
+        console_println!("ℹ️ Transaction failed, all allocations rolled back");
     }
 }
 ```
@@ -97,7 +97,7 @@ let small_buffer = try_allocate_memory(64)?;    // Fast O(1)
 let large_buffer = try_allocate_memory(8192)?;  // Still efficient
 ```
 
-### 4. **Memory Zones** 🗺️
+### 4. **Memory Zones** ℹ️
 Linux-style memory zones for better organization:
 
 ```rust
@@ -108,7 +108,7 @@ pub enum MemoryZone {
 }
 ```
 
-### 5. **Advanced Statistics & Health Monitoring** 📊
+### 5. **Advanced Statistics & Health Monitoring** ℹ️
 
 ```rust
 let stats = get_memory_stats();

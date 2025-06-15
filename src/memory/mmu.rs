@@ -117,7 +117,7 @@ unsafe impl Sync for AddressSpace {}
 impl AddressSpace {
     pub fn new() -> Option<Self> {
         // Allocate root page table (must be page-aligned)
-        console_println!("🔧 Allocating root page table ({} bytes)...", PAGE_SIZE);
+        console_println!("ℹ️ Allocating root page table ({} bytes)...", PAGE_SIZE);
         let root_addr = crate::memory::allocate_aligned_memory(PAGE_SIZE, PAGE_SIZE)?;
         console_println!("✅ Root page table allocated at 0x{:08x}", root_addr);
         
@@ -277,9 +277,9 @@ impl AddressSpace {
     /// Activate this address space - RISC-V 64-bit implementation based on working examples
     pub fn activate(&self) {
         unsafe {
-            console_println!("🔧 Starting RISC-V 64-bit MMU activation...");
-            console_println!("🔧 SATP value: 0x{:x}", self.satp_value);
-            console_println!("🔧 Root page table: 0x{:x}", self.root_table_addr);
+            console_println!("ℹ️ Starting RISC-V 64-bit MMU activation...");
+            console_println!("ℹ️ SATP value: 0x{:x}", self.satp_value);
+            console_println!("ℹ️ Root page table: 0x{:x}", self.root_table_addr);
             
             // RISC-V 64-bit specific validation
             if self.root_table_addr % PAGE_SIZE != 0 {
@@ -291,7 +291,7 @@ impl AddressSpace {
             let mode = (self.satp_value >> 60) & 0xF;
             let asid = (self.satp_value >> 44) & 0xFFFF;
             let ppn = self.satp_value & 0xFFFFFFFFFFF; // PPN is bits 43-0
-            console_println!("🔧 SATP mode: {}, ASID: {}, PPN: 0x{:x}", mode, asid, ppn);
+            console_println!("ℹ️ SATP mode: {}, ASID: {}, PPN: 0x{:x}", mode, asid, ppn);
             
             if mode != 8 {
                 console_println!("❌ Invalid SATP mode for Sv39: {}", mode);
@@ -300,7 +300,7 @@ impl AddressSpace {
             
             // Verify the PPN points to our page table
             let expected_ppn = (self.root_table_addr >> 12) as u64;
-            console_println!("🔧 Expected PPN: 0x{:x} (from addr 0x{:x})", expected_ppn, self.root_table_addr);
+            console_println!("ℹ️ Expected PPN: 0x{:x} (from addr 0x{:x})", expected_ppn, self.root_table_addr);
             
             if ppn != expected_ppn {
                 console_println!("❌ SATP PPN mismatch: expected 0x{:x}, got 0x{:x}", expected_ppn, ppn);
@@ -311,12 +311,12 @@ impl AddressSpace {
             
             // Critical: Ensure we're executing from identity-mapped memory
             // This is essential for RISC-V MMU activation
-            console_println!("🔧 Preparing for MMU activation...");
+            console_println!("ℹ️ Preparing for MMU activation...");
             
             // Get current PC to verify we're in identity-mapped region
             let current_pc: usize;
             asm!("auipc {}, 0", out(reg) current_pc);
-            console_println!("🔧 Current PC: 0x{:x}", current_pc);
+            console_println!("ℹ️ Current PC: 0x{:x}", current_pc);
             
             // CRITICAL: Verify that our current execution address is identity-mapped
             // in our page tables. If not, the system will crash when MMU activates.
@@ -328,7 +328,7 @@ impl AddressSpace {
             }
             
             // Disable interrupts during critical section
-            console_println!("🔧 Disabling interrupts...");
+            console_println!("ℹ️ Disabling interrupts...");
             asm!("csrci sstatus, 2"); // Clear SIE bit
             
             // Implement proper RISC-V MMU activation based on specification and working kernels
@@ -339,10 +339,10 @@ impl AddressSpace {
             // 4. Some QEMU versions have MMU emulation bugs
             
             let satp_usize = self.satp_value as usize;
-            console_println!("🔧 Writing SATP register: 0x{:x}", satp_usize);
+            console_println!("ℹ️ Writing SATP register: 0x{:x}", satp_usize);
             
             // Method 1: Try the standard RISC-V approach first
-            console_println!("🔧 Attempting standard RISC-V MMU activation...");
+            console_println!("ℹ️ Attempting standard RISC-V MMU activation...");
             
             // Complete all pending memory operations
             asm!(
@@ -357,30 +357,30 @@ impl AddressSpace {
             if activation_result {
                 console_println!("✅ Hardware MMU activation successful!");
             } else {
-                console_println!("🔄 Enabling Software Virtual Memory Manager...");
+                console_println!("ℹ️ Enabling Software Virtual Memory Manager...");
                 
                 // Enable software-based virtual memory translation
                 self.enable_software_mmu();
                 
                 console_println!("✅ Software Virtual Memory Manager active!");
-                console_println!("💡 Provides memory protection and virtual addressing");
-                console_println!("💡 Full MMU functionality available in software");
+                console_println!("ℹ️ Provides memory protection and virtual addressing");
+                console_println!("ℹ️ Full MMU functionality available in software");
             }
             
             // Re-enable interrupts
-            console_println!("🔧 Re-enabling interrupts...");
+            console_println!("ℹ️ Re-enabling interrupts...");
             asm!("csrsi sstatus, 2"); // Set SIE bit
         }
     }
     
     /// Detect if hardware MMU is available and working
     unsafe fn try_mmu_activation(&self, satp_value: usize) -> bool {
-        console_println!("🔧 Testing hardware MMU availability...");
+        console_println!("ℹ️ Testing hardware MMU availability...");
         
         // For now, we'll skip hardware MMU activation entirely
         // This avoids the QEMU hang issue and lets us focus on software MMU
-        console_println!("💡 Skipping hardware MMU activation");
-        console_println!("💡 Using Software MMU for full virtual memory functionality");
+        console_println!("ℹ️ Skipping hardware MMU activation");
+        console_println!("ℹ️ Using Software MMU for full virtual memory functionality");
         
         false
     }
@@ -388,19 +388,19 @@ impl AddressSpace {
     /// Enable software-based virtual memory management
     /// This provides full MMU functionality without hardware MMU activation
     unsafe fn enable_software_mmu(&self) {
-        console_println!("🔧 Initializing Software Virtual Memory Manager...");
+        console_println!("ℹ️ Initializing Software Virtual Memory Manager...");
         
         // The page tables are fully constructed and ready for software translation
-        console_println!("📋 Page tables constructed and validated");
-        console_println!("🛡️  Memory protection enforced via software checks");
-        console_println!("🗺️  Virtual-to-physical translation active");
-        console_println!("🔄 Address space isolation available");
+        console_println!("ℹ️ Page tables constructed and validated");
+        console_println!("ℹ️  Memory protection enforced via software checks");
+        console_println!("ℹ️  Virtual-to-physical translation active");
+        console_println!("ℹ️ Address space isolation available");
         
         // Re-enable interrupts
         asm!("csrsi sstatus, 2");
         
         // Test software virtual memory translation
-        console_println!("🧪 Testing software virtual memory translation...");
+        console_println!("ℹ️ Testing software virtual memory translation...");
         
         // Test translation of various kernel addresses
         let test_addresses = [
@@ -412,14 +412,14 @@ impl AddressSpace {
         
         for &vaddr in &test_addresses {
             if let Some(paddr) = self.translate(vaddr) {
-                console_println!("🧪 Virtual 0x{:08x} → Physical 0x{:08x} ✓", vaddr, paddr);
+                console_println!("ℹ️ Virtual 0x{:08x} → Physical 0x{:08x} ✓", vaddr, paddr);
             } else {
-                console_println!("🧪 Virtual 0x{:08x} → Not mapped", vaddr);
+                console_println!("ℹ️ Virtual 0x{:08x} → Not mapped", vaddr);
             }
         }
         
         console_println!("✅ Software Virtual Memory Manager fully operational!");
-        console_println!("💡 Features available:");
+        console_println!("ℹ️ Features available:");
         console_println!("   • Virtual-to-physical address translation");
         console_println!("   • Memory protection and access control");
         console_println!("   • Address space isolation for user programs");
@@ -452,10 +452,10 @@ impl MmuManager {
     
     /// Initialize MMU with kernel mappings
     pub fn init(&mut self) -> Result<(), &'static str> {
-        console_println!("🧠 Initializing RISC-V Sv39 MMU...");
+        console_println!("ℹ️ Initializing RISC-V Sv39 MMU...");
         
         // Create kernel address space
-        console_println!("🔧 Creating kernel address space...");
+        console_println!("ℹ️ Creating kernel address space...");
         let mut kernel_space = AddressSpace::new()
             .ok_or("Failed to create kernel address space")?;
         console_println!("✅ Kernel address space created");
@@ -569,18 +569,18 @@ impl MmuManager {
         let kernel_space = self.kernel_space.as_ref()
             .ok_or("Kernel space not initialized")?;
         
-        console_println!("🚀 Enabling RISC-V MMU...");
+        console_println!("ℹ️ Enabling RISC-V MMU...");
         
         // Activate kernel address space
         kernel_space.activate();
         
-        console_println!("🎯 Virtual Memory activation completed, testing memory access...");
+        console_println!("ℹ️ Virtual Memory activation completed, testing memory access...");
         
         // Test that we can still access memory after Virtual Memory is enabled
         let test_addr: usize = 0x80200000; // Kernel start address
         unsafe {
             let test_value = core::ptr::read_volatile(test_addr as *const u32);
-            console_println!("🧪 Memory test: read 0x{:x} from 0x{:x}", test_value, test_addr);
+            console_println!("ℹ️ Memory test: read 0x{:x} from 0x{:x}", test_value, test_addr);
         }
         
         // We're using software MMU which provides full virtual memory functionality
@@ -617,7 +617,7 @@ impl MmuManager {
         }
         
         // Map kernel code into user space temporarily to avoid page faults during switch
-        console_println!("🔧 Mapping kernel code into user space for safe switching...");
+        console_println!("ℹ️ Mapping kernel code into user space for safe switching...");
         let layout = crate::memory::layout::get_memory_layout();
         
         // Map kernel image
@@ -671,7 +671,7 @@ impl MmuManager {
         let user_space = self.current_user_space.as_ref()
             .ok_or("No user space available")?;
         
-        console_println!("🔄 About to activate user address space (SATP: 0x{:x})", user_space.satp_value);
+        console_println!("ℹ️ About to activate user address space (SATP: 0x{:x})", user_space.satp_value);
         user_space.activate();
         console_println!("✅ User address space activated successfully");
         Ok(())
@@ -700,18 +700,18 @@ pub static MMU_MANAGER: Mutex<MmuManager> = Mutex::new(MmuManager::new());
 
 /// Initialize MMU system
 pub fn init_mmu() -> Result<(), &'static str> {
-    console_println!("🔧 Starting MMU initialization...");
+    console_println!("ℹ️ Starting MMU initialization...");
     
     // Check heap status before starting
     let (heap_used, heap_total, heap_available) = crate::memory::get_heap_usage();
-    console_println!("📊 Heap status: used={} KB, total={} KB, available={} KB", 
+    console_println!("ℹ️ Heap status: used={} KB, total={} KB, available={} KB", 
         heap_used / 1024, heap_total / 1024, heap_available / 1024);
     
     if heap_available < PAGE_SIZE * 4 {
         console_println!("⚠️  Low heap space for MMU initialization. Resetting heap...");
         crate::memory::reset_heap_for_testing();
         let (heap_used_new, _, heap_available_new) = crate::memory::get_heap_usage();
-        console_println!("📊 After reset: used={} KB, available={} KB", 
+        console_println!("ℹ️ After reset: used={} KB, available={} KB", 
             heap_used_new / 1024, heap_available_new / 1024);
     }
     
@@ -734,7 +734,7 @@ pub fn init_mmu() -> Result<(), &'static str> {
         }
     }
     
-    console_println!("🎉 Virtual Memory initialization complete!");
+    console_println!("✅ Virtual Memory initialization complete!");
     Ok(())
 }
 

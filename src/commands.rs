@@ -236,12 +236,12 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             match crate::filesystem::read_file(&full_path) {
                 Ok(file_data) => {
                     // Debug: Show file size and first few bytes
-                    let _ = syscall::sys_print("🔍 Debug: File size: ");
+                    let _ = syscall::sys_print("ℹ️ Debug: File size: ");
                     let _ = syscall::sys_print_num(file_data.len() as u64);
                     let _ = syscall::sys_print(" bytes\n");
                     
                     if file_data.len() >= 4 {
-                        let _ = syscall::sys_print("🔍 Debug: First 4 bytes: ");
+                        let _ = syscall::sys_print("ℹ️ Debug: First 4 bytes: ");
                         for i in 0..4 {
                             let _ = syscall::sys_print_hex(file_data[i] as u32, 2);
                             let _ = syscall::sys_print(" ");
@@ -289,7 +289,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("📖 elinOS Commands\n")?;
     syscall::sys_print("===============================================\n\n")?;
     
-    syscall::sys_print("📊 System Information:\n")?;
+    syscall::sys_print("ℹ️ System Information:\n")?;
     syscall::sys_print("  help            - Show this help message\n")?;
     syscall::sys_print("  version         - Show kernel version and features\n")?;
     syscall::sys_print("  memory          - Show memory regions and allocator statistics\n")?;
@@ -331,13 +331,13 @@ pub fn cmd_help() -> Result<(), &'static str> {
 }
 
 pub fn cmd_config() -> Result<(), &'static str> {
-    syscall::sys_print("🔧 Dynamic System Configuration\n")?;
+    syscall::sys_print("ℹ️ Dynamic System Configuration\n")?;
     syscall::sys_print("=====================================\n\n")?;
     
     // Get memory statistics
     let mem_stats = memory::get_memory_stats();
     
-    syscall::sys_print("📊 Hardware Detection Results:\n")?;
+    syscall::sys_print("ℹ️ Hardware Detection Results:\n")?;
     
     syscall::sys_print("  Total RAM: ")?;
     show_number_mb(mem_stats.detected_ram_size);
@@ -765,7 +765,7 @@ fn cmd_cd(path_arg: &str) -> Result<(), &'static str> {
 // === ELF OPERATIONS ===
 
 fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("📋 ELF Binary Analysis: ")?;
+    syscall::sys_print("ℹ️ ELF Binary Analysis: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -799,7 +799,7 @@ fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
 }
 
 fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("🔄 Loading ELF Binary: ")?;
+    syscall::sys_print("ℹ️ Loading ELF Binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -840,7 +840,7 @@ fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
 
 // Unified ELF execution function - parse, load, and execute in one step
 fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str> {
-    syscall::sys_print("🚀 Executing: ")?;
+    syscall::sys_print("ℹ️ Executing: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -852,7 +852,7 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
             &filename[1..]
         };
         
-        console_println!("🚀 Executing: {}", filename);
+        console_println!("ℹ️ Executing: {}", filename);
         
         // Use the new ELF file reader that supports larger files
         match crate::filesystem::read_elf_file(elf_filename) {
@@ -869,7 +869,7 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
                         // Execute the loaded ELF
                         match loader.execute_elf(&loaded_elf) {
                             Ok(()) => {
-                                console_println!("🎉 ELF execution completed successfully!");
+                                console_println!("✅ ELF execution completed successfully!");
                             }
                             Err(err) => {
                                 console_println!("❌ Execution failed: {:?}", err);
@@ -910,7 +910,7 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
 }
 
 fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("🚀 Executing ELF Binary: ")?;
+    syscall::sys_print("ℹ️ Executing ELF Binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -950,7 +950,7 @@ fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
 }
 
 fn cmd_elf_demo() -> Result<(), &'static str> {
-    syscall::sys_print("🧪 ELF Loader Demonstration\n")?;
+    syscall::sys_print("ℹ️ ELF Loader Demonstration\n")?;
     syscall::sys_print("============================\n\n")?;
     
     syscall::sys_print("This demo shows elinOS ELF loading capabilities:\n\n")?;
@@ -1005,7 +1005,7 @@ fn cmd_elf_demo() -> Result<(), &'static str> {
 }
 
 fn cmd_elf_run(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("🚀 Executing ELF binary: ")?;
+    syscall::sys_print("ℹ️ Executing ELF binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -1051,7 +1051,7 @@ fn cmd_elf_run(filename: &str) -> Result<(), &'static str> {
 
 /// Show heap usage information
 pub fn cmd_heap() -> Result<(), &'static str> {
-    syscall::sys_print("🧠 Heap Status:\n")?;
+    syscall::sys_print("ℹ️ Heap Status:\n")?;
     syscall::sys_print("================\n")?;
     
     let (used, total, available) = memory::get_heap_usage();

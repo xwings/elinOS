@@ -99,7 +99,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         // TODO: Implement stdin reading
         SysCallResult::Error(crate::syscall::ENOSYS)
     } else if fd >= 10 { // File descriptors start at 10
-        console_println!("📂 SYSCALL: Looking up file descriptor {}", fd);
+        console_println!("ℹ️ SYSCALL: Looking up file descriptor {}", fd);
         
         // Look up filename from file descriptor table
         let file_table = FILE_TABLE.lock();
@@ -164,7 +164,7 @@ pub fn sys_openat(args: SyscallArgs) -> SysCallResult {
     // For demo purposes, just check if file exists
     let filename = "hello.txt";  // Hardcoded for now
     
-    console_println!("📂 sys_openat: opening file '{}'", filename);
+    console_println!("ℹ️ sys_openat: opening file '{}'", filename);
     
     let fs = filesystem::FILESYSTEM.lock();
     
@@ -219,7 +219,7 @@ pub fn sys_unlinkat(args: SyscallArgs) -> SysCallResult {
 pub fn sys_getdents64(args: SyscallArgs) -> SysCallResult {
     let fd = args.arg0 as i32;
     
-    console_println!("📂 sys_getdents64: listing directory for fd={}", fd);
+    console_println!("ℹ️ sys_getdents64: listing directory for fd={}", fd);
     
     let fs = filesystem::FILESYSTEM.lock();
     

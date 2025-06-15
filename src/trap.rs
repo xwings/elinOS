@@ -120,18 +120,18 @@ pub fn dump_crash_info(ctx: &TrapContext) {
     let is_interrupt = (ctx.scause & (1 << 63)) != 0;
     
     console_println!("=====================================");
-    console_println!("💥 KERNEL TRAP/CRASH DETECTED! 💥");
+    console_println!("❌ KERNEL TRAP/CRASH DETECTED! ❌");
     console_println!("=====================================");
     console_println!();
-    console_println!("📋 Trap Type: {}", if is_interrupt { "INTERRUPT" } else { "EXCEPTION" });
-    console_println!("📋 Cause: {:?} (0x{:016x})", cause, ctx.scause);
-    console_println!("📋 PC (sepc): 0x{:016x}", ctx.sepc);
-    console_println!("📋 Trap Value (stval): 0x{:016x}", ctx.stval);
-    console_println!("📋 Status (sstatus): 0x{:016x}", ctx.sstatus);
+    console_println!("ℹ️ Trap Type: {}", if is_interrupt { "INTERRUPT" } else { "EXCEPTION" });
+    console_println!("ℹ️ Cause: {:?} (0x{:016x})", cause, ctx.scause);
+    console_println!("ℹ️ PC (sepc): 0x{:016x}", ctx.sepc);
+    console_println!("ℹ️ Trap Value (stval): 0x{:016x}", ctx.stval);
+    console_println!("ℹ️ Status (sstatus): 0x{:016x}", ctx.sstatus);
     console_println!();
     
     // Detailed register dump
-    console_println!("📋 REGISTER DUMP:");
+    console_println!("ℹ️ REGISTER DUMP:");
     console_println!("─────────────────────────────────────");
     for i in 0..32 {
         let reg_name = match i {
@@ -181,14 +181,14 @@ pub fn dump_crash_info(ctx: &TrapContext) {
     // Additional context based on trap type
     match cause {
         TrapCause::IllegalInstruction => {
-            console_println!("🚨 ILLEGAL INSTRUCTION at PC: 0x{:016x}", ctx.sepc);
+            console_println!("❌ ILLEGAL INSTRUCTION at PC: 0x{:016x}", ctx.sepc);
             console_println!("   This usually indicates:");
             console_println!("   - Corrupted code");
             console_println!("   - Jump to invalid address");
             console_println!("   - Unsupported instruction");
         }
         TrapCause::LoadAccessFault | TrapCause::StoreAccessFault => {
-            console_println!("🚨 MEMORY ACCESS FAULT");
+            console_println!("❌ MEMORY ACCESS FAULT");
             console_println!("   Faulting address: 0x{:016x}", ctx.stval);
             console_println!("   PC: 0x{:016x}", ctx.sepc);
             console_println!("   This usually indicates:");
@@ -197,16 +197,16 @@ pub fn dump_crash_info(ctx: &TrapContext) {
             console_println!("   - Hardware fault");
         }
         TrapCause::LoadAddressMisaligned | TrapCause::StoreAddressMisaligned => {
-            console_println!("🚨 MISALIGNED MEMORY ACCESS");
+            console_println!("❌ MISALIGNED MEMORY ACCESS");
             console_println!("   Faulting address: 0x{:016x}", ctx.stval);
             console_println!("   PC: 0x{:016x}", ctx.sepc);
         }
         TrapCause::InstructionAddressMisaligned => {
-            console_println!("🚨 MISALIGNED INSTRUCTION FETCH");
+            console_println!("❌ MISALIGNED INSTRUCTION FETCH");
             console_println!("   Faulting PC: 0x{:016x}", ctx.stval);
         }
         TrapCause::Breakpoint => {
-            console_println!("🔍 BREAKPOINT HIT at PC: 0x{:016x}", ctx.sepc);
+            console_println!("ℹ️ BREAKPOINT HIT at PC: 0x{:016x}", ctx.sepc);
         }
         _ => {
             console_println!("ℹ️  Additional debugging info:");
@@ -232,7 +232,7 @@ fn handle_syscall(ctx: &mut TrapContext) {
     let arg4 = ctx.x[14] as usize; // a4
     let arg5 = ctx.x[15] as usize; // a5
     
-    console_println!("🎉 syscall: {} (a0={}, a1={}, a2={}, a3={})", 
+    console_println!("✅ syscall: {} (a0={}, a1={}, a2={}, a3={})", 
         syscall_num, arg0, arg1, arg2, arg3);
     
     // Create syscall args structure
@@ -253,7 +253,7 @@ fn handle_syscall(ctx: &mut TrapContext) {
     match result {
         crate::syscall::SysCallResult::Success(value) => {
             ctx.x[10] = value as u64; // Return value in a0
-            console_println!("✅ Syscall {} completed successfully: {}", syscall_num, value);
+            // console_println!("✅ Syscall {} completed successfully: {}", syscall_num, value);
         }
         crate::syscall::SysCallResult::Error(code) => {
             ctx.x[10] = (-code as i64) as u64; // Error code in a0 (negative)
@@ -263,7 +263,7 @@ fn handle_syscall(ctx: &mut TrapContext) {
     
     // Check if a user program has exited (e.g., via sys_exit)
     if let Some(exit_code) = check_user_program_exit() {
-        // console_println!("🔍 User program exited with code {} - restarting shell", exit_code);
+        // console_println!("ℹ️ User program exited with code {} - restarting shell", exit_code);
         
         // Instead of returning to user mode (which would crash), 
         // jump directly to shell_loop to restart the shell
@@ -302,10 +302,10 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
         let mut uart = crate::UART.lock();
         match cause {
             TrapCause::SupervisorTimerInterrupt => {
-                console_println!("🔍 Timer interrupt");
+                console_println!("ℹ️ Timer interrupt");
             }
             TrapCause::SupervisorExternalInterrupt => {
-                console_println!("🔍 External interrupt");
+                console_println!("ℹ️ External interrupt");
             }
             _ => {
                 console_println!("❌ Unknown interrupt: {:?}", cause);
@@ -313,23 +313,23 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
         }
     } else {
         // Handle exceptions
-        console_println!("❌ Exception occurred: cause={}, sepc=0x{:x}", ctx.scause, ctx.sepc);
+        //console_println!("❌ Exception occurred: cause={}, sepc=0x{:x}", ctx.scause, ctx.sepc);
         
         match cause {
             TrapCause::EnvironmentCallFromUMode => {
-                // console_println!("🔍 Handling user mode syscall");
+                // console_println!("ℹ️ Handling user mode syscall");
                 // Handle system calls from user mode - dispatch to unified syscall module
                 handle_syscall(ctx);
             }
             TrapCause::EnvironmentCallFromSMode => {
-                // console_println!("🔍 Handling supervisor mode syscall");
+                // console_println!("ℹ️ Handling supervisor mode syscall");
                 // Handle system calls from supervisor mode - dispatch to unified syscall module
                 handle_syscall(ctx);
             }
             TrapCause::Breakpoint => {
                 // Check if this breakpoint is from our exit stub
                 if let Some(exit_code) = check_user_program_exit() {
-                    //console_println!("🔍 Exit stub breakpoint hit - returning to kernel with code {}", exit_code);
+                    //console_println!("ℹ️ Exit stub breakpoint hit - returning to kernel with code {}", exit_code);
                     
                     // Set up return to kernel
                     ctx.x[10] = exit_code as u64; // a0 = exit code
@@ -339,14 +339,14 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
                     
                     // Instead of trying to figure out the return address,
                     // let's just halt the system cleanly for now
-                    // console_println!("🔍 Program completed successfully with exit code: {}", exit_code);
-                    // console_println!("🔍 Returning to shell...");
+                    // console_println!("ℹ️ Program completed successfully with exit code: {}", exit_code);
+                    // console_println!("ℹ️ Returning to shell...");
                     
                     // For now, let's just return to a safe location
                     // We'll improve this later to properly return to the shell
                     ctx.sepc = 0x80200000; // Return to a safe kernel location
                     
-                    // console_println!("🔍 Setting sepc to safe kernel location: 0x{:x}", ctx.sepc);
+                    // console_println!("ℹ️ Setting sepc to safe kernel location: 0x{:x}", ctx.sepc);
                     
                     return;
                 } else {
@@ -376,7 +376,7 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
     }
     
     // Write back CSR values before returning
-    console_println!("🔍 Writing back CSRs: sepc=0x{:x}, sstatus=0x{:x}", ctx.sepc, ctx.sstatus);
+    console_println!("ℹ️ Writing back CSRs: sepc=0x{:x}, sstatus=0x{:x}", ctx.sepc, ctx.sstatus);
     unsafe {
         asm!(
             "csrw sepc, {}",

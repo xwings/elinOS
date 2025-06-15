@@ -1,4 +1,4 @@
-# 🧠 elinOS 增强型内存管理
+# ℹ️ elinOS 增强型内存管理
 
 ## 概述
 
@@ -38,12 +38,12 @@
 
 ## 受 Maestro OS 启发的关键改进
 
-### 1. **可失败分配 (Fallible Allocations)** 🛡️
+### 1. **可失败分配 (Fallible Allocations)** ℹ️
 与许多在内存不足 (OOM) 时会 panic 的内核不同，elinOS 现在支持优雅的故障处理：
 
 ```rust
 // 旧方法 - 可能 panic
-let buffer = vec![0u8; size]; // 💥 OOM 时 panic
+let buffer = vec![0u8; size]; // ❌ OOM 时 panic
 
 // 新方法 - 优雅处理
 match try_allocate_memory(size) {
@@ -52,12 +52,12 @@ match try_allocate_memory(size) {
     }
     Err(AllocError::OutOfMemory) => {
         // 优雅处理，或许尝试更小的尺寸
-        console_println!("🔄 内存压力，使用回退策略");
+        console_println!("ℹ️ 内存压力，使用回退策略");
     }
 }
 ```
 
-### 2. **事务系统 (Transaction System)** 🔄
+### 2. **事务系统 (Transaction System)** ℹ️
 原子分配操作，失败时可回滚：
 
 ```rust
@@ -78,7 +78,7 @@ match result {
     }
     Err(_) => {
         // 所有分配均已自动回滚
-        console_println!("🔄 事务失败，所有分配已回滚");
+        console_println!("ℹ️ 事务失败，所有分配已回滚");
     }
 }
 ```
@@ -97,7 +97,7 @@ let small_buffer = try_allocate_memory(64)?;    // 快速 O(1)
 let large_buffer = try_allocate_memory(8192)?;  // 仍然高效
 ```
 
-### 4. **内存区域 (Memory Zones)** 🗺️
+### 4. **内存区域 (Memory Zones)** ℹ️
 类似 Linux 的内存区域，用于更好的组织：
 
 ```rust
@@ -108,7 +108,7 @@ pub enum MemoryZone {
 }
 ```
 
-### 5. **高级统计与健康监控 (Advanced Statistics & Health Monitoring)** 📊
+### 5. **高级统计与健康监控 (Advanced Statistics & Health Monitoring)** ℹ️
 
 ```rust
 let stats = get_memory_stats();

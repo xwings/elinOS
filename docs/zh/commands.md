@@ -239,7 +239,7 @@ EXT2 Filesystem Check
 
 ✅ EXT2 filesystem is active and healthy!
 
-📊 Superblock Information:
+ℹ️ Superblock Information:
    Magic: 0xef53 ✅
    Inodes: 65536
    Blocks: 65536
@@ -290,12 +290,12 @@ elinOS> shutdown       # 关闭系统
 ## 完整会话示例
 
 ```bash
-🚀 elinOS Starting...
+ℹ️ elinOS Starting...
 ✅ Console system initialized
-🧠 Memory management ready
+ℹ️ Memory management ready
 💾 VirtIO disk ready
 ✅ FAT32 filesystem mounted
-🎉 elinOS initialization complete!
+✅ elinOS initialization complete!
 
 =====================================
        🦀 Welcome to elinOS! 🦀      
@@ -313,7 +313,7 @@ elinOS> help
   cat <file>      - Display file contents
   echo <message>  - Echo a message
 
-📊 System Information:
+ℹ️ System Information:
   help            - Show this help message
   version         - Show kernel version
   memory          - Show memory information

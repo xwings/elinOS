@@ -54,7 +54,7 @@ impl UnifiedFileSystem {
     
     /// Initialize filesystem with automatic type detection
     pub fn init(&mut self) -> FilesystemResult<()> {
-        console_println!("🔍 Starting unified filesystem initialization...");
+        console_println!("ℹ️ Starting unified filesystem initialization...");
         
         // Detect filesystem type
         self.fs_type = detect_filesystem_type()?;
@@ -359,7 +359,7 @@ pub fn file_exists(filename: &str) -> bool {
 pub fn check_filesystem() -> Result<(), FilesystemError> {
     let fs = FILESYSTEM.lock();
     
-    console_println!("🔍 Filesystem Check:");
+    console_println!("ℹ️ Filesystem Check:");
     console_println!("   Type: {}", fs.get_filesystem_type());
     
     if let Some((signature, total_blocks, block_size)) = fs.get_filesystem_info() {
