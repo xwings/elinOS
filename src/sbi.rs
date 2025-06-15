@@ -79,7 +79,7 @@ pub fn console_getchar() -> Option<usize> {
 pub fn system_shutdown() -> ! {
     // Use console print fallback since console_println might not be available here
     let mut uart = crate::UART.lock();
-    let _ = core::fmt::Write::write_str(&mut *uart, "🔌 Initiating system shutdown via SBI...\n");
+    let _ = core::fmt::Write::write_str(&mut *uart, "ℹ️  Initiating system shutdown via SBI...\n");
     drop(uart);
     
     // Try newer SBI system reset extension first
@@ -105,7 +105,7 @@ pub fn system_shutdown() -> ! {
 pub fn system_reset() -> ! {
     // Use console print fallback since console_println might not be available here
     let mut uart = crate::UART.lock();
-    let _ = core::fmt::Write::write_str(&mut *uart, "ℹ️ Initiating system reboot via SBI...\n");
+    let _ = core::fmt::Write::write_str(&mut *uart, "ℹ️  Initiating system reboot via SBI...\n");
     drop(uart);
     
     // Try SBI system reset extension

@@ -77,7 +77,7 @@ impl BlockManager {
         let eh_entries = extent_header.eh_entries;
         let eh_depth = extent_header.eh_depth;
         
-        console_println!("   ℹ️ File extent header: magic=0x{:04x}, entries={}, depth={}", 
+        console_println!("   ℹ️  File extent header: magic=0x{:04x}, entries={}, depth={}", 
             eh_magic, eh_entries, eh_depth);
         
         if eh_magic != EXT2_EXT_MAGIC {
@@ -124,7 +124,7 @@ impl BlockManager {
             // Calculate physical block number
             let physical_block = ((ee_start_hi as u64) << 32) | (ee_start_lo as u64);
             
-            console_println!("   ℹ️ File extent {}: logical={}, len={}, physical={}", 
+            console_println!("   ℹ️  File extent {}: logical={}, len={}, physical={}", 
                 i, ee_block, ee_len, physical_block);
             
             // Read file data from this extent
@@ -135,7 +135,7 @@ impl BlockManager {
                 
                 let block_num = physical_block + block_offset as u64;
                 
-                //console_println!("   📍 Reading file block {} (from extent)", block_num);
+                //console_println!("   ℹ️ Reading file block {} (from extent)", block_num);
                 
                 let block_data = match sb_mgr.read_block_data(block_num) {
                     Ok(data) => data,
@@ -169,12 +169,12 @@ impl BlockManager {
         // Copy i_block array to avoid packed field alignment issues
         let i_block_copy = inode.i_block;
         
-        // console_println!("   ℹ️ Reading from direct blocks, target size: {}", file_size);
-        //console_println!("   ℹ️ First 5 block numbers: {:?}", &i_block_copy[..5]);
+        // console_println!("   ℹ️  Reading from direct blocks, target size: {}", file_size);
+        //console_println!("   ℹ️  First 5 block numbers: {:?}", &i_block_copy[..5]);
         
         // Read file data from direct blocks
         for (i, &block_num) in i_block_copy.iter().take(12).enumerate() {
-            // console_println!("   📍 Block {}: {}", i, block_num);
+            // console_println!("   ℹ️ Block {}: {}", i, block_num);
             
             if block_num == 0 {
                 console_println!("   ⚠️  Block {} is 0, stopping", i);
@@ -192,7 +192,7 @@ impl BlockManager {
                 continue;
             }
             
-            console_println!("   ℹ️ Reading block {} from disk", block_num);
+            console_println!("   ℹ️  Reading block {} from disk", block_num);
             let block_data = match sb_mgr.read_block_data(block_num as u64) {
                 Ok(data) => {
                     console_println!("   ✅ Successfully read block {}, got {} bytes", block_num, data.len());
@@ -218,7 +218,7 @@ impl BlockManager {
                 }
             }
             
-            // console_println!("   ℹ️ Total bytes read so far: {}", bytes_read);
+            // console_println!("   ℹ️  Total bytes read so far: {}", bytes_read);
         }
         
         console_println!("   ✅ Read {} bytes from block-based file", bytes_read);

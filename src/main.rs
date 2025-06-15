@@ -29,7 +29,7 @@ fn panic(info: &PanicInfo) -> ! {
     console_println!("❌  KERNEL PANIC: {}", info.message());
     
     if let Some(location) = info.location() {
-        console_println!("ℹ️ Location: {}:{}:{}", location.file(), location.line(), location.column());
+        console_println!("ℹ️  Location: {}:{}:{}", location.file(), location.line(), location.column());
     }
     
     loop {

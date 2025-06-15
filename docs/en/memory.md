@@ -1,4 +1,4 @@
-# ℹ️ Enhanced Memory Management for elinOS
+# ℹ️  Enhanced Memory Management for elinOS
 
 ## Overview
 
@@ -52,7 +52,7 @@ match try_allocate_memory(size) {
     }
     Err(AllocError::OutOfMemory) => {
         // Handle gracefully, maybe try smaller size
-        console_println!("ℹ️ Memory pressure, using fallback strategy");
+        console_println!("ℹ️  Memory pressure, using fallback strategy");
     }
 }
 ```
@@ -78,7 +78,7 @@ match result {
     }
     Err(_) => {
         // All allocations were rolled back automatically
-        console_println!("ℹ️ Transaction failed, all allocations rolled back");
+        console_println!("ℹ️  Transaction failed, all allocations rolled back");
     }
 }
 ```

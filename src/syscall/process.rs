@@ -116,7 +116,7 @@ pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCall
 pub fn sys_exit(exit_code: isize) -> SysCallResult {
     console_println!("🚪 SYS_EXIT: Program exiting with code {}", exit_code);
     console_println!("✅ Program completed successfully with exit code: {}", exit_code);
-    console_println!("🏁 Returning to shell...");
+    console_println!("ℹ️ Returning to shell...");
     
     // Set the global exit flag so the trap handler knows to jump to shell_loop
     // instead of returning to user mode
@@ -222,12 +222,12 @@ pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     match loader.load_elf(elf_data) {
         Ok(loaded_elf) => {
             console_println!("✅ ELF loaded successfully with {} segments", loaded_elf.segments.len());
-            console_println!("📍 Entry point: 0x{:x}", loaded_elf.entry_point);
+            console_println!("ℹ️ Entry point: 0x{:x}", loaded_elf.entry_point);
             
             // Display segment information
             for (i, segment) in loaded_elf.segments.iter().enumerate() {
                 let perms = crate::elf::segment_permissions(segment.flags);
-                console_println!("ℹ️ Segment {}: 0x{:x} ({} bytes) [{}]", 
+                console_println!("ℹ️  Segment {}: 0x{:x} ({} bytes) [{}]", 
                     i, segment.vaddr, segment.memsz, perms);
             }
             

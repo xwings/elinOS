@@ -238,7 +238,7 @@ gdb-multiarch target/riscv64gc-unknown-none-elf/debug/elinOS
 
 ```rust
 console_println!("ℹ️ 调试信息：变量值 = {}", value);
-console_println!("📍 执行到函数：{}", function_name);
+console_println!("ℹ️ 执行到函数：{}", function_name);
 ```
 
 ### 系统状态检查
@@ -418,7 +418,7 @@ console_println!("❌ 到达关键点：函数 = {}, 行 = {}",
     function_name!(), line!());
 
 // 检查内存地址
-console_println!("📍 变量地址：{:p}", &variable);
+console_println!("ℹ️ 变量地址：{:p}", &variable);
 ```
 
 ## 进阶开发

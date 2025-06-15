@@ -37,7 +37,7 @@
 - **Comprehensive Documentation**: Extensive technical documentation with architecture diagrams
 - **Experiment Focus**: Clear code structure for learning OS development concepts
 
-## ℹ️ Quick Start
+## ℹ️  Quick Start
 
 ### Prerequisites
 
@@ -81,7 +81,7 @@ make populate-disk
 make run
 ```
 
-## ℹ️ Documentation
+## ℹ️  Documentation
 
 - **[English Documentation](docs/en/)**
 - **[Memory Management](docs/en/memory.md)** - Advanced memory subsystem details
@@ -92,7 +92,7 @@ make run
 - **[Debugging](docs/en/debugging.md)** - Debugging tips and techniques
 - **[Translation](docs/en/translation.md)** - Guidelines for translating documentation
 
-## ℹ️ System Requirements
+## ℹ️  System Requirements
 
 ### Hardware Support
 - **Architecture**: RISC-V 64-bit (RV64GC)
@@ -131,7 +131,7 @@ make run
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## ℹ️ Available Commands
+## ℹ️  Available Commands
 
 ```bash
 elinOS> help                    # Show all available commands

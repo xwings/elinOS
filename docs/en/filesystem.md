@@ -358,7 +358,7 @@ elinOS> cat hello.txt         # Calls read_file("hello.txt")
 Hello from elinOS!
 
 elinOS> filesystem            # Calls check_filesystem()
-ℹ️ Filesystem Check:
+ℹ️  Filesystem Check:
   Type: FAT32
   Signature/Magic: 0xaa55 ✅
   Mount Status: MOUNTED ✅

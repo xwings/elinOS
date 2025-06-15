@@ -236,12 +236,12 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             match crate::filesystem::read_file(&full_path) {
                 Ok(file_data) => {
                     // Debug: Show file size and first few bytes
-                    let _ = syscall::sys_print("ℹ️ Debug: File size: ");
+                    let _ = syscall::sys_print("ℹ️  Debug: File size: ");
                     let _ = syscall::sys_print_num(file_data.len() as u64);
                     let _ = syscall::sys_print(" bytes\n");
                     
                     if file_data.len() >= 4 {
-                        let _ = syscall::sys_print("ℹ️ Debug: First 4 bytes: ");
+                        let _ = syscall::sys_print("ℹ️  Debug: First 4 bytes: ");
                         for i in 0..4 {
                             let _ = syscall::sys_print_hex(file_data[i] as u32, 2);
                             let _ = syscall::sys_print(" ");
@@ -286,10 +286,10 @@ pub fn get_available_commands() -> &'static [&'static str] {
 // === INDIVIDUAL COMMAND IMPLEMENTATIONS ===
 
 pub fn cmd_help() -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ elinOS Commands\n")?;
+    syscall::sys_print("ℹ️  ElinOS Commands\n")?;
     syscall::sys_print("===============================================\n\n")?;
     
-    syscall::sys_print("ℹ️ System Information:\n")?;
+    syscall::sys_print("ℹ️  System Information:\n")?;
     syscall::sys_print("  help            - Show this help message\n")?;
     syscall::sys_print("  version         - Show kernel version and features\n")?;
     syscall::sys_print("  memory          - Show memory regions and allocator statistics\n")?;
@@ -298,7 +298,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  fscheck         - Check filesystem status and metadata\n")?;
     syscall::sys_print("  config          - Show dynamic system configuration\n")?;
 
-    syscall::sys_print("\n🗂️  Filesystem Operations:\n")?;
+    syscall::sys_print("\nℹ️  Filesystem Operations:\n")?;
     syscall::sys_print("  ls [path]       - List files/dirs (default: current directory)\n")?;
     syscall::sys_print("  cat <path>      - Display file contents\n")?;
     syscall::sys_print("  echo [message]  - Print a message (newline if no message)\n")?;
@@ -331,13 +331,13 @@ pub fn cmd_help() -> Result<(), &'static str> {
 }
 
 pub fn cmd_config() -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Dynamic System Configuration\n")?;
+    syscall::sys_print("ℹ️  Dynamic System Configuration\n")?;
     syscall::sys_print("=====================================\n\n")?;
     
     // Get memory statistics
     let mem_stats = memory::get_memory_stats();
     
-    syscall::sys_print("ℹ️ Hardware Detection Results:\n")?;
+    syscall::sys_print("ℹ️  Hardware Detection Results:\n")?;
     
     syscall::sys_print("  Total RAM: ")?;
     show_number_mb(mem_stats.detected_ram_size);
@@ -373,7 +373,7 @@ pub fn cmd_config() -> Result<(), &'static str> {
         syscall::sys_print("N/A\n")?;
     }
     
-    syscall::sys_print("\n📏 Dynamic Buffer Sizes:\n")?;
+    syscall::sys_print("\nℹ️ Dynamic Buffer Sizes:\n")?;
     
     let sector_buf_size = memory::get_optimal_buffer_size(BufferUsage::SectorIO);
     syscall::sys_print("  Sector I/O: ")?;
@@ -478,7 +478,7 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
             let fs_info = fs.get_filesystem_info();
             drop(fs);
             
-            syscall::sys_print("📁 Filesystem contents (VirtIO disk):\n")?;
+            syscall::sys_print("ℹ️  Filesystem contents (VirtIO disk):\n")?;
             syscall::sys_print("Type: ")?;
             match fs_type {
                 crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
@@ -545,7 +545,7 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
             let fs_type = fs.get_filesystem_type();
             drop(fs);
             
-            syscall::sys_print("ℹ️ Reading file: ")?;
+            syscall::sys_print("ℹ️  Reading file: ")?;
             syscall::sys_print(filename)?;
             syscall::sys_print(" (from ")?;
             match fs_type {
@@ -765,7 +765,7 @@ fn cmd_cd(path_arg: &str) -> Result<(), &'static str> {
 // === ELF OPERATIONS ===
 
 fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ ELF Binary Analysis: ")?;
+    syscall::sys_print("ℹ️  ELF Binary Analysis: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -799,7 +799,7 @@ fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
 }
 
 fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Loading ELF Binary: ")?;
+    syscall::sys_print("ℹ️  Loading ELF Binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -840,7 +840,7 @@ fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
 
 // Unified ELF execution function - parse, load, and execute in one step
 fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Executing: ")?;
+    syscall::sys_print("ℹ️  Executing: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -852,12 +852,12 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
             &filename[1..]
         };
         
-        console_println!("ℹ️ Executing: {}", filename);
+        console_println!("ℹ️  Executing: {}", filename);
         
         // Use the new ELF file reader that supports larger files
         match crate::filesystem::read_elf_file(elf_filename) {
             Ok(elf_data) => {
-                console_println!("📁 Read {} bytes from {}", elf_data.len(), elf_filename);
+                console_println!("ℹ️  Read {} bytes from {}", elf_data.len(), elf_filename);
                 
                 let loader = crate::elf::ElfLoader::new();
                 
@@ -910,7 +910,7 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
 }
 
 fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Executing ELF Binary: ")?;
+    syscall::sys_print("ℹ️  Executing ELF Binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -950,12 +950,12 @@ fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
 }
 
 fn cmd_elf_demo() -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ ELF Loader Demonstration\n")?;
+    syscall::sys_print("ℹ️  ELF Loader Demonstration\n")?;
     syscall::sys_print("============================\n\n")?;
     
     syscall::sys_print("This demo shows elinOS ELF loading capabilities:\n\n")?;
     
-    syscall::sys_print("📁 Available ELF files in filesystem:\n")?;
+    syscall::sys_print("ℹ️  Available ELF files in filesystem:\n")?;
     
     // List files in the filesystem
     let fs = crate::filesystem::FILESYSTEM.lock();
@@ -1005,7 +1005,7 @@ fn cmd_elf_demo() -> Result<(), &'static str> {
 }
 
 fn cmd_elf_run(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Executing ELF binary: ")?;
+    syscall::sys_print("ℹ️  Executing ELF binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -1051,7 +1051,7 @@ fn cmd_elf_run(filename: &str) -> Result<(), &'static str> {
 
 /// Show heap usage information
 pub fn cmd_heap() -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Heap Status:\n")?;
+    syscall::sys_print("ℹ️  Heap Status:\n")?;
     syscall::sys_print("================\n")?;
     
     let (used, total, available) = memory::get_heap_usage();

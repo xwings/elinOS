@@ -2,7 +2,7 @@
 
 Documentation for the RISC-V64 experimental operating system featuring VirtIO block device, FAT32 filesystem, and Linux-compatible system calls.
 
-## 📁 Structure
+## ℹ️  Structure
 
 ```
 docs/

@@ -99,7 +99,7 @@ impl Fat32FileSystem {
     
     /// Initialize the FAT32 filesystem
     pub fn init(&mut self) -> FilesystemResult<()> {
-        console_println!("🗂️  Initializing FAT32 filesystem...");
+        console_println!("ℹ️  Initializing FAT32 filesystem...");
 
         let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         
@@ -159,13 +159,13 @@ impl Fat32FileSystem {
             self.fs_info_sector_num = Some(boot_sector.info_sector);
         }
         
-        console_println!("   🗂️  Root cluster: {}", self.root_dir_cluster);
-        console_println!("   📍 FAT starts at sector: {}", self.first_fat_sector);
-        console_println!("   📏 Sectors per FAT: {}", self.sectors_per_fat);
+        console_println!("   ℹ️  Root cluster: {}", self.root_dir_cluster);
+        console_println!("   ℹ️ FAT starts at sector: {}", self.first_fat_sector);
+        console_println!("   ℹ️  Sectors per FAT: {}", self.sectors_per_fat);
         console_println!("   💾 Data region starts at sector: {}", self.data_region_start_sector);
         console_println!("   🧱 Total data clusters: {}", self.total_data_clusters);
         if let Some(fs_info) = self.fs_info_sector_num {
-            console_println!("   ℹ️ FSInfo sector at: {}", fs_info);
+            console_println!("   ℹ️  FSInfo sector at: {}", fs_info);
         }
 
         self.initialized = true;
@@ -284,7 +284,7 @@ impl Fat32FileSystem {
     
     /// Read and parse a directory from a given starting cluster
     fn read_directory(&mut self, start_cluster: u32) -> FilesystemResult<()> {
-        console_println!("ℹ️ Reading directory from cluster {}...", start_cluster);
+        console_println!("ℹ️  Reading directory from cluster {}...", start_cluster);
         self.files.clear();
 
         let mut current_cluster = start_cluster;
@@ -823,7 +823,7 @@ impl FileSystem for Fat32FileSystem {
         let dirname_str = path;
         let parent_dir_cluster = self.root_dir_cluster; // Assuming creation in root
 
-        console_println!("📁 Creating directory '{}' (in root dir cluster {})", dirname_str, parent_dir_cluster);
+        console_println!("ℹ️  Creating directory '{}' (in root dir cluster {})", dirname_str, parent_dir_cluster);
 
         // Check if file/dir already exists (basic check in current loaded 'self.files' from read_directory)
         // This needs to be more robust, scanning the actual directory on disk.
@@ -1648,10 +1648,10 @@ impl Fat32FileSystem {
     pub fn run_debug_tests() -> FilesystemResult<()> {
         use crate::{console_println, virtio_blk};
         
-        console_println!("ℹ️ Running FAT32 debug tests...");
+        console_println!("ℹ️  Running FAT32 debug tests...");
         
         // Test 1: Read boot sector
-        console_println!("ℹ️ Test 1: Reading boot sector...");
+        console_println!("ℹ️  Test 1: Reading boot sector...");
         {
             let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
             let mut buffer = [0u8; 512];
@@ -1666,7 +1666,7 @@ impl Fat32FileSystem {
                     let sectors_per_fat = u32::from_le_bytes([buffer[36], buffer[37], buffer[38], buffer[39]]);
                     let root_cluster = u32::from_le_bytes([buffer[44], buffer[45], buffer[46], buffer[47]]);
                     
-                    console_println!("ℹ️ FAT32 Boot Sector Analysis:");
+                    console_println!("ℹ️  FAT32 Boot Sector Analysis:");
                     console_println!("  Sectors per cluster: {}", sectors_per_cluster);
                     console_println!("  Reserved sectors: {}", reserved_sectors);
                     console_println!("  Number of FATs: {}", num_fats);
@@ -1683,11 +1683,11 @@ impl Fat32FileSystem {
                     console_println!("  Root directory sector: {}", root_sector);
                     
                     // Test 2: Read root directory
-                    console_println!("ℹ️ Test 2: Reading root directory...");
+                    console_println!("ℹ️  Test 2: Reading root directory...");
                     match disk_device.read_blocks(root_sector as u64, &mut buffer) {
                         Ok(()) => {
                             console_println!("✅ Root directory read successful");
-                            console_println!("ℹ️ First 32 bytes: {:02x?}", &buffer[0..32]);
+                            console_println!("ℹ️  First 32 bytes: {:02x?}", &buffer[0..32]);
                             
                             // Look for directory entries
                             if buffer[0] != 0 && buffer[0] != 0xE5 {

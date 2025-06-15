@@ -117,13 +117,13 @@ fn sys_elinos_debug(msg_ptr: *const u8) -> SysCallResult {
         core::str::from_utf8_unchecked(core::slice::from_raw_parts(msg_ptr, len))
     };
     
-    console_println!("ℹ️ DEBUG: {}", debug_msg);
+    console_println!("ℹ️  DEBUG: {}", debug_msg);
     SysCallResult::Success(0)
 }
 
 pub fn sys_elinos_shutdown() -> SysCallResult {
-    console_println!("💤 System shutdown requested");
-    console_println!("🏁 Goodbye from elinOS!");
+    console_println!("ℹ️  System shutdown requested");
+    console_println!("ℹ️  Goodbye from elinOS!");
     
     // Call the SBI shutdown function
     sbi::system_shutdown();
@@ -131,8 +131,8 @@ pub fn sys_elinos_shutdown() -> SysCallResult {
 
 /// SYS_REBOOT - reboot the system  
 pub fn sys_elinos_reboot() -> SysCallResult {
-    console_println!("ℹ️ System reboot requested");
-    console_println!("ℹ️ Rebooting elinOS...");
+    console_println!("ℹ️  System reboot requested");
+    console_println!("ℹ️  Rebooting elinOS...");
     
     // Call the SBI reboot function
     sbi::system_reset();

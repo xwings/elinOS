@@ -99,7 +99,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         // TODO: Implement stdin reading
         SysCallResult::Error(crate::syscall::ENOSYS)
     } else if fd >= 10 { // File descriptors start at 10
-        console_println!("ℹ️ SYSCALL: Looking up file descriptor {}", fd);
+        console_println!("ℹ️  SYSCALL: Looking up file descriptor {}", fd);
         
         // Look up filename from file descriptor table
         let file_table = FILE_TABLE.lock();
@@ -116,7 +116,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         };
         drop(file_table);
         
-        console_println!("ℹ️ SYSCALL: Reading file '{}'", filename.as_str());
+        console_println!("ℹ️  SYSCALL: Reading file '{}'", filename.as_str());
         
         // Read the file content using the filesystem API
         let fs = filesystem::FILESYSTEM.lock();
@@ -125,7 +125,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         match fs.read_file(&filename) {
             Ok(content) => {
                 let bytes_to_copy = core::cmp::min(count, content.len());
-                console_println!("📏 SYSCALL: Will output {} bytes (requested={}, available={})", 
+                console_println!("ℹ️  SYSCALL: Will output {} bytes (requested={}, available={})", 
                     bytes_to_copy, count, content.len());
                 
                 // If buffer is provided, copy to user buffer
@@ -164,7 +164,7 @@ pub fn sys_openat(args: SyscallArgs) -> SysCallResult {
     // For demo purposes, just check if file exists
     let filename = "hello.txt";  // Hardcoded for now
     
-    console_println!("ℹ️ sys_openat: opening file '{}'", filename);
+    console_println!("ℹ️  Sys_openat: opening file '{}'", filename);
     
     let fs = filesystem::FILESYSTEM.lock();
     
@@ -219,7 +219,7 @@ pub fn sys_unlinkat(args: SyscallArgs) -> SysCallResult {
 pub fn sys_getdents64(args: SyscallArgs) -> SysCallResult {
     let fd = args.arg0 as i32;
     
-    console_println!("ℹ️ sys_getdents64: listing directory for fd={}", fd);
+    console_println!("ℹ️  Sys_getdents64: listing directory for fd={}", fd);
     
     let fs = filesystem::FILESYSTEM.lock();
     

@@ -239,7 +239,7 @@ EXT2 Filesystem Check
 
 ✅ EXT2 filesystem is active and healthy!
 
-ℹ️ Superblock Information:
+ℹ️  Superblock Information:
    Magic: 0xef53 ✅
    Inodes: 65536
    Blocks: 65536
@@ -290,9 +290,9 @@ elinOS> shutdown       # 关闭系统
 ## 完整会话示例
 
 ```bash
-ℹ️ elinOS Starting...
+ℹ️  ElinOS Starting...
 ✅ Console system initialized
-ℹ️ Memory management ready
+ℹ️  Memory management ready
 💾 VirtIO disk ready
 ✅ FAT32 filesystem mounted
 ✅ elinOS initialization complete!
@@ -305,15 +305,15 @@ Written in Rust for learning purposes
 
 Type 'help' for available commands
 elinOS> help
-ℹ️ elinOS Commands
+ℹ️  ElinOS Commands
 ===============================================
 
-🗂️  File Operations (via VirtIO block device):
+ℹ️  File Operations (via VirtIO block device):
   ls              - List files in filesystem
   cat <file>      - Display file contents
   echo <message>  - Echo a message
 
-ℹ️ System Information:
+ℹ️  System Information:
   help            - Show this help message
   version         - Show kernel version
   memory          - Show memory information
@@ -325,7 +325,7 @@ elinOS> help
   reboot          - Reboot the system
 
 elinOS> ls
-📁 FAT32 Filesystem contents (VirtIO disk):
+ℹ️  FAT32 Filesystem contents (VirtIO disk):
 Boot signature: 0xaa55
 Total sectors: 131072
 Bytes per sector: 512
@@ -336,7 +336,7 @@ Bytes per sector: 512
 Total files: 2 (FAT32 on VirtIO)
 
 elinOS> cat HELLO.TXT
-ℹ️ Reading file: HELLO.TXT (from FAT32 VirtIO disk)
+ℹ️  Reading file: HELLO.TXT (from FAT32 VirtIO disk)
 Content:
 Hello World!
 This is a test file on FAT32 filesystem.

@@ -239,7 +239,7 @@ EXT2 Filesystem Check
 
 ✅ EXT2 filesystem is active and healthy!
 
-ℹ️ Superblock Information:
+ℹ️  Superblock Information:
    Magic: 0xef53 ✅
    Inodes: 65536
    Blocks: 65536
@@ -250,7 +250,7 @@ elinOS> disktest
 Filesystem Test
 ==============
 
-ℹ️ Testing filesystem operations...
+ℹ️  Testing filesystem operations...
 
 1. Filesystem status... ✅ Initialized
 2. File listing... ✅ Success (3 files)
@@ -262,10 +262,10 @@ elinOS> diskdump 0
 Filesystem Block Dump
 ====================
 
-ℹ️ Reading block 0 from embedded filesystem...
+ℹ️  Reading block 0 from embedded filesystem...
 ✅ Block 0: Contains ext2 superblock at offset 1024
-   ℹ️ Magic: 0xef53, Block size: 4096 bytes
-   📁 Filesystem: elinOS embedded ext2
+   ℹ️  Magic: 0xef53, Block size: 4096 bytes
+   ℹ️  Filesystem: elinOS embedded ext2
 
 elinOS> syscall
 System Call Information:
