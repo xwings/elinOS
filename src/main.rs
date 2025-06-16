@@ -59,11 +59,6 @@ pub extern "C" fn _start() -> ! {
 
 #[no_mangle]
 pub extern "C" fn main() -> ! {
-    // Initialize UART first (for debugging output)
-    {
-        let mut uart = UART.lock();
-        uart.init();
-    }
     console_println!();
     console_println!();
     console_println!("elinOS Starting...");
