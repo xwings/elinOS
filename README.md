@@ -199,7 +199,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [ ] File caching and buffer management
 
 
-## 📄 License
+## ℹ️ License
 
 This project is dual-licensed under:
 

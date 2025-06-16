@@ -160,7 +160,7 @@ impl Fat32FileSystem {
         }
         
         console_println!("   ℹ️  Root cluster: {}", self.root_dir_cluster);
-        console_println!("   ℹ️ FAT starts at sector: {}", self.first_fat_sector);
+        console_println!("   ℹ️  FAT starts at sector: {}", self.first_fat_sector);
         console_println!("   ℹ️  Sectors per FAT: {}", self.sectors_per_fat);
         console_println!("   💾 Data region starts at sector: {}", self.data_region_start_sector);
         console_println!("   🧱 Total data clusters: {}", self.total_data_clusters);

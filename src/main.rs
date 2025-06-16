@@ -102,14 +102,14 @@ pub extern "C" fn main() -> ! {
     // Initialize filesystem
     match filesystem::init_filesystem() {
         Ok(()) => {
-            console_println!("✅ Filesystem initialization successful!");
+            // console_println!("✅ Filesystem initialization successful!");
         }
         Err(e) => {
             console_println!("❌ Filesystem initialization failed: {:?}", e);
         }
     }
     
-    console_println!("✅ elinOS initialization complete!");
+    // console_println!("✅ elinOS initialization complete!");
     console_println!();
     
     // Show welcome message and enter shell

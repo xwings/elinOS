@@ -93,7 +93,7 @@ sudo umount /mnt
 make run
 ```
 
-## 📚 文档 (Documentation)
+## ℹ️ 文档 (Documentation)
 
 - **[中文文档主页](docs/zh/)**
 - **[内存管理](docs/zh/memory.md)** - 先进内存子系统详情
@@ -219,7 +219,7 @@ elinOS 专为以下研究设计：
 - [ ] 文件缓存和缓冲区管理
 
 
-## 📄 许可证
+## ℹ️ 许可证
 
 本项目采用双重许可证：
 

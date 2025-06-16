@@ -227,7 +227,7 @@ pub fn sys_getdents64(args: SyscallArgs) -> SysCallResult {
         Ok(files) => {
             console_println!("✅ Found {} files:", files.len());
             for (name, size) in &files {
-                console_println!("  📄 {} ({} bytes)", name.as_str(), size);
+                console_println!("  ℹ️ {} ({} bytes)", name.as_str(), size);
             }
             SysCallResult::Success(files.len() as isize)
         }

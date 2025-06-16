@@ -964,7 +964,7 @@ fn cmd_elf_demo() -> Result<(), &'static str> {
             let mut elf_count = 0;
             for (name, size) in &files {
                 if name.contains("program") || name.ends_with(".elf") || (!name.contains(".") && *size > 1000) {
-                    syscall::sys_print("  📄 ")?;
+                    syscall::sys_print("  ℹ️ ")?;
                     syscall::sys_print(name.as_str())?;
                     syscall::sys_print(" (")?;
                     let _ = syscall::sys_print_num(*size as u64);
@@ -1012,7 +1012,7 @@ fn cmd_elf_run(filename: &str) -> Result<(), &'static str> {
     // Read file from filesystem
     match crate::filesystem::read_file(filename) {
         Ok(file_data) => {
-            syscall::sys_print("📄 Read ")?;
+            syscall::sys_print("ℹ️ Read ")?;
             let _ = syscall::sys_print_num(file_data.len() as u64);
             syscall::sys_print(" bytes from ")?;
             syscall::sys_print(filename)?;

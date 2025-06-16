@@ -407,7 +407,7 @@ impl ElfLoader {
         console_println!("ℹ️  Virtual Memory enabled - executing with software MMU");
         
         // Execute with software virtual memory translation
-        console_println!("🏃 Executing at virtual entry point: 0x{:x}", loaded_elf.entry_point);
+        console_println!("ℹ️  Executing at virtual entry point: 0x{:x}", loaded_elf.entry_point);
         
         unsafe {
             execute_user_program_with_software_mmu(loaded_elf.entry_point as usize, loaded_elf);
@@ -450,7 +450,7 @@ unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
     };
     let user_stack_top = user_stack + 8192;
     
-    console_println!("📚 User stack allocated: 0x{:x} - 0x{:x}", user_stack, user_stack_top);
+    console_println!("ℹ️  User stack allocated: 0x{:x} - 0x{:x}", user_stack, user_stack_top);
     
     // Create a small exit stub that will be called when the user program returns
     let exit_stub = match crate::memory::allocate_memory(32) {
@@ -526,7 +526,7 @@ unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
     }
     
     console_println!("✅ Returned from user mode!");
-    console_println!("ℹ️ User program returned: {}", result);
+    console_println!("ℹ️  User program returned: {}", result);
     result
 }
 
@@ -626,7 +626,7 @@ unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf:
     
     // Always try to find the executable segment for virtual-to-physical mapping
     // Don't assume entry points >= 0x80000000 are physical addresses
-    console_println!("ℹ️ Looking for executable segment containing entry point 0x{:08x}", entry_point);
+    console_println!("ℹ️  Looking for executable segment containing entry point 0x{:08x}", entry_point);
     
     // Find the executable segment to get the virtual-to-physical mapping
     for segment in &loaded_elf.segments {
@@ -635,10 +635,10 @@ unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf:
             let segment_start = segment.vaddr as usize;
             let segment_end = segment_start + segment.data_size;
             
-            console_println!("ℹ️ Found executable segment:");
-            console_println!("   Virtual range: 0x{:08x} - 0x{:08x}", segment_start, segment_end);
-            console_println!("   Physical base: 0x{:08x}", data_addr);
-            console_println!("   Size: {} bytes", segment.data_size);
+            console_println!("ℹ️  Found executable segment:");
+            console_println!("      Virtual range: 0x{:08x} - 0x{:08x}", segment_start, segment_end);
+            console_println!("      Physical base: 0x{:08x}", data_addr);
+            console_println!("      Size: {} bytes", segment.data_size);
             
             // Check if entry point is within this segment
             if entry_point >= segment_start && entry_point < segment_end {
@@ -660,10 +660,10 @@ unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf:
     }
     
     console_println!("❌ Entry point 0x{:08x} not found in any executable segment", entry_point);
-    console_println!("Available segments:");
+    //console_println!("Available segments:")
     for (i, segment) in loaded_elf.segments.iter().enumerate() {
         let perms = crate::elf::segment_permissions(segment.flags);
-        console_println!("  Segment {}: 0x{:08x} - 0x{:08x} [{}]", 
+        console_println!("      Segment {}: 0x{:08x} - 0x{:08x} [{}]", 
             i, segment.vaddr, segment.vaddr + segment.memsz, perms);
     }
 }
@@ -678,7 +678,7 @@ unsafe fn execute_user_program_virtual(entry_point: usize) {
         return;
     }
     
-    console_println!("🏃 About to execute at virtual address 0x{:x}", entry_point);
+    console_println!("ℹ️  About to execute at virtual address 0x{:x}", entry_point);
     
     console_println!("ℹ️  User space trap handling already set up by main trap handler");
     
@@ -690,7 +690,7 @@ unsafe fn execute_user_program_virtual(entry_point: usize) {
     console_println!("✅ Switched to user address space successfully!");
     
     // Set up user stack
-    console_println!("📚 Setting up user stack...");
+    console_println!("ℹ️  Setting up user stack...");
     let stack_size = 8192; // 8KB stack
     let stack_vaddr = 0x7FFFF000; // High address for stack
     
@@ -746,7 +746,7 @@ unsafe fn execute_user_program_virtual(entry_point: usize) {
 unsafe fn execute_user_program(entry_point: usize) {
     use core::arch::asm;
     
-    console_println!("🎬 Setting up execution environment...");
+    console_println!("ℹ️  Setting up execution environment...");
     
     // Validate entry point alignment (RISC-V requires 4-byte alignment)
     if entry_point % 4 != 0 {
@@ -771,7 +771,7 @@ unsafe fn execute_user_program(entry_point: usize) {
     // Allocate a simple stack for the user program (4KB)
     if let Some(stack_addr) = crate::memory::allocate_memory(4096) {
         let stack_top = stack_addr + 4096;
-        console_println!("📚 Allocated stack at 0x{:x}-0x{:x}", stack_addr, stack_top);
+        console_println!("ℹ️  Allocated stack at 0x{:x}-0x{:x}", stack_addr, stack_top);
         
         console_println!("ℹ️  About to execute user program...");
         console_println!("   Entry point: 0x{:x}", entry_point);

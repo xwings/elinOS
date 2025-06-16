@@ -34,7 +34,7 @@ impl BlockManager {
         let i_blocks_lo = inode.i_blocks_lo;
         let first_block = inode.i_block[0];
         
-        console_println!("   - File details: size={}, blocks={}, first_block={}, uses_extents={}", 
+        console_println!("   ℹ️  File details: size={}, blocks={}, first_block={}, uses_extents={}", 
             file_size, i_blocks_lo, first_block, (i_flags & EXT2_EXTENTS_FL) != 0);
         
         // If file size is 0 but blocks are allocated, there might be content to read
@@ -135,7 +135,7 @@ impl BlockManager {
                 
                 let block_num = physical_block + block_offset as u64;
                 
-                //console_println!("   ℹ️ Reading file block {} (from extent)", block_num);
+                //console_println!("   ℹ️  Reading file block {} (from extent)", block_num);
                 
                 let block_data = match sb_mgr.read_block_data(block_num) {
                     Ok(data) => data,
