@@ -18,12 +18,12 @@ impl DirectoryManager {
     }
     
     pub fn init(&mut self, _sb_mgr: &SuperblockManager, _inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("ℹ️  Directory manager initialized");
+        console_println!("ℹ️ Directory manager initialized");
         Ok(())
     }
     
     pub fn read_directory_entries(&self, inode: &Ext2Inode, files: &mut Vec<FileEntry, 64>, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("ℹ️  Reading directory entries...");
+        console_println!("ℹ️ Reading directory entries...");
         
         if !inode.is_directory() {
             return Err(FilesystemError::NotADirectory);
@@ -43,7 +43,7 @@ impl DirectoryManager {
     }
     
     pub fn find_entry_in_dir(&self, dir_inode_num: u32, entry_name: &str, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<Option<(Ext2DirEntry, u32, usize)>> {
-        console_println!("ℹ️  Looking for '{}' in directory inode {}", entry_name, dir_inode_num);
+        console_println!("ℹ️ Looking for '{}' in directory inode {}", entry_name, dir_inode_num);
         
         let dir_inode = inode_mgr.read_inode(dir_inode_num, sb_mgr)?;
         
@@ -178,7 +178,7 @@ impl DirectoryManager {
                 
                 // Scenario 1: Reuse deleted entry (inode == 0)
                 if current_inode == 0 && current_rec_len >= required_rec_len as usize {
-                    console_println!("ℹ️  Reusing deleted entry at offset {}", offset);
+                    console_println!("ℹ️ Reusing deleted entry at offset {}", offset);
                     let new_entry = Ext2DirEntry {
                         inode: child_inode,
                         rec_len: current_rec_len as u16,
@@ -274,7 +274,7 @@ impl DirectoryManager {
         
         // First, find the entry to get its location
         if let Some((_, found_inode, _)) = self.find_entry_in_dir(parent_inode, name, sb_mgr, inode_mgr)? {
-          //  console_println!("ℹ️  Found entry '{}' with inode {}, proceeding with removal", name, found_inode);
+          //  console_println!("ℹ️ Found entry '{}' with inode {}, proceeding with removal", name, found_inode);
             
             // Read the parent directory inode
             let parent_dir_inode = inode_mgr.read_inode(parent_inode, sb_mgr)?;
@@ -332,7 +332,7 @@ impl DirectoryManager {
                 let name_bytes = &block_data[name_start..name_end];
                 if let Ok(name_str) = core::str::from_utf8(name_bytes) {
                     if name_str == target_name {
-                        console_println!("ℹ️  Found target entry '{}' at offset {}, marking as deleted", target_name, offset);
+                        console_println!("ℹ️ Found target entry '{}' at offset {}, marking as deleted", target_name, offset);
                         
                         // Mark the entry as deleted by setting inode to 0
                         unsafe {
@@ -359,7 +359,7 @@ impl DirectoryManager {
     }
     
     pub fn create_dot_entries(&self, dir_inode: u32, parent_inode: u32, sb_mgr: &mut SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("ℹ️  Creating . and .. entries for inode {}", dir_inode);
+        console_println!("ℹ️ Creating . and .. entries for inode {}", dir_inode);
         
         // Add "." entry (current directory)
         self.add_directory_entry(dir_inode, dir_inode, ".", EXT2_FT_DIR, sb_mgr, inode_mgr)?;
@@ -446,7 +446,7 @@ impl DirectoryManager {
     
     fn parse_directory_block_for_listing(&self, block_data: &[u8], result: &mut Vec<(heapless::String<64>, usize, bool), 32>, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
         let mut offset = 0;
-        console_println!("ℹ️  Parsing directory block ({} bytes):", block_data.len());
+        console_println!("ℹ️ Parsing directory block ({} bytes):", block_data.len());
         
         while offset < block_data.len() {
             if offset + mem::size_of::<Ext2DirEntry>() > block_data.len() {
@@ -535,7 +535,7 @@ impl DirectoryManager {
             }
         }
         
-        console_println!("ℹ️  Directory parsing complete, found {} entries", result.len());
+        console_println!("ℹ️ Directory parsing complete, found {} entries", result.len());
         Ok(())
     }
     

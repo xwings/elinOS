@@ -129,7 +129,7 @@ impl Drop for AllocTransaction {
         if !self.committed {
             // In a real implementation, we would free all recorded allocations
             // For now, we just log the rollback
-            crate::console_println!("ℹ️  Rolling back {} allocations", self.allocations.len());
+            crate::console_println!("ℹ️ Rolling back {} allocations", self.allocations.len());
             
             // Rollback allocations in reverse order
             for &(ptr, size) in self.allocations.iter().rev() {
@@ -237,7 +237,7 @@ impl FallibleAllocator {
         // 3. Run garbage collection if applicable
         // 4. Return empty slabs to buddy allocator
         
-        crate::console_println!("ℹ️  Attempting memory recovery...");
+        crate::console_println!("ℹ️ Attempting memory recovery...");
         
         // Placeholder: In practice, we'd implement actual recovery strategies
     }

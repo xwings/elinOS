@@ -51,7 +51,7 @@ pub struct MemoryLayout {
 impl MemoryLayout {
     /// Calculate memory layout dynamically from linker symbols
     pub fn detect() -> Self {
-        console_println!("ℹ️  Detecting memory layout via OpenSBI...");
+        console_println!("ℹ️ Detecting memory layout via OpenSBI...");
         
         // Calculate kernel boundaries
         let kernel_start = unsafe { &__text_start as *const _ as usize };
@@ -109,7 +109,7 @@ impl MemoryLayout {
         layout.heap_size = layout.buddy_heap_size + layout.small_heap_size;
         
         // Debug output to see the conflict
-        console_println!("ℹ️  Memory layout debug:");
+        console_println!("ℹ️ Memory layout debug:");
         console_println!("   Kernel start: 0x{:08x}", kernel_start);
         console_println!("   Kernel end: 0x{:08x}", kernel_end);
         console_println!("   Kernel size: {} KB", kernel_size / 1024);
@@ -185,7 +185,7 @@ impl MemoryLayout {
         let linker_heap_start = 0x80400000;
         let kernel_end_with_guard = self.kernel_end + self.kernel_guard_size;
         
-        console_println!("ℹ️  Validation check:");
+        console_println!("ℹ️ Validation check:");
         console_println!("   Kernel end + guard: 0x{:08x}", kernel_end_with_guard);
         console_println!("   Linker heap start: 0x{:08x}", linker_heap_start);
         

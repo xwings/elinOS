@@ -222,12 +222,12 @@ pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     match loader.load_elf(elf_data) {
         Ok(loaded_elf) => {
             console_println!("✅ ELF loaded successfully with {} segments", loaded_elf.segments.len());
-            console_println!("ℹ️  Entry point: 0x{:x}", loaded_elf.entry_point);
+            console_println!("ℹ️ Entry point: 0x{:x}", loaded_elf.entry_point);
             
             // Display segment information
             for (i, segment) in loaded_elf.segments.iter().enumerate() {
                 let perms = crate::elf::segment_permissions(segment.flags);
-                console_println!("ℹ️  Segment {}: 0x{:x} ({} bytes) [{}]", 
+                console_println!("ℹ️ Segment {}: 0x{:x} ({} bytes) [{}]", 
                     i, segment.vaddr, segment.memsz, perms);
             }
             

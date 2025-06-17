@@ -2,6 +2,7 @@
 // This provides the interface between the kernel and the SBI firmware
 
 use core::arch::asm;
+use crate::console_println;
 
 // SBI function IDs
 const SBI_CONSOLE_PUTCHAR: usize = 0x1;
@@ -78,9 +79,7 @@ pub fn console_getchar() -> Option<usize> {
 // System shutdown
 pub fn system_shutdown() -> ! {
     // Use console print fallback since console_println might not be available here
-    let mut uart = crate::UART.lock();
-    let _ = core::fmt::Write::write_str(&mut *uart, "ℹ️  Initiating system shutdown via SBI...\n");
-    drop(uart);
+    console_println!("ℹ️ Initiating system shutdown via SBI...\n");
     
     // Try newer SBI system reset extension first
     let ret = sbi_call(SBI_EXT_SRST, 0, SBI_SRST_RESET_TYPE_SHUTDOWN as usize, SBI_SRST_RESET_REASON_NONE as usize, 0);
@@ -91,9 +90,7 @@ pub fn system_shutdown() -> ! {
     }
     
     // If SBI shutdown fails, halt manually
-    let mut uart = crate::UART.lock();
-    let _ = core::fmt::Write::write_str(&mut *uart, "SBI shutdown failed, halting manually\n");
-    drop(uart);
+    console_println!("SBI shutdown failed, halting manually\n");
     loop {
         unsafe {
             asm!("wfi");
@@ -104,16 +101,12 @@ pub fn system_shutdown() -> ! {
 // System reset/reboot
 pub fn system_reset() -> ! {
     // Use console print fallback since console_println might not be available here
-    let mut uart = crate::UART.lock();
-    let _ = core::fmt::Write::write_str(&mut *uart, "ℹ️  Initiating system reboot via SBI...\n");
-    drop(uart);
+    console_println!("ℹ️ Initiating system reboot via SBI...\n");
     
     // Try SBI system reset extension
     let ret = sbi_call(SBI_EXT_SRST, 0, SBI_SRST_RESET_TYPE_COLD_REBOOT as usize, SBI_SRST_RESET_REASON_NONE as usize, 0);
     
-    let mut uart = crate::UART.lock();
-    let _ = core::fmt::Write::write_fmt(&mut *uart, format_args!("SBI reset failed (error: {}), halting\n", ret.error));
-    drop(uart);
+    console_println!("❌ SBI reset failed (error: {}), halting\n", ret.error);
     loop {
         unsafe {
             asm!("wfi");

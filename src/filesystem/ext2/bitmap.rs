@@ -16,7 +16,7 @@ impl BitmapManager {
     }
     
     pub fn init(&mut self, sb_mgr: &SuperblockManager) -> FilesystemResult<()> {
-        console_println!("ℹ️  Bitmap manager initialized");
+        console_println!("ℹ️ Bitmap manager initialized");
         Ok(())
     }
     
@@ -27,13 +27,13 @@ impl BitmapManager {
     
     pub fn allocate_block(&self) -> FilesystemResult<u32> {
         // Stub implementation
-        console_println!("🆕 Allocating new block");
+        console_println!("ℹ️ Allocating new block");
         Ok(100)
     }
     
     pub fn free_block(&self, block_num: u32) -> FilesystemResult<()> {
         // Stub implementation
-        console_println!("🗑️  Freeing block {}", block_num);
+        console_println!("ℹ️  Freeing block {}", block_num);
         Ok(())
     }
     
@@ -44,13 +44,13 @@ impl BitmapManager {
     
     pub fn allocate_inode_in_bitmap(&self) -> FilesystemResult<u32> {
         // Stub implementation
-        console_println!("🆕 Allocating new inode in bitmap");
+        console_println!("ℹ️ Allocating new inode in bitmap");
         Ok(12)
     }
     
     pub fn free_inode_in_bitmap(&self, inode_num: u32) -> FilesystemResult<()> {
         // Stub implementation
-        console_println!("🗑️  Freeing inode {} in bitmap", inode_num);
+        console_println!("ℹ️  Freeing inode {} in bitmap", inode_num);
         Ok(())
     }
 } 

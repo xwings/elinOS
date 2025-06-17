@@ -54,21 +54,21 @@ impl UnifiedFileSystem {
     
     /// Initialize filesystem with automatic type detection
     pub fn init(&mut self) -> FilesystemResult<()> {
-        console_println!("ℹ️  Starting unified filesystem initialization...");
+        console_println!("ℹ️ Starting unified filesystem initialization...");
         
         // Detect filesystem type
         self.fs_type = detect_filesystem_type()?;
         
         match self.fs_type {
             FilesystemType::Fat32 => {
-                //console_println!("ℹ️  Mounting FAT32 filesystem...");
+                //console_println!("ℹ️ Mounting FAT32 filesystem...");
                 let mut fat32_fs = Fat32FileSystem::new();
                 fat32_fs.init()?;
                 self.filesystem = Filesystem::Fat32(fat32_fs);
                 console_println!("✅ FAT32 filesystem mounted successfully");
             }
             FilesystemType::Ext2 => {
-                // console_println!("ℹ️  Mounting ext2 filesystem...");
+                // console_println!("ℹ️ Mounting ext2 filesystem...");
                 let mut ext2_fs = Ext2FileSystem::new();
                 ext2_fs.init()?;
                 self.filesystem = Filesystem::Ext2(ext2_fs);
@@ -359,7 +359,7 @@ pub fn file_exists(filename: &str) -> bool {
 pub fn check_filesystem() -> Result<(), FilesystemError> {
     let fs = FILESYSTEM.lock();
     
-    console_println!("ℹ️  Filesystem Check:");
+    console_println!("ℹ️ Filesystem Check:");
     console_println!("   Type: {}", fs.get_filesystem_type());
     
     if let Some((signature, total_blocks, block_size)) = fs.get_filesystem_info() {

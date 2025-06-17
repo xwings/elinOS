@@ -47,7 +47,7 @@ impl Ext2FileSystem {
     
     /// Initialize the ext2 filesystem
     pub fn init(&mut self) -> FilesystemResult<()> {
-        console_println!("ℹ️  Initializing ext2 filesystem...");
+        console_println!("ℹ️ Initializing ext2 filesystem...");
 
         // Initialize all managers in sequence
         self.superblock_mgr.init()?;

@@ -27,9 +27,9 @@ impl InodeManager {
         self.inode_size = if sb.s_rev_level == 0 { 128 } else { sb.s_inode_size };
         self.inodes_per_group = sb.s_inodes_per_group;
         
-        console_println!("ℹ️  Inode manager initialized");
-        console_println!("   Inode size: {} bytes", self.inode_size);
-        console_println!("   Inodes per group: {}", self.inodes_per_group);
+        console_println!("ℹ️ Inode manager initialized");
+        console_println!("      Inode size: {} bytes", self.inode_size);
+        console_println!("      Inodes per group: {}", self.inodes_per_group);
         
         Ok(())
     }
@@ -63,7 +63,7 @@ impl InodeManager {
         let block_num = inode_table_block + block_offset as u64;
         
         // Debug inode reading calculation
-        //console_println!("ℹ️  Reading inode {} calculation:", inode_num);
+        //console_println!("ℹ️ Reading inode {} calculation:", inode_num);
         //console_println!("   Group: {}, Local index: {}", group_num, local_inode_index);
         //console_println!("   Inode table block: {}", inode_table_block);
         //console_println!("   Inode size: {}, Block size: {}", self.inode_size, block_size);
@@ -87,7 +87,7 @@ impl InodeManager {
         let raw_blocks_lo = inode.i_blocks_lo;
         let raw_block_0 = inode.i_block[0];
         
-        //console_println!("ℹ️  Raw inode {} data:", inode_num);
+        //console_println!("ℹ️ Raw inode {} data:", inode_num);
         //console_println!("   Raw mode: 0x{:04x}", raw_mode);
         //console_println!("   Raw size_lo: {}", raw_size_lo);
         //console_println!("   Raw blocks_lo: {}", raw_blocks_lo);
