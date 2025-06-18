@@ -194,10 +194,6 @@ Available commands:
   syscall    - Show system call info
   categories - Show syscall categories
   version    - Show elinOS version
-  elf-info <file>  - Show ELF binary information
-  elf-load <file>  - Load ELF binary into memory
-  elf-exec <file>  - Execute ELF binary (simulated)
-  elf-demo   - ELF loader demonstration
   shutdown   - Shutdown the system
   reboot     - Reboot the system
 
