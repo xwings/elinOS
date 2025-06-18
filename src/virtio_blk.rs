@@ -299,7 +299,7 @@ impl VirtioQueue {
     
     pub fn init(&mut self, size: u16, queue_idx: u16, desc_table: usize, avail_ring: usize, used_ring: usize) -> DiskResult<()> {
         if !size.is_power_of_two() || size == 0 {
-            console_println!("❌ VirtioQueue init error: size {} is not a power of two or is zero.", size);
+            console_println!("[x] VirtioQueue init error: size {} is not a power of two or is zero.", size);
             return Err(DiskError::InvalidParameter);
         }
         self.size = size;
@@ -323,7 +323,7 @@ impl VirtioQueue {
             // last_used_idx should align with device's used_ring.idx if starting fresh.
             self.last_used_idx = read_volatile(&(*used_ring_ptr).idx); 
         }
-        console_println!("✅ VirtioQueue initialized: size={}, idx={}, desc_base=0x{:x}, avail_base=0x{:x}, used_base=0x{:x}", 
+        console_println!("[o] VirtioQueue initialized: size={}, idx={}, desc_base=0x{:x}, avail_base=0x{:x}, used_base=0x{:x}", 
                          self.size, self.queue_index, self.desc_table, self.avail_ring, self.used_ring);
 
         Ok(())
@@ -344,12 +344,12 @@ impl VirtioQueue {
     /// Returns the index of the head of the descriptor chain.
     pub fn add_descriptor_chain(&mut self, chain: &[VirtqDesc]) -> DiskResult<u16> {
         if !self.ready {
-            console_println!("❌ add_descriptor_chain: Queue not ready, chain empty, or chain too long. Ready: {}, Chain len: {}, Queue size: {}", self.ready, chain.len(), self.size);
+            console_println!("[x] add_descriptor_chain: Queue not ready, chain empty, or chain too long. Ready: {}, Chain len: {}, Queue size: {}", self.ready, chain.len(), self.size);
             return Err(DiskError::QueueFull);
         }
         
         if self.get_queue_available_count() < chain.len() as u16 {
-            console_println!("❌ add_descriptor_chain: Not enough free descriptors. Available: {}, Needed: {}", self.get_queue_available_count(), chain.len());
+            console_println!("[x] add_descriptor_chain: Not enough free descriptors. Available: {}, Needed: {}", self.get_queue_available_count(), chain.len());
             return Err(DiskError::QueueFull);
         }
         
@@ -387,7 +387,7 @@ impl VirtioQueue {
         self.next_avail = (self.next_avail + chain.len() as u16) % self.size;
 
         let device_avail_idx_after_update = unsafe{read_volatile(&(*(self.avail_ring as *const VirtqAvail)).idx)};
-        // console_println!("ℹ️ Submitted chain (head={}): dev_avail_idx before={}, after={}. Driver next_avail={}", 
+        // console_println!("[i] Submitted chain (head={}): dev_avail_idx before={}, after={}. Driver next_avail={}", 
         //                 head_index, device_avail_idx_before_update, device_avail_idx_after_update, self.next_avail);
 
         Ok(head_index)
@@ -495,7 +495,7 @@ impl RustVmmVirtIOBlock {
         self.set_driver_ok()?;
         
         self.initialized = true;
-        console_println!("✅ rust-vmm VirtIO block device initialized successfully");
+        console_println!("[o] rust-vmm VirtIO block device initialized successfully");
         Ok(())
     }
     
@@ -511,12 +511,12 @@ impl RustVmmVirtIOBlock {
         for &addr in &mmio_addresses {
             if self.probe_mmio_device(addr)? {
                 self.mmio_base = addr;
-                console_println!("✅ VirtIO block device found at 0x{:x}", addr);
+                console_println!("[o] VirtIO block device found at 0x{:x}", addr);
                 return Ok(true);
             }
         }
         
-        console_println!("❌ No VirtIO block device found");
+        console_println!("[x] No VirtIO block device found");
         Ok(false)
     }
     
@@ -541,12 +541,12 @@ impl RustVmmVirtIOBlock {
             let vendor_id = core::ptr::read_volatile((base + VIRTIO_MMIO_VENDOR_ID) as *const u32);
             
             if version >= 2 {
-                console_println!("ℹ️ Modern VirtIO block device: version={}, vendor=0x{:x}", version, vendor_id);
+                console_println!("[i] Modern VirtIO block device: version={}, vendor=0x{:x}", version, vendor_id);
             } else if version == 1 {
-                console_println!("ℹ️ Legacy VirtIO block device: version={}, vendor=0x{:x} (experimental extension)", version, vendor_id);
+                console_println!("[i] Legacy VirtIO block device: version={}, vendor=0x{:x} (experimental extension)", version, vendor_id);
                 self.is_legacy = true;
             } else {
-                console_println!("⚠️  Unknown VirtIO version {} at 0x{:x}, skipping", version, base);
+                console_println!("[!]  Unknown VirtIO version {} at 0x{:x}, skipping", version, base);
                 return Ok(false);
             }
             
@@ -556,7 +556,7 @@ impl RustVmmVirtIOBlock {
     
     /// Initialize the VirtIO device following the initialization sequence
     fn init_device(&mut self) -> DiskResult<()> {
-        console_println!("ℹ️ Initializing VirtIO device...");
+        console_println!("[i] Initializing VirtIO device...");
         
         unsafe {
             let base = self.mmio_base;
@@ -573,7 +573,7 @@ impl RustVmmVirtIOBlock {
             if self.is_legacy {                
                 // Legacy VirtIO: Read features directly
                 self.device_features = core::ptr::read_volatile((base + VIRTIO_MMIO_DEVICE_FEATURES) as *const u32) as u64;
-                console_println!("ℹ️ Device features: 0x{:x}", self.device_features);
+                console_println!("[i] Device features: 0x{:x}", self.device_features);
                 
                 // Legacy VirtIO: Set driver features directly
                 self.driver_features = 0; // Minimal features for simplicity
@@ -588,7 +588,7 @@ impl RustVmmVirtIOBlock {
                 let features_hi = self.read_reg_u32(VIRTIO_MMIO_DEVICE_FEATURES);
                 
                 self.device_features = ((features_hi as u64) << 32) | (features_lo as u64);
-                console_println!("ℹ️ Device features: 0x{:x}", self.device_features);
+                console_println!("[i] Device features: 0x{:x}", self.device_features);
                 
                 // Step 5: Set driver features (accept basic features only)
                 self.driver_features = 0; // Minimal features for simplicity
@@ -612,7 +612,7 @@ impl RustVmmVirtIOBlock {
             let capacity_high = self.read_reg_u32(VIRTIO_MMIO_CONFIG + 4);
             self.capacity_sectors = ((capacity_high as u64) << 32) | (capacity_low as u64);
             
-            console_println!("ℹ️ Device capacity: {} sectors ({} MB)", 
+            console_println!("[i] Device capacity: {} sectors ({} MB)", 
                 self.capacity_sectors, self.capacity_sectors * 512 / 1024 / 1024);
         }
         
@@ -630,7 +630,7 @@ impl RustVmmVirtIOBlock {
             
             // Get maximum queue size
             let max_queue_size = self.read_reg_u32(VIRTIO_MMIO_QUEUE_NUM_MAX);
-            console_println!("ℹ️ Max queue size: {}", max_queue_size);
+            console_println!("[i] Max queue size: {}", max_queue_size);
             
             // Set queue size (use smaller size for simplicity)
             let queue_size = 64.min(max_queue_size as u16);
@@ -643,7 +643,7 @@ impl RustVmmVirtIOBlock {
             if self.is_legacy {
                 // Step 1: Set guest page size (REQUIRED for legacy VirtIO)
                 self.write_reg_u32(VIRTIO_MMIO_GUEST_PAGE_SIZE, PAGE_SIZE as u32);
-                console_println!("ℹ️ Set guest page size: {} bytes", PAGE_SIZE);
+                console_println!("[i] Set guest page size: {} bytes", PAGE_SIZE);
                 
                 // Step 2: Calculate memory layout following VirtIO spec
                 // Legacy VirtIO requires ALL rings to be contiguous and page-aligned
@@ -656,7 +656,7 @@ impl RustVmmVirtIOBlock {
                 let device_area_offset = align_up(desc_table_size + avail_ring_size);
                 let total_size = align_up(device_area_offset + used_ring_size);
                 
-                console_println!("ℹ️ Legacy memory layout calculation:");
+                console_println!("[i] Legacy memory layout calculation:");
                 console_println!("  Descriptor table: {} bytes", desc_table_size);
                 console_println!("  Driver area offset: {} bytes", driver_area_offset);  
                 console_println!("  Device area offset: {} bytes", device_area_offset);
@@ -673,7 +673,7 @@ impl RustVmmVirtIOBlock {
                     return Err(DiskError::VirtIOError);
                 }
                 
-                console_println!("ℹ️ Legacy queue memory layout:");
+                console_println!("[i] Legacy queue memory layout:");
                 console_println!("  Descriptors: 0x{:x}", desc_table_addr);
                 console_println!("  Available:   0x{:x}", avail_ring_addr);
                 console_println!("  Used:        0x{:x}", used_ring_addr);
@@ -689,16 +689,16 @@ impl RustVmmVirtIOBlock {
                 // Step 3: Set queue alignment (power of 2, typically page size)
                 let queue_align = PAGE_SIZE as u32;
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_ALIGN, queue_align);
-                console_println!("ℹ️ Set queue alignment: {} bytes", queue_align);
+                console_println!("[i] Set queue alignment: {} bytes", queue_align);
                 
                 // Step 4: Set queue PFN (Page Frame Number)
                 let pfn = (desc_table_addr / PAGE_SIZE) as u32;
-                console_println!("ℹ️ Setting queue PFN: {} (addr=0x{:x})", pfn, desc_table_addr);
+                console_println!("[i] Setting queue PFN: {} (addr=0x{:x})", pfn, desc_table_addr);
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_PFN, pfn);
                 
                 // Verify the PFN was accepted
                 let read_pfn = self.read_reg_u32(VIRTIO_MMIO_QUEUE_PFN);
-                console_println!("ℹ️ Queue PFN read back: {} (expected: {})", read_pfn, pfn);
+                console_println!("[i] Queue PFN read back: {} (expected: {})", read_pfn, pfn);
                 
             } else {
                 // Modern VirtIO: Uses separate registers for each ring
@@ -741,7 +741,7 @@ impl RustVmmVirtIOBlock {
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_READY, 1);
             }
             
-            console_println!("✅ VirtIO queue ready");
+            console_println!("[o] VirtIO queue ready");
         }
         
         self.queue.ready = true; // Mark the queue object as ready for driver operations
@@ -760,7 +760,7 @@ impl RustVmmVirtIOBlock {
             self.write_reg_u32(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE as u32 | VIRTIO_STATUS_DRIVER as u32 | VIRTIO_STATUS_FEATURES_OK as u32 | VIRTIO_STATUS_DRIVER_OK as u32);
         }
             
-        console_println!("✅ VirtIO device ready");
+        console_println!("[o] VirtIO device ready");
         Ok(())
     }
     
@@ -777,7 +777,7 @@ impl RustVmmVirtIOBlock {
         // Perform real VirtIO I/O
         self.virtio_read_sector(sector, buffer)?;
         
-        // console_println!("✅ VirtIO read completed for sector {}", sector);
+        // console_println!("[o] VirtIO read completed for sector {}", sector);
         Ok(())
     }
     
@@ -817,16 +817,16 @@ impl RustVmmVirtIOBlock {
             // Add descriptor chain to queue
             head_index = self.queue.add_descriptor_chain(&desc_chain)?;
             
-            // console_println!("ℹ️ READ Desc chain (head={}) setup (static buffers):", head_index);
+            // console_println!("[i] READ Desc chain (head={}) setup (static buffers):", head_index);
             // console_println!("  Request addr: 0x{:x}, len: {}", &VIRTIO_REQUEST_BUFFER as *const _ as u64, core::mem::size_of::<VirtioBlkReq>());
             // console_println!("  Buffer addr: 0x{:x}, len: 512", VIRTIO_DATA_BUFFER.as_mut_ptr() as u64);
             // console_println!("  Status addr: 0x{:x}, len: 1", &mut VIRTIO_STATUS_BUFFER as *mut _ as u64);
             
             // Notify device
-            // console_println!("ℹ️ Notifying VirtIO device at queue {} for READ", self.queue.queue_index);
+            // console_println!("[i] Notifying VirtIO device at queue {} for READ", self.queue.queue_index);
             self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, self.queue.queue_index as u32);
             
-            // console_println!("ℹ️ VirtIO READ request (head={}) submitted, waiting for completion...", head_index);
+            // console_println!("[i] VirtIO READ request (head={}) submitted, waiting for completion...", head_index);
         } // End of unsafe block for buffer setup
             
         // Wait for completion with timeout
@@ -840,32 +840,32 @@ impl RustVmmVirtIOBlock {
 
             if poll_count % 200000 == 0 { // Log less frequently to reduce noise
                 let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
-                // console_println!("ℹ️ Poll (Read) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
+                // console_println!("[i] Poll (Read) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
                 unsafe { // Accessing queue members
                     let used_ring_ptr = self.queue.used_ring as *const VirtqUsed;
                     let device_used_idx = read_volatile(&(*used_ring_ptr).idx);
-                    // console_println!("ℹ️ Queue (Read) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
+                    // console_println!("[i] Queue (Read) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
                 }
             }
             
             if let Some(used_elem) = self.queue.get_used_elem() { // This advances self.queue.last_used_idx
                 if used_elem.id as u16 == head_index {
-                    //console_println!("ℹ️ VirtIO READ request (head={}) COMPLETED. UsedElem: id={}, len={}. StatusByte: 0x{:x}", 
+                    //console_println!("[i] VirtIO READ request (head={}) COMPLETED. UsedElem: id={}, len={}. StatusByte: 0x{:x}", 
                     //    head_index, used_elem.id, used_elem.len, unsafe { VIRTIO_STATUS_BUFFER });
                     
                     if unsafe { VIRTIO_STATUS_BUFFER } == VIRTIO_BLK_S_OK {
-                        // console_println!("✅ VirtIO read successful for sector {}!", sector);
+                        // console_println!("[o] VirtIO read successful for sector {}!", sector);
                         unsafe { buffer.copy_from_slice(&VIRTIO_DATA_BUFFER); }
                         // Acknowledge interrupt for this specific queue processing
                         // self.write_reg_u32(VIRTIO_MMIO_INTERRUPT_ACK, 1 << self.queue.queue_index); 
                         return Ok(());
                     } else {
                         let status_val = unsafe { VIRTIO_STATUS_BUFFER };
-                        console_println!("❌ VirtIO read for sector {} failed with device status: 0x{:x}. Returning DiskError::ReadError.", sector, status_val);
+                        console_println!("[x] VirtIO read for sector {} failed with device status: 0x{:x}. Returning DiskError::ReadError.", sector, status_val);
                         return Err(DiskError::ReadError);
                     }
                 } else {
-                    console_println!("⚠️ Unexpected used elem for READ: id={}, expected_id={}, len={}. Ignoring and continuing to wait.", 
+                    console_println!("[!] Unexpected used elem for READ: id={}, expected_id={}, len={}. Ignoring and continuing to wait.", 
                         used_elem.id, head_index, used_elem.len);
                     // This element is not for us, loop again.
                     // Potentially, a mechanism to reclaim/log stale descriptors if this happens often.
@@ -925,7 +925,7 @@ impl RustVmmVirtIOBlock {
             // 3. Add descriptor chain to queue
             head_index = self.queue.add_descriptor_chain(&desc_chain)?;
             
-            console_println!("ℹ️ WRITE Desc chain (head={}) setup (static buffers):", head_index);
+            console_println!("[i] WRITE Desc chain (head={}) setup (static buffers):", head_index);
             console_println!("  Request addr: 0x{:x}, len: {}", &VIRTIO_REQUEST_BUFFER as *const _ as u64, core::mem::size_of::<VirtioBlkReq>());
             console_println!("  Data Buffer addr: 0x{:x}, len: {}", VIRTIO_DATA_BUFFER.as_ptr() as u64, VIRTIO_DATA_BUFFER.len());
             console_println!("  Status addr: 0x{:x}, len: 1", &mut VIRTIO_STATUS_BUFFER as *mut _ as u64);
@@ -939,34 +939,34 @@ impl RustVmmVirtIOBlock {
         let mut poll_count = 0;
         loop { // Changed to loop to handle unexpected completions
             if timeout <= 0 {
-                console_println!("❌ VirtIO WRITE request (head={}, sector={}) timed out. Returning DiskError::IoError.", head_index, sector);
+                console_println!("[x] VirtIO WRITE request (head={}, sector={}) timed out. Returning DiskError::IoError.", head_index, sector);
                 return Err(DiskError::IoError);
             }
 
             if poll_count % 200000 == 0 { // Log less frequently
                 let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
-                console_println!("ℹ️ Poll (Write) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
+                console_println!("[i] Poll (Write) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
                  unsafe { // Accessing queue members
                     let used_ring_ptr = self.queue.used_ring as *const VirtqUsed;
                     let device_used_idx = read_volatile(&(*used_ring_ptr).idx);
-                    console_println!("ℹ️ Queue (Write) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
+                    console_println!("[i] Queue (Write) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
                 }
             }
 
             if let Some(used_elem) = self.queue.get_used_elem() { // get_used_elem advances last_used_idx
                 if used_elem.id as u16 == head_index {
                     if unsafe { VIRTIO_STATUS_BUFFER } == VIRTIO_BLK_S_OK {
-                        console_println!("✅ VirtIO write successful for sector {}!", sector);
+                        console_println!("[o] VirtIO write successful for sector {}!", sector);
                         // Acknowledge interrupt for this specific queue processing
                         // self.write_reg_u32(VIRTIO_MMIO_INTERRUPT_ACK, 1 << self.queue.queue_index);
                         return Ok(());
                     } else {
                         let status_val = unsafe { VIRTIO_STATUS_BUFFER };
-                        console_println!("❌ VirtIO write for sector {} failed with device status: 0x{:x}. Returning DiskError::WriteError.", sector, status_val);
+                        console_println!("[x] VirtIO write for sector {} failed with device status: 0x{:x}. Returning DiskError::WriteError.", sector, status_val);
                         return Err(DiskError::WriteError); 
                     }
                 } else {
-                     console_println!("⚠️ Unexpected used elem for WRITE: id={}, expected_id={}, len={}. Ignoring and continuing to wait.", 
+                     console_println!("[!] Unexpected used elem for WRITE: id={}, expected_id={}, len={}. Ignoring and continuing to wait.", 
                         used_elem.id, head_index, used_elem.len);
                     // This element is not for us, loop again.
                 }
@@ -991,7 +991,7 @@ impl RustVmmVirtIOBlock {
             return Ok(()); // Nothing to read
         }
         if buffer.len() % 512 != 0 {
-            console_println!("❌ read_blocks: buffer length {} is not a multiple of 512", buffer.len());
+            console_println!("[x] read_blocks: buffer length {} is not a multiple of 512", buffer.len());
             return Err(DiskError::BufferTooSmall); 
         }
         let num_sectors = buffer.len() / 512;
@@ -1011,7 +1011,7 @@ impl RustVmmVirtIOBlock {
             return Ok(()); // Nothing to write
         }
         if buffer.len() % 512 != 0 {
-            console_println!("❌ write_blocks: buffer length {} is not a multiple of 512", buffer.len());
+            console_println!("[x] write_blocks: buffer length {} is not a multiple of 512", buffer.len());
             return Err(DiskError::BufferTooSmall);
         }
         let num_sectors = buffer.len() / 512;
@@ -1068,7 +1068,7 @@ static mut VIRTIO_STATUS_BUFFER: u8 = 0;
 /// Initialize the VirtIO block device
 /// This function should be called during kernel initialization
 pub fn init_virtio_blk() -> DiskResult<()> {
-    console_println!("ℹ️ Initializing rust-vmm style VirtIO Block Device...");
+    console_println!("[i] Initializing rust-vmm style VirtIO Block Device...");
     
     let mut device = VIRTIO_BLK.lock();
     device.init()
@@ -1076,7 +1076,7 @@ pub fn init_virtio_blk() -> DiskResult<()> {
 
 /// Initialize VirtIO block device with specific address (for dynamic detection)
 pub fn init_with_address(base_addr: usize) -> bool {
-    console_println!("ℹ️ Trying VirtIO device at 0x{:08x}", base_addr);
+    console_println!("[i] Trying VirtIO device at 0x{:08x}", base_addr);
     
     unsafe {
         // Check if there's a valid VirtIO device at this address
@@ -1090,17 +1090,17 @@ pub fn init_with_address(base_addr: usize) -> bool {
         
         // Check if it's a block device
         if device_id != 2 {
-            console_println!("⚠️  Device at 0x{:08x} is not a block device (ID: {})", base_addr, device_id);
+            console_println!("[!]  Device at 0x{:08x} is not a block device (ID: {})", base_addr, device_id);
             return false;
         }
         
-        console_println!("✅ Found VirtIO block device at 0x{:08x} (version: {})", base_addr, version);
+        console_println!("[o] Found VirtIO block device at 0x{:08x} (version: {})", base_addr, version);
         
         // Initialize the device with this address
         let mut device = RustVmmVirtIOBlock::new();
         device.mmio_base = base_addr;
         if device.init().is_ok() {
-            console_println!("✅ VirtIO block device initialized successfully");
+            console_println!("[o] VirtIO block device initialized successfully");
             
             // Store in global state
             *VIRTIO_BLK.lock() = device;

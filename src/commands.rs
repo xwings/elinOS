@@ -232,12 +232,12 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             match crate::filesystem::read_file(&full_path) {
                 Ok(file_data) => {
                     // Debug: Show file size and first few bytes
-                    let _ = syscall::sys_print("ℹ️ Debug: File size: ");
+                    let _ = syscall::sys_print("[i] Debug: File size: ");
                     let _ = syscall::sys_print_num(file_data.len() as u64);
                     let _ = syscall::sys_print(" bytes\n");
                     
                     if file_data.len() >= 4 {
-                        let _ = syscall::sys_print("ℹ️ Debug: First 4 bytes: ");
+                        let _ = syscall::sys_print("[i] Debug: First 4 bytes: ");
                         for i in 0..4 {
                             let _ = syscall::sys_print_hex(file_data[i] as u32, 2);
                             let _ = syscall::sys_print(" ");
@@ -249,7 +249,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
                     if file_data.len() >= 4 && &file_data[0..4] == b"\x7fELF" {
                         cmd_execute_elf(&full_path, &file_data)
                     } else {
-                        let _ = syscall::sys_print("❌ Not an executable file: ");
+                        let _ = syscall::sys_print("[x] Not an executable file: ");
                         let _ = syscall::sys_print(command);
                         let _ = syscall::sys_print(" (expected ELF magic: 7f 45 4c 46)\n");
                         Err("Not an executable")
@@ -281,19 +281,19 @@ pub fn get_available_commands() -> &'static [&'static str] {
 // === INDIVIDUAL COMMAND IMPLEMENTATIONS ===
 
 pub fn cmd_help() -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ ElinOS Commands\n")?;
+    syscall::sys_print("[i] ElinOS Commands\n")?;
     syscall::sys_print("===============================================\n\n")?;
     
-    syscall::sys_print("ℹ️ System Information:\n")?;
+    syscall::sys_print("[i] System Information:\n")?;
     syscall::sys_print("  help            - Show this help message\n")?;
     syscall::sys_print("  version         - Show kernel version and features\n")?;
     syscall::sys_print("  memory          - Show memory regions and allocator statistics\n")?;
     syscall::sys_print("  devices         - List detected VirtIO devices\n")?;
     syscall::sys_print("  syscall         - Show system call information\n")?;
     syscall::sys_print("  fscheck         - Check filesystem status and metadata\n")?;
-    syscall::sys_print("  config          - Show dynamic system configuration\n")?;
+    syscall::sys_print("  config          - Show system configuration\n")?;
 
-    syscall::sys_print("\nℹ️  Filesystem Operations:\n")?;
+    syscall::sys_print("\n[i]  Filesystem Operations:\n")?;
     syscall::sys_print("  ls [path]       - List files/dirs (default: current directory)\n")?;
     syscall::sys_print("  cat <path>      - Display file contents\n")?;
     syscall::sys_print("  echo [message]  - Print a message (newline if no message)\n")?;
@@ -304,38 +304,30 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  rmdir <path>    - Remove an empty directory at the specified path\n")?;
     syscall::sys_print("  cd [path]       - Change directory (default: root, use '/', '..')\n")?;
     
-    syscall::sys_print("\n🚀 Program Execution (like a real OS!):\n")?;
+    syscall::sys_print("\n[i] Program Execution:\n")?;
     syscall::sys_print("  hello_simple    - Execute ELF binary directly by name\n")?;
     syscall::sys_print("  ./hello_simple  - Execute with explicit relative path\n")?;
     syscall::sys_print("  /programs/hello - Execute with absolute path\n")?;
     
-    syscall::sys_print("\n⚙️  System Control:\n")?;
+    syscall::sys_print("\n[i] System Control:\n")?;
     syscall::sys_print("  shutdown        - Shutdown the system via SBI\n")?;
     syscall::sys_print("  reboot          - Reboot the system via SBI\n")?;
-    
-    syscall::sys_print("\n🎉 elinOS Features:\n")?;
-    syscall::sys_print("  ✅ Dynamic RAM detection and allocation\n")?;
-    syscall::sys_print("  ✅ Auto-scaling buffer sizes\n")?;
-    syscall::sys_print("  ✅ Hardware-adaptive memory management\n")?;
-    syscall::sys_print("  ✅ VirtIO device auto-detection\n")?;
-    syscall::sys_print("  ✅ Modular filesystem (FAT32 + ext2)\n")?;
-    syscall::sys_print("  ✅ Experimental kernel design\n")?;
     
     Ok(())
 }
 
 pub fn cmd_config() -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Dynamic System Configuration\n")?;
+    syscall::sys_print("[i] Dynamic System Configuration\n")?;
     syscall::sys_print("=====================================\n\n")?;
     
     // Get memory statistics
     let mem_stats = memory::get_memory_stats();
     
-    syscall::sys_print("ℹ️ Hardware Detection Results:\n")?;
+    syscall::sys_print("[i] Hardware Detection Results:\n")?;
     
     syscall::sys_print("  Total RAM: ")?;
     show_number_mb(mem_stats.detected_ram_size);
-    syscall::sys_print(" MB (auto-detected)\n")?;
+    syscall::sys_print(" MB \n")?;
     
     syscall::sys_print("  Memory Regions: ")?;
     show_number(mem_stats.regions_detected);
@@ -348,7 +340,7 @@ pub fn cmd_config() -> Result<(), &'static str> {
         memory::AllocatorMode::Hybrid => syscall::sys_print("Hybrid (adaptive)\n")?,
     }
     
-    syscall::sys_print("\n🧮 Calculated Memory Allocations:\n")?;
+    syscall::sys_print("\n[i] Calculated Memory Allocations:\n")?;
     
     syscall::sys_print("  Kernel Heap: ")?;
     show_number_kb(mem_stats.heap_size);
@@ -367,7 +359,7 @@ pub fn cmd_config() -> Result<(), &'static str> {
         syscall::sys_print("N/A\n")?;
     }
     
-    syscall::sys_print("\nℹ️ Dynamic Buffer Sizes:\n")?;
+    syscall::sys_print("\n[i] Dynamic Buffer Sizes:\n")?;
     
     let sector_buf_size = memory::get_optimal_buffer_size(BufferUsage::SectorIO);
     syscall::sys_print("  Sector I/O: ")?;
@@ -388,13 +380,6 @@ pub fn cmd_config() -> Result<(), &'static str> {
     syscall::sys_print("  Max File Size: ")?;
     show_number_kb(max_file_size);
     syscall::sys_print(" KB\n")?;
-    
-    syscall::sys_print("\n💡 Key Advantages:\n")?;
-    syscall::sys_print("  ✅ No hardcoded memory sizes\n")?;
-    syscall::sys_print("  ✅ Adapts to actual hardware\n")?;
-    syscall::sys_print("  ✅ Scales from tiny to large systems\n")?;
-    syscall::sys_print("  ✅ Efficient memory utilization\n")?;
-    syscall::sys_print("  ✅ Experimental kernel design\n")?;
     
     Ok(())
 }
@@ -472,7 +457,7 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
             let fs_info = fs.get_filesystem_info();
             drop(fs);
             
-            syscall::sys_print("ℹ️ Filesystem contents (VirtIO disk):\n")?;
+            syscall::sys_print("[i] Filesystem contents (VirtIO disk):\n")?;
             syscall::sys_print("Type: ")?;
             match fs_type {
                 crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
@@ -539,7 +524,7 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
             let fs_type = fs.get_filesystem_type();
             drop(fs);
             
-            syscall::sys_print("ℹ️ Reading file: ")?;
+            syscall::sys_print("[i] Reading file: ")?;
             syscall::sys_print(filename)?;
             syscall::sys_print(" (from ")?;
             match fs_type {
@@ -562,7 +547,7 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
             Ok(())
         }
         Err(_) => {
-            syscall::sys_print("❌ File '")?;
+            syscall::sys_print("[x] File '")?;
             syscall::sys_print(filename)?;
             syscall::sys_print("' not found\n")?;
             Err("File not found")
@@ -759,7 +744,7 @@ fn cmd_cd(path_arg: &str) -> Result<(), &'static str> {
 // === ELF OPERATIONS ===
 
 fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ ELF Binary Analysis: ")?;
+    syscall::sys_print("[i] ELF Binary Analysis: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -778,13 +763,13 @@ fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
             match result {
                 syscall::SysCallResult::Success(_) => Ok(()),
                 syscall::SysCallResult::Error(_) => {
-                    syscall::sys_print("❌ ELF analysis failed\n")?;
+                    syscall::sys_print("[x] ELF analysis failed\n")?;
                     Err("ELF analysis failed")
                 }
             }
         }
         Err(_) => {
-            syscall::sys_print("❌ File not found: ")?;
+            syscall::sys_print("[x] File not found: ")?;
             syscall::sys_print(filename)?;
             syscall::sys_print("\n")?;
             Err("File not found")
@@ -793,7 +778,7 @@ fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
 }
 
 fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Loading ELF Binary: ")?;
+    syscall::sys_print("[i] Loading ELF Binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -811,20 +796,20 @@ fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
             
             match result {
                 syscall::SysCallResult::Success(entry_point) => {
-                    syscall::sys_print("✅ ELF loaded successfully!\n")?;
+                    syscall::sys_print("[o] ELF loaded successfully!\n")?;
                     syscall::sys_print("   Entry point: 0x")?;
                     let _ = syscall::sys_print_hex(entry_point as u32, 8);
                     syscall::sys_print("\n")?;
                     Ok(())
                 }
                 syscall::SysCallResult::Error(_) => {
-                    syscall::sys_print("❌ ELF loading failed\n")?;
+                    syscall::sys_print("[x] ELF loading failed\n")?;
                     Err("ELF loading failed")
                 }
             }
         }
         Err(_) => {
-            syscall::sys_print("❌ File not found: ")?;
+            syscall::sys_print("[x] File not found: ")?;
             syscall::sys_print(filename)?;
             syscall::sys_print("\n")?;
             Err("File not found")
@@ -834,7 +819,7 @@ fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
 
 // Unified ELF execution function - parse, load, and execute in one step
 fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Executing: ")?;
+    syscall::sys_print("[i] Executing: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -846,37 +831,37 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
             &filename[1..]
         };
         
-        console_println!("ℹ️ Executing: {}", filename);
+        console_println!("[i] Executing: {}", filename);
         
         // Use the new ELF file reader that supports larger files
         match crate::filesystem::read_elf_file(elf_filename) {
             Ok(elf_data) => {
-                console_println!("ℹ️ Read {} bytes from {}", elf_data.len(), elf_filename);
+                console_println!("[i] Read {} bytes from {}", elf_data.len(), elf_filename);
                 
                 let loader = crate::elf::ElfLoader::new();
                 
                 // Load the ELF binary
                 match loader.load_elf(&elf_data) {
                     Ok(loaded_elf) => {
-                        console_println!("✅ ELF loaded, attempting execution...");
+                        console_println!("[o] ELF loaded, attempting execution...");
                         
                         // Execute the loaded ELF
                         match loader.execute_elf(&loaded_elf) {
                             Ok(()) => {
-                                console_println!("✅ ELF execution completed successfully!");
+                                console_println!("[o] ELF execution completed successfully!");
                             }
                             Err(err) => {
-                                console_println!("❌ Execution failed: {:?}", err);
+                                console_println!("[x] Execution failed: {:?}", err);
                             }
                         }
                     }
                     Err(err) => {
-                        console_println!("❌ ELF loading failed: {:?}", err);
+                        console_println!("[x] ELF loading failed: {:?}", err);
                     }
                 }
             }
             Err(err) => {
-                console_println!("❌ Failed to read ELF file '{}': {}", elf_filename, err);
+                console_println!("[x] Failed to read ELF file '{}': {}", elf_filename, err);
             }
         }
         return Ok(());
@@ -893,18 +878,18 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
     
     match result {
         syscall::SysCallResult::Success(entry_point) => {
-            syscall::sys_print("✅ Program completed successfully!\n")?;
+            syscall::sys_print("[o] Program completed successfully!\n")?;
             Ok(())
         }
         syscall::SysCallResult::Error(_) => {
-            syscall::sys_print("❌ Execution failed\n")?;
+            syscall::sys_print("[x] Execution failed\n")?;
             Err("Execution failed")
         }
     }
 }
 
 fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Executing ELF Binary: ")?;
+    syscall::sys_print("[i] Executing ELF Binary: ")?;
     syscall::sys_print(filename)?;
     syscall::sys_print("\n")?;
     
@@ -922,20 +907,20 @@ fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
             
             match result {
                 syscall::SysCallResult::Success(entry_point) => {
-                    syscall::sys_print("✅ ELF execution completed successfully!\n")?;
+                    syscall::sys_print("[o] ELF execution completed successfully!\n")?;
                     syscall::sys_print("   Entry point was: 0x")?;
                     let _ = syscall::sys_print_hex(entry_point as u32, 8);
                     syscall::sys_print("\n")?;
                     Ok(())
                 }
                 syscall::SysCallResult::Error(_) => {
-                    syscall::sys_print("❌ ELF execution failed\n")?;
+                    syscall::sys_print("[x] ELF execution failed\n")?;
                     Err("ELF execution failed")
                 }
             }
         }
         Err(_) => {
-            syscall::sys_print("❌ File not found: ")?;
+            syscall::sys_print("[x] File not found: ")?;
             syscall::sys_print(filename)?;
             syscall::sys_print("\n")?;
             Err("File not found")
@@ -945,7 +930,7 @@ fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
 
 /// Show heap usage information
 pub fn cmd_heap() -> Result<(), &'static str> {
-    syscall::sys_print("ℹ️ Heap Status:\n")?;
+    syscall::sys_print("[i] Heap Status:\n")?;
     syscall::sys_print("================\n")?;
     
     let (used, total, available) = memory::get_heap_usage();
@@ -963,9 +948,9 @@ pub fn cmd_heap() -> Result<(), &'static str> {
     syscall::sys_print("%\n")?;
     
     if available == 0 {
-        syscall::sys_print("⚠️  WARNING: Heap is completely exhausted!\n")?;
+        syscall::sys_print("[!]  WARNING: Heap is completely exhausted!\n")?;
     } else if usage_percent > 90 {
-        syscall::sys_print("⚠️  WARNING: Heap usage is very high!\n")?;
+        syscall::sys_print("[!]  WARNING: Heap usage is very high!\n")?;
     }
     
     Ok(())
@@ -973,14 +958,14 @@ pub fn cmd_heap() -> Result<(), &'static str> {
 
 /// Reset heap for testing (dangerous)
 pub fn cmd_heap_reset() -> Result<(), &'static str> {
-    syscall::sys_print("⚠️  DANGER: This will reset the heap position!\n")?;
+    syscall::sys_print("[!]  DANGER: This will reset the heap position!\n")?;
     syscall::sys_print("This may cause memory corruption if other allocations are active.\n")?;
     syscall::sys_print("Only use for testing purposes.\n")?;
     syscall::sys_print("Resetting heap...\n")?;
     
     memory::reset_heap_for_testing();
     
-    syscall::sys_print("✅ Heap position reset to 0\n")?;
+    syscall::sys_print("[o] Heap position reset to 0\n")?;
     
     // Show new heap status
     cmd_heap()

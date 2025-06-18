@@ -99,7 +99,7 @@ impl Fat32FileSystem {
     
     /// Initialize the FAT32 filesystem
     pub fn init(&mut self) -> FilesystemResult<()> {
-        console_println!("ℹ️ Initializing FAT32 filesystem...");
+        console_println!("[i] Initializing FAT32 filesystem...");
 
         let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         
@@ -135,10 +135,10 @@ impl Fat32FileSystem {
             return Err(FilesystemError::InvalidBootSector);
         }
 
-        console_println!("✅ Valid FAT32 filesystem detected!");
+        console_println!("[o] Valid FAT32 filesystem detected!");
         let total_sectors = if boot_sector.total_sectors_16 == 0 { boot_sector.total_sectors_32 } else { boot_sector.total_sectors_16 as u32 };
         let bytes_per_sector = boot_sector.bytes_per_sector;
-        console_println!("   ℹ️ {} total sectors", total_sectors);
+        console_println!("   [i] {} total sectors", total_sectors);
         console_println!("   💾 {} bytes per sector", bytes_per_sector);
         console_println!("   🧱 {} sectors per cluster", boot_sector.sectors_per_cluster);
 
@@ -159,13 +159,13 @@ impl Fat32FileSystem {
             self.fs_info_sector_num = Some(boot_sector.info_sector);
         }
         
-        console_println!("   ℹ️  Root cluster: {}", self.root_dir_cluster);
-        console_println!("   ℹ️  FAT starts at sector: {}", self.first_fat_sector);
-        console_println!("   ℹ️  Sectors per FAT: {}", self.sectors_per_fat);
+        console_println!("   [i]  Root cluster: {}", self.root_dir_cluster);
+        console_println!("   [i]  FAT starts at sector: {}", self.first_fat_sector);
+        console_println!("   [i]  Sectors per FAT: {}", self.sectors_per_fat);
         console_println!("   💾 Data region starts at sector: {}", self.data_region_start_sector);
         console_println!("   🧱 Total data clusters: {}", self.total_data_clusters);
         if let Some(fs_info) = self.fs_info_sector_num {
-            console_println!("   ℹ️  FSInfo sector at: {}", fs_info);
+            console_println!("   [i]  FSInfo sector at: {}", fs_info);
         }
 
         self.initialized = true;
@@ -174,7 +174,7 @@ impl Fat32FileSystem {
         self.read_directory(self.root_dir_cluster)?; 
         self.mounted = true;
 
-        console_println!("✅ FAT32 filesystem mounted");
+        console_println!("[o] FAT32 filesystem mounted");
         Ok(())
     }
     
@@ -284,7 +284,7 @@ impl Fat32FileSystem {
     
     /// Read and parse a directory from a given starting cluster
     fn read_directory(&mut self, start_cluster: u32) -> FilesystemResult<()> {
-        console_println!("ℹ️ Reading directory from cluster {}...", start_cluster);
+        console_println!("[i] Reading directory from cluster {}...", start_cluster);
         self.files.clear();
 
         let mut current_cluster = start_cluster;
@@ -364,7 +364,7 @@ impl Fat32FileSystem {
                 filename, entry_cluster, file_size);
             
             if self.files.push(file_entry).is_err() {
-                console_println!("⚠️ File cache full while reading directory cluster {}", current_cluster);
+                console_println!("[!] File cache full while reading directory cluster {}", current_cluster);
                 break; 
             }
             
@@ -372,7 +372,7 @@ impl Fat32FileSystem {
             offset += 32;
         }
         
-        console_println!("✅ Found {} entries in directory cluster {}", entries_found, start_cluster);
+        console_println!("[o] Found {} entries in directory cluster {}", entries_found, start_cluster);
         Ok(())
     }
     
@@ -808,7 +808,7 @@ impl FileSystem for Fat32FileSystem {
             console_println!("create_file: Warning - in-memory file cache is full.");
         }
 
-        console_println!("✅ File '{}' created starting at cluster {}, entry in dir_cluster {} at offset {}", 
+        console_println!("[o] File '{}' created starting at cluster {}, entry in dir_cluster {} at offset {}", 
             filename_str, file_start_cluster, entry_dir_cluster, entry_offset);
 
         Ok(file_entry)
@@ -823,7 +823,7 @@ impl FileSystem for Fat32FileSystem {
         let dirname_str = path;
         let parent_dir_cluster = self.root_dir_cluster; // Assuming creation in root
 
-        console_println!("ℹ️ Creating directory '{}' (in root dir cluster {})", dirname_str, parent_dir_cluster);
+        console_println!("[i] Creating directory '{}' (in root dir cluster {})", dirname_str, parent_dir_cluster);
 
         // Check if file/dir already exists (basic check in current loaded 'self.files' from read_directory)
         // This needs to be more robust, scanning the actual directory on disk.
@@ -942,7 +942,7 @@ impl FileSystem for Fat32FileSystem {
             console_println!("create_directory: Warning - in-memory file cache is full.");
         }
 
-        console_println!("✅ Directory '{}' created starting at cluster {}", dirname_str, new_dir_start_cluster);
+        console_println!("[o] Directory '{}' created starting at cluster {}", dirname_str, new_dir_start_cluster);
         Ok(file_entry)
     }
 
@@ -1648,16 +1648,16 @@ impl Fat32FileSystem {
     pub fn run_debug_tests() -> FilesystemResult<()> {
         use crate::{console_println, virtio_blk};
         
-        console_println!("ℹ️ Running FAT32 debug tests...");
+        console_println!("[i] Running FAT32 debug tests...");
         
         // Test 1: Read boot sector
-        console_println!("ℹ️ Test 1: Reading boot sector...");
+        console_println!("[i] Test 1: Reading boot sector...");
         {
             let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
             let mut buffer = [0u8; 512];
             match disk_device.read_blocks(0, &mut buffer) {
                 Ok(()) => {
-                    console_println!("✅ Boot sector read successful");
+                    console_println!("[o] Boot sector read successful");
                     
                     // Parse key FAT32 fields
                     let sectors_per_cluster = buffer[13];
@@ -1666,7 +1666,7 @@ impl Fat32FileSystem {
                     let sectors_per_fat = u32::from_le_bytes([buffer[36], buffer[37], buffer[38], buffer[39]]);
                     let root_cluster = u32::from_le_bytes([buffer[44], buffer[45], buffer[46], buffer[47]]);
                     
-                    console_println!("ℹ️ FAT32 Boot Sector Analysis:");
+                    console_println!("[i] FAT32 Boot Sector Analysis:");
                     console_println!("  Sectors per cluster: {}", sectors_per_cluster);
                     console_println!("  Reserved sectors: {}", reserved_sectors);
                     console_println!("  Number of FATs: {}", num_fats);
@@ -1683,15 +1683,15 @@ impl Fat32FileSystem {
                     console_println!("  Root directory sector: {}", root_sector);
                     
                     // Test 2: Read root directory
-                    console_println!("ℹ️ Test 2: Reading root directory...");
+                    console_println!("[i] Test 2: Reading root directory...");
                     match disk_device.read_blocks(root_sector as u64, &mut buffer) {
                         Ok(()) => {
-                            console_println!("✅ Root directory read successful");
-                            console_println!("ℹ️ First 32 bytes: {:02x?}", &buffer[0..32]);
+                            console_println!("[o] Root directory read successful");
+                            console_println!("[i] First 32 bytes: {:02x?}", &buffer[0..32]);
                             
                             // Look for directory entries
                             if buffer[0] != 0 && buffer[0] != 0xE5 {
-                                console_println!("✅ Found directory entry!");
+                                console_println!("[o] Found directory entry!");
                                 let name_bytes = &buffer[0..8];
                                 let ext_bytes = &buffer[8..11];
                                 console_println!("  Name: {:?}", name_bytes);
@@ -1700,19 +1700,19 @@ impl Fat32FileSystem {
                             }
                         }
                         Err(e) => {
-                            console_println!("❌ Failed to read root directory: {:?}", e);
+                            console_println!("[x] Failed to read root directory: {:?}", e);
                             return Err(FilesystemError::IoError);
                         }
                     }
                 }
                 Err(e) => {
-                    console_println!("❌ Boot sector read failed: {:?}", e);
+                    console_println!("[x] Boot sector read failed: {:?}", e);
                     return Err(FilesystemError::IoError);
                 }
             }
         }
         
-        console_println!("✅ FAT32 debug tests complete");
+        console_println!("[o] FAT32 debug tests complete");
         Ok(())
     }
 } 

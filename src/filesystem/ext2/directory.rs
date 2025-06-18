@@ -18,12 +18,12 @@ impl DirectoryManager {
     }
     
     pub fn init(&mut self, _sb_mgr: &SuperblockManager, _inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("ℹ️ Directory manager initialized");
+        console_println!("[i] Directory manager initialized");
         Ok(())
     }
     
     pub fn read_directory_entries(&self, inode: &Ext2Inode, files: &mut Vec<FileEntry, 64>, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("ℹ️ Reading directory entries...");
+        console_println!("[i] Reading directory entries...");
         
         if !inode.is_directory() {
             return Err(FilesystemError::NotADirectory);
@@ -43,7 +43,7 @@ impl DirectoryManager {
     }
     
     pub fn find_entry_in_dir(&self, dir_inode_num: u32, entry_name: &str, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<Option<(Ext2DirEntry, u32, usize)>> {
-        console_println!("ℹ️ Looking for '{}' in directory inode {}", entry_name, dir_inode_num);
+        console_println!("[i] Looking for '{}' in directory inode {}", entry_name, dir_inode_num);
         
         let dir_inode = inode_mgr.read_inode(dir_inode_num, sb_mgr)?;
         
@@ -60,9 +60,9 @@ impl DirectoryManager {
             
             if let Ok(Some((entry, _, _))) = &result {
                 let inode_num = entry.inode;
-                console_println!("   ✅ Found '{}' -> inode {}", entry_name, inode_num);
+                console_println!("   [o] Found '{}' -> inode {}", entry_name, inode_num);
             } else {
-                console_println!("   ❌ '{}' not found", entry_name);
+                console_println!("   [x] '{}' not found", entry_name);
             }
             
             return result;
@@ -149,7 +149,7 @@ impl DirectoryManager {
             // Write back the updated parent inode
             inode_mgr.write_inode(parent_inode, &parent_dir_inode, sb_mgr)?;
             
-            console_println!("✅ Added '{}' to new directory block {}", name, new_block);
+            console_println!("[o] Added '{}' to new directory block {}", name, new_block);
         } else {
             // Add to existing directory block using entry splitting logic
             let mut block_data = sb_mgr.read_block_data(first_block as u64)?;
@@ -178,7 +178,7 @@ impl DirectoryManager {
                 
                 // Scenario 1: Reuse deleted entry (inode == 0)
                 if current_inode == 0 && current_rec_len >= required_rec_len as usize {
-                    console_println!("ℹ️ Reusing deleted entry at offset {}", offset);
+                    console_println!("[i] Reusing deleted entry at offset {}", offset);
                     let new_entry = Ext2DirEntry {
                         inode: child_inode,
                         rec_len: current_rec_len as u16,
@@ -254,9 +254,9 @@ impl DirectoryManager {
             
             if entry_added {
                 sb_mgr.write_block_data(first_block, &block_data)?;
-                console_println!("✅ Added '{}' to existing directory block {}", name, first_block);
+                console_println!("[o] Added '{}' to existing directory block {}", name, first_block);
             } else {
-                console_println!("❌ No space found in directory block for '{}'", name);
+                console_println!("[x] No space found in directory block for '{}'", name);
                 return Err(FilesystemError::FilesystemFull);
             }
         }
@@ -274,7 +274,7 @@ impl DirectoryManager {
         
         // First, find the entry to get its location
         if let Some((_, found_inode, _)) = self.find_entry_in_dir(parent_inode, name, sb_mgr, inode_mgr)? {
-          //  console_println!("ℹ️ Found entry '{}' with inode {}, proceeding with removal", name, found_inode);
+          //  console_println!("[i] Found entry '{}' with inode {}, proceeding with removal", name, found_inode);
             
             // Read the parent directory inode
             let parent_dir_inode = inode_mgr.read_inode(parent_inode, sb_mgr)?;
@@ -283,7 +283,7 @@ impl DirectoryManager {
             let first_block = parent_dir_inode.i_block[0];
             
             if first_block == 0 {
-                console_println!("❌ Parent directory has no blocks allocated");
+                console_println!("[x] Parent directory has no blocks allocated");
                 return Err(FilesystemError::FileNotFound);
             }
             
@@ -296,10 +296,10 @@ impl DirectoryManager {
             // Write the updated block back to disk
             sb_mgr.write_block_data(first_block, &block_data)?;
             
-            console_println!("✅ Successfully removed directory entry '{}' from inode {}", name, parent_inode);
+            console_println!("[o] Successfully removed directory entry '{}' from inode {}", name, parent_inode);
             Ok(())
         } else {
-            console_println!("❌ Entry '{}' not found in directory inode {}", name, parent_inode);
+            console_println!("[x] Entry '{}' not found in directory inode {}", name, parent_inode);
             Err(FilesystemError::FileNotFound)
         }
     }
@@ -332,7 +332,7 @@ impl DirectoryManager {
                 let name_bytes = &block_data[name_start..name_end];
                 if let Ok(name_str) = core::str::from_utf8(name_bytes) {
                     if name_str == target_name {
-                        console_println!("ℹ️ Found target entry '{}' at offset {}, marking as deleted", target_name, offset);
+                        console_println!("[i] Found target entry '{}' at offset {}, marking as deleted", target_name, offset);
                         
                         // Mark the entry as deleted by setting inode to 0
                         unsafe {
@@ -354,12 +354,12 @@ impl DirectoryManager {
             }
         }
         
-        console_println!("❌ Target entry '{}' not found in directory block", target_name);
+        console_println!("[x] Target entry '{}' not found in directory block", target_name);
         Err(FilesystemError::FileNotFound)
     }
     
     pub fn create_dot_entries(&self, dir_inode: u32, parent_inode: u32, sb_mgr: &mut SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("ℹ️ Creating . and .. entries for inode {}", dir_inode);
+        console_println!("[i] Creating . and .. entries for inode {}", dir_inode);
         
         // Add "." entry (current directory)
         self.add_directory_entry(dir_inode, dir_inode, ".", EXT2_FT_DIR, sb_mgr, inode_mgr)?;
@@ -367,7 +367,7 @@ impl DirectoryManager {
         // Add ".." entry (parent directory)
         self.add_directory_entry(dir_inode, parent_inode, "..", EXT2_FT_DIR, sb_mgr, inode_mgr)?;
         
-        console_println!("✅ Created . and .. entries for directory inode {}", dir_inode);
+        console_println!("[o] Created . and .. entries for directory inode {}", dir_inode);
         Ok(())
     }
     
@@ -446,11 +446,11 @@ impl DirectoryManager {
     
     fn parse_directory_block_for_listing(&self, block_data: &[u8], result: &mut Vec<(heapless::String<64>, usize, bool), 32>, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
         let mut offset = 0;
-        console_println!("ℹ️ Parsing directory block ({} bytes):", block_data.len());
+        console_println!("[i] Parsing directory block ({} bytes):", block_data.len());
         
         while offset < block_data.len() {
             if offset + mem::size_of::<Ext2DirEntry>() > block_data.len() {
-                console_println!("   ⚠️  Not enough space for dir entry at offset {}, breaking", offset);
+                console_println!("   [!]  Not enough space for dir entry at offset {}, breaking", offset);
                 break;
             }
             
@@ -469,23 +469,23 @@ impl DirectoryManager {
             
             // Validate entry
             if inode_num == 0 {
-                console_println!("   ❌ Invalid entry (inode=0), breaking");
+                console_println!("   [x] Invalid entry (inode=0), breaking");
                 break;
             }
             
             if rec_len == 0 || rec_len > block_data.len() - offset {
-                console_println!("   ❌ Invalid rec_len {}, breaking", rec_len);
+                console_println!("   [x] Invalid rec_len {}, breaking", rec_len);
                 break;
             }
             
             if name_len == 0 || name_len > 255 {
-                console_println!("   ❌ Invalid name_len {}, breaking", name_len);
+                console_println!("   [x] Invalid name_len {}, breaking", name_len);
                 break;
             }
             
             // Validate inode number is reasonable (should be < 100000 for small filesystems)
             if inode_num > 100000 {
-                console_println!("   ❌ Suspicious inode number {}, skipping", inode_num);
+                console_println!("   [x] Suspicious inode number {}, skipping", inode_num);
                 offset += rec_len;
                 continue;
             }
@@ -495,13 +495,13 @@ impl DirectoryManager {
             let name_end = name_start + name_len;
             
             if name_end > block_data.len() {
-                console_println!("   ❌ Name extends beyond block boundary, breaking");
+                console_println!("   [x] Name extends beyond block boundary, breaking");
                 break;
             }
             
             let name_bytes = &block_data[name_start..name_end];
             if let Ok(name_str) = core::str::from_utf8(name_bytes) {
-                console_println!("   ℹ️ Found entry: '{}'", name_str);
+                console_println!("   [i] Found entry: '{}'", name_str);
                 if let Ok(short_name) = heapless::String::try_from(name_str) {
                     // Use the file_type from directory entry as primary source
                     // EXT2_FT_DIR = 2, EXT2_FT_REG_FILE = 1
@@ -513,18 +513,18 @@ impl DirectoryManager {
                             if is_dir { 0 } else { entry_inode.get_size() as usize }
                         },
                         Err(_) => {
-                            console_println!("   ❌ Failed to read inode {} for '{}', using size 0", inode_num, name_str);
+                            console_println!("   [x] Failed to read inode {} for '{}', using size 0", inode_num, name_str);
                             0
                         }
                     };
                     
-                    console_println!("   ✅ Added: '{}' (dir: {}, size: {})", name_str, is_dir, size);
+                    console_println!("   [o] Added: '{}' (dir: {}, size: {})", name_str, is_dir, size);
                     let _ = result.push((short_name, size, is_dir));
                 } else {
-                    console_println!("   ❌ Filename too long: '{}'", name_str);
+                    console_println!("   [x] Filename too long: '{}'", name_str);
                 }
             } else {
-                console_println!("   ❌ Invalid UTF-8 in filename at offset {}", name_start);
+                console_println!("   [x] Invalid UTF-8 in filename at offset {}", name_start);
             }
             
             offset += rec_len;
@@ -535,7 +535,7 @@ impl DirectoryManager {
             }
         }
         
-        console_println!("ℹ️ Directory parsing complete, found {} entries", result.len());
+        console_println!("[i] Directory parsing complete, found {} entries", result.len());
         Ok(())
     }
     
@@ -570,7 +570,7 @@ impl DirectoryManager {
                 if let Ok(name_str) = core::str::from_utf8(name_bytes) {
                     console_println!("          Entry: '{}' -> inode {}", name_str, inode_num);
                     if name_str == entry_name {
-                        console_println!("         ✅ MATCH found!");
+                        console_println!("         [o] MATCH found!");
                         return Ok(Some((dir_entry, inode_num, offset)));
                     }
                 }
@@ -579,7 +579,7 @@ impl DirectoryManager {
             offset += rec_len;
         }
         
-        console_println!("      ❌ No match found in block");
+        console_println!("      [x] No match found in block");
         Ok(None)
     }
     

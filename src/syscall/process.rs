@@ -114,9 +114,9 @@ pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCall
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 pub fn sys_exit(exit_code: isize) -> SysCallResult {
-    // console_println!("ℹ️ SYS_EXIT: Program exiting with code {}", exit_code);
-    // console_println!("✅ Program completed successfully with exit code: {}", exit_code);
-    // console_println!("ℹ️ Returning to shell...");
+    // console_println!("[i] SYS_EXIT: Program exiting with code {}", exit_code);
+    // console_println!("[o] Program completed successfully with exit code: {}", exit_code);
+    // console_println!("[i] Returning to shell...");
     
     // Set the global exit flag so the trap handler knows to jump to shell_loop
     // instead of returning to user mode
@@ -130,23 +130,23 @@ pub fn sys_exit(exit_code: isize) -> SysCallResult {
 }
 
 fn sys_exit_group(status: i32) -> SysCallResult {
-    console_println!("ℹ️ Process group exited with status: {}", status);
+    console_println!("[i] Process group exited with status: {}", status);
     // For now, treat this the same as regular exit
     sys_exit(status as isize)
 }
 
 fn sys_fork() -> SysCallResult {
-    console_println!("❌ Fork not implemented");
+    console_println!("[x] Fork not implemented");
     SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
 }
 
 fn sys_clone() -> SysCallResult {
-    console_println!("❌ Clone not implemented");
+    console_println!("[x] Clone not implemented");
     SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
 }
 
 fn sys_execve() -> SysCallResult {
-    console_println!("❌ Execve not implemented");
+    console_println!("[x] Execve not implemented");
     SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
 }
 
@@ -186,7 +186,7 @@ fn sys_gettid() -> SysCallResult {
 }
 
 fn sys_kill(_pid: i32, _sig: i32) -> SysCallResult {
-    console_println!("❌ Kill not implemented");
+    console_println!("[x] Kill not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
@@ -221,13 +221,13 @@ pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     
     match loader.load_elf(elf_data) {
         Ok(loaded_elf) => {
-            console_println!("✅ ELF loaded successfully with {} segments", loaded_elf.segments.len());
-            console_println!("ℹ️ Entry point: 0x{:x}", loaded_elf.entry_point);
+            console_println!("[o] ELF loaded successfully with {} segments", loaded_elf.segments.len());
+            console_println!("[i] Entry point: 0x{:x}", loaded_elf.entry_point);
             
             // Display segment information
             for (i, segment) in loaded_elf.segments.iter().enumerate() {
                 let perms = crate::elf::segment_permissions(segment.flags);
-                console_println!("ℹ️ Segment {}: 0x{:x} ({} bytes) [{}]", 
+                console_println!("[i] Segment {}: 0x{:x} ({} bytes) [{}]", 
                     i, segment.vaddr, segment.memsz, perms);
             }
             
@@ -264,12 +264,12 @@ pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
     // Load the ELF binary
     match loader.load_elf(elf_data) {
         Ok(loaded_elf) => {
-            console_println!("✅ ELF loaded, attempting execution...");
+            console_println!("[o] ELF loaded, attempting execution...");
             
             // Execute the loaded ELF
             match loader.execute_elf(&loaded_elf) {
                 Ok(()) => {
-                    console_println!("✅ ELF execution completed successfully!");
+                    console_println!("[o] ELF execution completed successfully!");
                     SysCallResult::Success(loaded_elf.entry_point as isize)
                 }
                 Err(err) => {
@@ -325,57 +325,57 @@ pub fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
 }
 
 fn sys_wait4(_pid: i32, _status: *mut i32, _options: i32, _rusage: *mut u8) -> SysCallResult {
-    console_println!("❌ Wait4 not implemented");
+    console_println!("[x] Wait4 not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_setuid(_uid: u32) -> SysCallResult {
-    console_println!("❌ Setuid not implemented");
+    console_println!("[x] Setuid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_setgid(_gid: u32) -> SysCallResult {
-    console_println!("❌ Setgid not implemented");
+    console_println!("[x] Setgid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_geteuid() -> SysCallResult {
-    console_println!("❌ Geteuid not implemented");
+    console_println!("[x] Geteuid not implemented");
     SysCallResult::Success(0) // Return root
 }
 
 fn sys_getegid() -> SysCallResult {
-    console_println!("❌ Getegid not implemented");
+    console_println!("[x] Getegid not implemented");
     SysCallResult::Success(0) // Return root
 }
 
 fn sys_setsid() -> SysCallResult {
-    console_println!("❌ Setsid not implemented");
+    console_println!("[x] Setsid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_getpgid(_pid: i32) -> SysCallResult {
-    console_println!("❌ Getpgid not implemented");
+    console_println!("[x] Getpgid not implemented");
     SysCallResult::Success(1) // Return process group 1
 }
 
 fn sys_setpgid(_pid: i32, _pgid: i32) -> SysCallResult {
-    console_println!("❌ Setpgid not implemented");
+    console_println!("[x] Setpgid not implemented");
     SysCallResult::Error(ENOSYS)
 }
 
 fn sys_getpgrp() -> SysCallResult {
-    console_println!("❌ Getpgrp not implemented");
+    console_println!("[x] Getpgrp not implemented");
     SysCallResult::Success(1) // Return process group 1
 }
 
 fn sys_sched_yield() -> SysCallResult {
-    console_println!("❌ Sched_yield not implemented");
+    console_println!("[x] Sched_yield not implemented");
     SysCallResult::Success(0)
 }
 
 fn sys_nanosleep(_req: *const u8, _rem: *mut u8) -> SysCallResult {
-    console_println!("❌ Nanosleep not implemented");
+    console_println!("[x] Nanosleep not implemented");
     SysCallResult::Error(ENOSYS)
 }
 

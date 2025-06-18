@@ -79,7 +79,7 @@ pub fn console_getchar() -> Option<usize> {
 // System shutdown
 pub fn system_shutdown() -> ! {
     // Use console print fallback since console_println might not be available here
-    console_println!("ℹ️ Initiating system shutdown via SBI...\n");
+    console_println!("[i] Initiating system shutdown via SBI...\n");
     
     // Try newer SBI system reset extension first
     let ret = sbi_call(SBI_EXT_SRST, 0, SBI_SRST_RESET_TYPE_SHUTDOWN as usize, SBI_SRST_RESET_REASON_NONE as usize, 0);
@@ -101,12 +101,12 @@ pub fn system_shutdown() -> ! {
 // System reset/reboot
 pub fn system_reset() -> ! {
     // Use console print fallback since console_println might not be available here
-    console_println!("ℹ️ Initiating system reboot via SBI...\n");
+    console_println!("[i] Initiating system reboot via SBI...\n");
     
     // Try SBI system reset extension
     let ret = sbi_call(SBI_EXT_SRST, 0, SBI_SRST_RESET_TYPE_COLD_REBOOT as usize, SBI_SRST_RESET_REASON_NONE as usize, 0);
     
-    console_println!("❌ SBI reset failed (error: {}), halting\n", ret.error);
+    console_println!("[x] SBI reset failed (error: {}), halting\n", ret.error);
     loop {
         unsafe {
             asm!("wfi");

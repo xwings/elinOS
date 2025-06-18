@@ -99,13 +99,13 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         // TODO: Implement stdin reading
         SysCallResult::Error(crate::syscall::ENOSYS)
     } else if fd >= 10 { // File descriptors start at 10
-        console_println!("ℹ️ SYSCALL: Looking up file descriptor {}", fd);
+        console_println!("[i] SYSCALL: Looking up file descriptor {}", fd);
         
         // Look up filename from file descriptor table
         let file_table = FILE_TABLE.lock();
         let filename = match file_table.get(&fd) {
             Some(name) => {
-                console_println!("✅ SYSCALL: Found filename '{}' for fd {}", name.as_str(), fd);
+                console_println!("[o] SYSCALL: Found filename '{}' for fd {}", name.as_str(), fd);
                 name.clone()
             },
             None => {
@@ -116,7 +116,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         };
         drop(file_table);
         
-        console_println!("ℹ️ SYSCALL: Reading file '{}'", filename.as_str());
+        console_println!("[i] SYSCALL: Reading file '{}'", filename.as_str());
         
         // Read the file content using the filesystem API
         let fs = filesystem::FILESYSTEM.lock();
@@ -125,7 +125,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         match fs.read_file(&filename) {
             Ok(content) => {
                 let bytes_to_copy = core::cmp::min(count, content.len());
-                console_println!("ℹ️ SYSCALL: Will output {} bytes (requested={}, available={})", 
+                console_println!("[i] SYSCALL: Will output {} bytes (requested={}, available={})", 
                     bytes_to_copy, count, content.len());
                 
                 // If buffer is provided, copy to user buffer
@@ -146,16 +146,16 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
                 }
                 drop(uart);
                 
-                console_println!("✅ SYSCALL: File output complete");
+                console_println!("[o] SYSCALL: File output complete");
                 SysCallResult::Success(bytes_to_copy as isize)
             }
             Err(_) => {
-                console_println!("❌ File not found: {}", filename);
+                console_println!("[x] File not found: {}", filename);
                 SysCallResult::Error(crate::syscall::ENOENT)
             }
         }
     } else {
-        console_println!("❌ SYSCALL: Invalid file descriptor {}", fd);
+        console_println!("[x] SYSCALL: Invalid file descriptor {}", fd);
         SysCallResult::Error(crate::syscall::EINVAL)
     }
 }
@@ -164,21 +164,21 @@ pub fn sys_openat(args: SyscallArgs) -> SysCallResult {
     // For demo purposes, just check if file exists
     let filename = "hello.txt";  // Hardcoded for now
     
-    console_println!("ℹ️ Sys_openat: opening file '{}'", filename);
+    console_println!("[i] Sys_openat: opening file '{}'", filename);
     
     let fs = filesystem::FILESYSTEM.lock();
     
     if !fs.is_mounted() {
-        console_println!("❌ Filesystem not mounted");
+        console_println!("[x] Filesystem not mounted");
                     return SysCallResult::Error(crate::syscall::ENODEV);
     }
     
     // Check if file exists using the trait method
     if fs.file_exists(filename) {
-        console_println!("✅ File '{}' found, returning fd=3", filename);
+        console_println!("[o] File '{}' found, returning fd=3", filename);
         SysCallResult::Success(3)  // Return a fake file descriptor
     } else {
-        console_println!("❌ File '{}' not found", filename);
+        console_println!("[x] File '{}' not found", filename);
         SysCallResult::Error(crate::syscall::ENOENT)
     }
 }
@@ -202,37 +202,35 @@ pub fn sys_unlinkat(args: SyscallArgs) -> SysCallResult {
     // args.arg1 is the path
     let filename = "dummy.txt";  // For demonstration
     
-    console_println!("🗑️ sys_unlinkat: deleting file '{}'", filename);
-    
     let fs = filesystem::FILESYSTEM.lock();
     
     if !fs.file_exists(filename) {
-        console_println!("❌ File '{}' doesn't exist", filename);
+        console_println!("[x] File '{}' doesn't exist", filename);
         return SysCallResult::Error(crate::syscall::ENOENT);
     }
     
     // We don't actually implement file deletion yet
-    console_println!("⚠️ File deletion not implemented");
+    console_println!("[!] File deletion not implemented");
             SysCallResult::Error(crate::syscall::ENOSYS)
 }
 
 pub fn sys_getdents64(args: SyscallArgs) -> SysCallResult {
     let fd = args.arg0 as i32;
     
-    console_println!("ℹ️ Sys_getdents64: listing directory for fd={}", fd);
+    console_println!("[i] Sys_getdents64: listing directory for fd={}", fd);
     
     let fs = filesystem::FILESYSTEM.lock();
     
     match fs.list_files() {
         Ok(files) => {
-            console_println!("✅ Found {} files:", files.len());
+            console_println!("[o] Found {} files:", files.len());
             for (name, size) in &files {
-                console_println!("  ℹ️ {} ({} bytes)", name.as_str(), size);
+                console_println!("  [i] {} ({} bytes)", name.as_str(), size);
             }
             SysCallResult::Success(files.len() as isize)
         }
         Err(_) => {
-            console_println!("❌ Failed to list files");
+            console_println!("[x] Failed to list files");
             SysCallResult::Error(crate::syscall::EIO)
         }
     }

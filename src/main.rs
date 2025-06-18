@@ -26,10 +26,10 @@ pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     // Print the panic message
-    console_println!("❌  KERNEL PANIC: {}", info.message());
+    console_println!("[x]  KERNEL PANIC: {}", info.message());
     
     if let Some(location) = info.location() {
-        console_println!("ℹ️ Location: {}:{}:{}", location.file(), location.line(), location.column());
+        console_println!("[i] Location: {}:{}:{}", location.file(), location.line(), location.column());
     }
     
     loop {
@@ -65,7 +65,7 @@ pub extern "C" fn main() -> ! {
 
     // Initialize trap handling (CRITICAL: must be early!)
     trap::init_trap_handling();
-    console_println!("✅ Trap handling ready");
+    console_println!("[o] Trap handling ready");
 
     // Initialize console system
     if let Err(e) = console::init_console() {
@@ -77,34 +77,34 @@ pub extern "C" fn main() -> ! {
         let mut memory_mgr = memory::MEMORY_MANAGER.lock();
         memory_mgr.init();
     }
-    console_println!("✅ Memory management ready");
+    console_println!("[o] Memory management ready");
 
     // Initialize Virtual Memory Management (Software MMU)
     if let Err(e) = memory::mmu::init_mmu() {
-        console_println!("❌ Virtual Memory initialization failed: {}", e);
-        console_println!("⚠️ Continuing in physical memory mode");
+        console_println!("[x] Virtual Memory initialization failed: {}", e);
+        console_println!("[!] Continuing in physical memory mode");
     } else {
-        console_println!("✅ Virtual Memory Management enabled!");
+        console_println!("[o] Virtual Memory Management enabled!");
     }
 
     // Initialize VirtIO disk interface
     if let Err(e) = virtio_blk::init_virtio_blk() {
-        console_println!("❌ VirtIO disk initialization failed: {}", e);
+        console_println!("[x] VirtIO disk initialization failed: {}", e);
     } else {
-        console_println!("✅ VirtIO disk ready");
+        console_println!("[o] VirtIO disk ready");
     }
 
     // Initialize filesystem
     match filesystem::init_filesystem() {
         Ok(()) => {
-            // console_println!("✅ Filesystem initialization successful!");
+            // console_println!("[o] Filesystem initialization successful!");
         }
         Err(e) => {
-            console_println!("❌ Filesystem initialization failed: {:?}", e);
+            console_println!("[x] Filesystem initialization failed: {:?}", e);
         }
     }
     
-    // console_println!("✅ elinOS initialization complete!");
+    // console_println!("[o] elinOS initialization complete!");
     console_println!();
     
     // Show welcome message and enter shell

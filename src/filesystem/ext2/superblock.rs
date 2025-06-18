@@ -30,7 +30,7 @@ impl SuperblockManager {
     
     /// Read and validate superblock from disk
     fn read_superblock(&mut self) -> FilesystemResult<()> {
-        console_println!("ℹ️ Reading ext2 superblock...");
+        console_println!("[i] Reading ext2 superblock...");
         
         let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
         
@@ -66,14 +66,14 @@ impl SuperblockManager {
         
         // Validate magic number
         if magic != EXT2_MAGIC {
-            console_println!("❌ Invalid ext2 magic: 0x{:X}, expected 0x{:X}", magic, EXT2_MAGIC);
+            console_println!("[x] Invalid ext2 magic: 0x{:X}, expected 0x{:X}", magic, EXT2_MAGIC);
             return Err(FilesystemError::InvalidSuperblock);
         }
         
         // Calculate block size
         self.block_size = 1024 << log_block_size;
         
-        console_println!("✅ Valid ext2 superblock found!");
+        console_println!("[o] Valid ext2 superblock found!");
         console_println!("   Block size: {} bytes", self.block_size);
         console_println!("   Total blocks: {}", total_blocks);
         console_println!("   Total inodes: {}", total_inodes);
@@ -84,7 +84,7 @@ impl SuperblockManager {
     
     /// Read group descriptor
     fn read_group_descriptor(&mut self) -> FilesystemResult<()> {
-        console_println!("ℹ️ Reading group descriptor...");
+        console_println!("[i] Reading group descriptor...");
         
         let _sb = self.superblock.as_ref().ok_or(FilesystemError::InvalidSuperblock)?;
         
@@ -100,7 +100,7 @@ impl SuperblockManager {
         let inode_bitmap = gd.bg_inode_bitmap_lo;
         let inode_table = gd.bg_inode_table_lo;
         
-        console_println!("✅ Group descriptor loaded");
+        console_println!("[o] Group descriptor loaded");
         console_println!("   Block bitmap: {}", block_bitmap);
         console_println!("   Inode bitmap: {}", inode_bitmap);
         console_println!("   Inode table: {}", inode_table);

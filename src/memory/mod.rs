@@ -105,7 +105,7 @@ impl MemoryManager {
 
     /// Initialize memory manager with full hardware detection and dynamic sizing
     pub fn init(&mut self) {
-        console_println!("ℹ️ Enhanced Memory Manager - Auto-detecting hardware...");
+        console_println!("[i] Enhanced Memory Manager - Auto-detecting hardware...");
         
         // Step 1: Detect all available RAM
         self.detect_memory_hardware();
@@ -116,19 +116,19 @@ impl MemoryManager {
         // Step 3: Initialize appropriate allocator based on available memory
         self.initialize_allocators();
         
-        console_println!("✅ Memory manager initialized dynamically!");
+        console_println!("[o] Memory manager initialized dynamically!");
         self.show_detection_summary();
     }
     
     /// Auto-detect memory hardware using SBI and direct probing
     fn detect_memory_hardware(&mut self) {
-        // console_println!("ℹ️ Detecting memory hardware...");
+        // console_println!("[i] Detecting memory hardware...");
         
         // Get memory regions from SBI
         let sbi_regions = sbi::get_memory_regions();
         let mut total_ram = 0;
         
-        console_println!("ℹ️ Memory regions detected:");
+        console_println!("[i] Memory regions detected:");
         for i in 0..sbi_regions.count {
             let sbi_region = &sbi_regions.regions[i];
             
@@ -174,7 +174,7 @@ impl MemoryManager {
         self.detected_ram_size = total_ram;
         
         if total_ram == 0 {
-            console_println!("⚠️  No RAM detected via SBI - using conservative fallback");
+            console_println!("[!]  No RAM detected via SBI - using conservative fallback");
             // Create a fallback memory layout
             self.detected_ram_size = 128 * 1024 * 1024; // 128MB fallback
             let fallback_region = MemoryRegion {
@@ -186,12 +186,12 @@ impl MemoryManager {
             let _ = self.detected_regions.push(fallback_region);
         }
         
-        console_println!("ℹ️ Total RAM detected: {} MB", self.detected_ram_size / (1024 * 1024));
+        console_println!("[i] Total RAM detected: {} MB", self.detected_ram_size / (1024 * 1024));
     }
     
     /// Calculate optimal memory allocation sizes based on detected hardware
     fn calculate_dynamic_sizes(&mut self) {
-        console_println!("ℹ️ Calculating optimal memory allocation sizes...");
+        console_println!("[i] Calculating optimal memory allocation sizes...");
         
         let ram_mb = self.detected_ram_size / (1024 * 1024);
         
@@ -230,7 +230,7 @@ impl MemoryManager {
             _ => 1024 * 1024,           // 1MB max file for large systems
         };
         
-        console_println!("ℹ️ Calculated sizes:");
+        console_println!("[i] Calculated sizes:");
         console_println!("  Heap: {} KB", self.heap_size / 1024);
         console_println!("  Stack: {} KB", self.stack_size / 1024);
         console_println!("  Buddy heap: {} KB", self.buddy_heap_size / 1024);
@@ -239,34 +239,34 @@ impl MemoryManager {
     
     /// Initialize the most appropriate allocator based on available memory
     fn initialize_allocators(&mut self) {
-        console_println!("ℹ️ Initializing allocators...");
+        console_println!("[i] Initializing allocators...");
         
         // Always initialize basic heap allocator
         self.init_dynamic_heap();
         
         // Try to initialize advanced allocators if we have enough memory
         if self.detected_ram_size >= 16 * 1024 * 1024 && self.buddy_heap_size > 0 {
-            console_println!("ℹ️ Sufficient memory for advanced allocators");
+            console_println!("[i] Sufficient memory for advanced allocators");
             match self.init_advanced_allocators() {
                 Ok(_) => {
                     self.allocator_mode = AllocatorMode::TwoTier;
-                    console_println!("✅ Two-tier allocator system ready (Buddy + Slab)");
+                    console_println!("[o] Two-tier allocator system ready (Buddy + Slab)");
                 }
                 Err(e) => {
-                    console_println!("⚠️  Advanced allocator init failed: {:?}", e);
-                    console_println!("ℹ️ Using simple heap allocator");
+                    console_println!("[!]  Advanced allocator init failed: {:?}", e);
+                    console_println!("[i] Using simple heap allocator");
                     self.allocator_mode = AllocatorMode::SimpleHeap;
                 }
             }
         } else {
-            console_println!("ℹ️ Using simple heap allocator for limited memory system");
+            console_println!("[i] Using simple heap allocator for limited memory system");
             self.allocator_mode = AllocatorMode::SimpleHeap;
         }
     }
     
     /// Initialize heap allocator with dynamically calculated size
     fn init_dynamic_heap(&mut self) {
-        console_println!("ℹ️ Initializing dynamic heap: {} KB", self.heap_size / 1024);
+        console_println!("[i] Initializing dynamic heap: {} KB", self.heap_size / 1024);
         
         // Try to find a suitable "Normal" memory region first
         let mut heap_region_opt = self.detected_regions.iter()
@@ -274,7 +274,7 @@ impl MemoryManager {
 
         // If no suitable "Normal" zone found, try to find *any* RAM region that can fit the heap
         if heap_region_opt.is_none() {
-            console_println!("ℹ️ No ideal 'Normal' zone RAM region for heap. Searching other RAM regions...");
+            console_println!("[i] No ideal 'Normal' zone RAM region for heap. Searching other RAM regions...");
             heap_region_opt = self.detected_regions.iter()
                 .find(|r| r.is_ram && r.size >= self.heap_size); // Find any RAM region large enough
         }
@@ -282,13 +282,13 @@ impl MemoryManager {
         // If still no region, try to find the largest available RAM region, even if smaller than desired heap_size
         let mut actual_heap_size = self.heap_size;
         if heap_region_opt.is_none() {
-            console_println!("⚠️ No single RAM region >= configured heap_size ({} KB). Trying largest available RAM region.", self.heap_size / 1024);
+            console_println!("[!] No single RAM region >= configured heap_size ({} KB). Trying largest available RAM region.", self.heap_size / 1024);
             heap_region_opt = self.detected_regions.iter()
                 .filter(|r| r.is_ram && r.size > 0) // Filter for RAM regions with some size
                 .max_by_key(|r| r.size); // Find the largest one
             if let Some(largest_region) = heap_region_opt {
                 if largest_region.size < actual_heap_size {
-                    console_println!("⚠️ Largest available RAM region ({} KB) is smaller than configured heap size ({} KB). Using smaller heap.", largest_region.size / 1024, actual_heap_size / 1024);
+                    console_println!("[!] Largest available RAM region ({} KB) is smaller than configured heap size ({} KB). Using smaller heap.", largest_region.size / 1024, actual_heap_size / 1024);
                     actual_heap_size = largest_region.size; // Use the size of this largest region
                 }
             }
@@ -340,7 +340,7 @@ impl MemoryManager {
                         
                         ALLOCATOR.lock().init(chosen_heap_start as *mut u8, actual_heap_size);
                         
-                        console_println!("✅ Dynamic heap initialized: 0x{:08x} - 0x{:08x} ({} KB)",
+                        console_println!("[o] Dynamic heap initialized: 0x{:08x} - 0x{:08x} ({} KB)",
                             chosen_heap_start,
                             chosen_heap_start.saturating_add(actual_heap_size),
                             actual_heap_size / 1024
@@ -352,17 +352,17 @@ impl MemoryManager {
                         return; // Successfully initialized heap
                     }
                 } else {
-                    console_println!("❌ Heap placement validation failed: start 0x{:x} + size {}KB would exceed region [0x{:x} - 0x{:x}]",
+                    console_println!("[x] Heap placement validation failed: start 0x{:x} + size {}KB would exceed region [0x{:x} - 0x{:x}]",
                         chosen_heap_start, actual_heap_size/1024, region.start, region.start.saturating_add(region.size));
                 }
             } else {
-                 console_println!("❌ Region 0x{:x}-0x{:x} (size {}KB) insufficient for heap ({}KB required). Available space after kernel (est. end 0x{:x}): {}KB.",
+                 console_println!("[x] Region 0x{:x}-0x{:x} (size {}KB) insufficient for heap ({}KB required). Available space after kernel (est. end 0x{:x}): {}KB.",
                     region.start, region.start.saturating_add(region.size), region.size/1024,
                     actual_heap_size/1024, min_safe_heap_start, available_space_in_region/1024);
             }
         } 
         // If we reach here, heap_region_opt was None or the chosen region was unusable.
-        console_println!("❌ Could not find suitable memory region or usable space for heap after all checks.");
+        console_println!("[x] Could not find suitable memory region or usable space for heap after all checks.");
         console_println!("   Available regions:");
         for (i, region) in self.detected_regions.iter().enumerate() {
             console_println!("     Region {}: 0x{:08x} - 0x{:08x} ({} KB) RAM: {} Zone: {:?}",
@@ -382,7 +382,7 @@ impl MemoryManager {
             // Use a portion for advanced allocation (leave space for other uses)
             let allocator_start = region.start + region.size - self.buddy_heap_size;
             
-            console_println!("ℹ️ Initializing fallible allocator:");
+            console_println!("[i] Initializing fallible allocator:");
             console_println!("  Region: 0x{:08x} - 0x{:08x} ({} MB)", 
                 allocator_start, 
                 allocator_start + self.buddy_heap_size,
@@ -400,7 +400,7 @@ impl MemoryManager {
     
     /// Show summary of hardware detection and allocation decisions
     fn show_detection_summary(&self) {
-        console_println!("ℹ️ Dynamic Memory Manager Summary:");
+        console_println!("[i] Dynamic Memory Manager Summary:");
         console_println!("=====================================");
         console_println!("Detected Hardware:");
         console_println!("  Total RAM: {} MB", self.detected_ram_size / (1024 * 1024));
@@ -458,7 +458,7 @@ impl MemoryManager {
                         }
                         Err(e) => {
                             if self.allocator_mode == AllocatorMode::Hybrid {
-                                console_println!("ℹ️ Fallible allocator failed, trying heap");
+                                console_println!("[i] Fallible allocator failed, trying heap");
                                 return self.try_allocate_from_heap(size);
                             } else {
                                 return Err(e);
@@ -488,7 +488,7 @@ impl MemoryManager {
         
         // For now, this is a placeholder since we can't directly control the global allocator
         // In a real implementation, we'd have our own heap allocator we can query
-        // console_println!("⚠️  Heap allocation requested: {} bytes", size);
+        // console_println!("[!]  Heap allocation requested: {} bytes", size);
         
         // Simulate allocation tracking
         self.heap_used += size;
@@ -588,7 +588,7 @@ pub fn allocate_memory(size: usize) -> Option<usize> {
 
 /// Allocate memory with specific alignment
 pub fn allocate_aligned_memory(size: usize, alignment: usize) -> Option<usize> {
-    // console_println!("ℹ️ Memory allocation request: {} bytes (align: {})", size, alignment);
+    // console_println!("[i] Memory allocation request: {} bytes (align: {})", size, alignment);
     
     // First try our custom allocator
     let mut manager = MEMORY_MANAGER.lock();
@@ -597,16 +597,16 @@ pub fn allocate_aligned_memory(size: usize, alignment: usize) -> Option<usize> {
             let addr = ptr as usize;
             // Check if the returned address meets our alignment requirement
             if addr % alignment == 0 {
-                console_println!("✅ Custom allocator succeeded: 0x{:x}", addr);
+                console_println!("[o] Custom allocator succeeded: 0x{:x}", addr);
                 Some(addr)
             } else {
-                // console_println!("⚠️  Custom allocator returned unaligned address, trying direct heap");
+                // console_println!("[!]  Custom allocator returned unaligned address, trying direct heap");
                 drop(manager);
                 allocate_from_heap_aligned(size, alignment)
             }
         }
         Err(_) => {
-            // console_println!("⚠️  Custom allocator failed, trying direct heap allocation");
+            // console_println!("[!]  Custom allocator failed, trying direct heap allocation");
             drop(manager); // Release lock before using global allocator
             allocate_from_heap_aligned(size, alignment)
         }
@@ -625,37 +625,37 @@ fn allocate_from_heap_aligned(size: usize, alignment: usize) -> Option<usize> {
             let offset_from_heap_start = aligned_pos - heap_start;
             let aligned_size = (size + alignment - 1) & !(alignment - 1);
             
-            // console_println!("ℹ️ Heap alignment: pos={}, aligned_pos=0x{:x}, size={}, heap_len={}", 
+            // console_println!("[i] Heap alignment: pos={}, aligned_pos=0x{:x}, size={}, heap_len={}", 
             //                SIMPLE_HEAP_POS, aligned_pos, aligned_size, heap_slice.len());
             
             if offset_from_heap_start + aligned_size <= heap_slice.len() {
                 SIMPLE_HEAP_POS = offset_from_heap_start + aligned_size;
-                // console_println!("✅ Direct heap allocation: {} bytes at 0x{:x} (aligned to {})", 
+                // console_println!("[o] Direct heap allocation: {} bytes at 0x{:x} (aligned to {})", 
                 //                size, aligned_pos, alignment);
                 return Some(aligned_pos);
             } else {
-                console_println!("❌ Direct heap exhausted: needed {}, available {}", 
+                console_println!("[x] Direct heap exhausted: needed {}, available {}", 
                                aligned_size, heap_slice.len() - offset_from_heap_start);
-                console_println!("ℹ️ Attempting to reset heap position...");
+                console_println!("[i] Attempting to reset heap position...");
                 
                 // Check if we can reset the heap (dangerous but might work for testing)
                 let reset_aligned_pos = (heap_start + alignment - 1) & !(alignment - 1);
                 let reset_offset = reset_aligned_pos - heap_start;
                 
                 if reset_offset + aligned_size <= heap_slice.len() {
-                    // console_println!("ℹ️ Resetting heap position to 0");
+                    // console_println!("[i] Resetting heap position to 0");
                     SIMPLE_HEAP_POS = reset_offset + aligned_size;
-                    console_println!("✅ Direct heap allocation after reset: {} bytes at 0x{:x} (aligned to {})", 
+                    console_println!("[o] Direct heap allocation after reset: {} bytes at 0x{:x} (aligned to {})", 
                                    size, reset_aligned_pos, alignment);
                     return Some(reset_aligned_pos);
                 }
             }
         } else {
-            console_println!("❌ HEAP_SPACE is None - heap not initialized!");
+            console_println!("[x] HEAP_SPACE is None - heap not initialized!");
         }
     }
     
-    console_println!("❌ All allocation methods failed for {} bytes (align: {})", size, alignment);
+    console_println!("[x] All allocation methods failed for {} bytes (align: {})", size, alignment);
     None
 }
 
@@ -696,7 +696,7 @@ pub fn get_heap_usage() -> (usize, usize, usize) {
 /// Reset heap for testing (dangerous - only for debugging)
 pub fn reset_heap_for_testing() {
     unsafe {
-        console_println!("⚠️  DANGER: Resetting heap position to 0 for testing");
+        console_println!("[!]  DANGER: Resetting heap position to 0 for testing");
         SIMPLE_HEAP_POS = 0;
     }
 } 

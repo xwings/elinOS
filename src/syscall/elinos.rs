@@ -66,22 +66,22 @@ pub fn sys_elinos_version() -> SysCallResult {
     if let Err(e) = crate::syscall::sys_print("Features:\n") {
         return SysCallResult::Error(crate::syscall::EIO);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ VirtIO Block Device Support\n") {
+    if let Err(e) = crate::syscall::sys_print("  [o] VirtIO Block Device Support\n") {
         return SysCallResult::Error(crate::syscall::EIO);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ FAT32/ext2 Filesystem\n") {
+    if let Err(e) = crate::syscall::sys_print("  [o] FAT32/ext2 Filesystem\n") {
         return SysCallResult::Error(crate::syscall::EIO);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ Automatic Filesystem Detection\n") {
+    if let Err(e) = crate::syscall::sys_print("  [o] Automatic Filesystem Detection\n") {
         return SysCallResult::Error(crate::syscall::EIO);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ Linux-Compatible System Calls\n") {
+    if let Err(e) = crate::syscall::sys_print("  [o] Linux-Compatible System Calls\n") {
         return SysCallResult::Error(crate::syscall::EIO);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ Memory Management\n") {
+    if let Err(e) = crate::syscall::sys_print("  [o] Memory Management\n") {
         return SysCallResult::Error(crate::syscall::EIO);
     }
-    if let Err(e) = crate::syscall::sys_print("  ✅ Simple Interactive Shell\n\n") {
+    if let Err(e) = crate::syscall::sys_print("  [o] Simple Interactive Shell\n\n") {
         return SysCallResult::Error(crate::syscall::EIO);
     }
     
@@ -117,13 +117,13 @@ fn sys_elinos_debug(msg_ptr: *const u8) -> SysCallResult {
         core::str::from_utf8_unchecked(core::slice::from_raw_parts(msg_ptr, len))
     };
     
-    console_println!("ℹ️ DEBUG: {}", debug_msg);
+    console_println!("[i] DEBUG: {}", debug_msg);
     SysCallResult::Success(0)
 }
 
 pub fn sys_elinos_shutdown() -> SysCallResult {
-    console_println!("ℹ️ System shutdown requested");
-    console_println!("ℹ️ Goodbye from elinOS!");
+    console_println!("[i] System shutdown requested");
+    console_println!("[i] Goodbye from elinOS!");
     
     // Call the SBI shutdown function
     sbi::system_shutdown();
@@ -131,8 +131,8 @@ pub fn sys_elinos_shutdown() -> SysCallResult {
 
 /// SYS_REBOOT - reboot the system  
 pub fn sys_elinos_reboot() -> SysCallResult {
-    console_println!("ℹ️ System reboot requested");
-    console_println!("ℹ️ Rebooting elinOS...");
+    console_println!("[i] System reboot requested");
+    console_println!("[i] Rebooting elinOS...");
     
     // Call the SBI reboot function
     sbi::system_reset();

@@ -51,7 +51,7 @@ pub struct MemoryLayout {
 impl MemoryLayout {
     /// Calculate memory layout dynamically from linker symbols
     pub fn detect() -> Self {
-        console_println!("ℹ️ Detecting memory layout via OpenSBI...");
+        console_println!("[i] Detecting memory layout via OpenSBI...");
         
         // Calculate kernel boundaries
         let kernel_start = unsafe { &__text_start as *const _ as usize };
@@ -87,11 +87,11 @@ impl MemoryLayout {
         
         if size > 0 {
             layout.add_region(base, size, true, crate::memory::MemoryZone::Normal);
-            console_println!("✅ Detected {} MB RAM at 0x{:x}", size / (1024 * 1024), base);
+            console_println!("[o] Detected {} MB RAM at 0x{:x}", size / (1024 * 1024), base);
         } else {
             // Fallback to default QEMU layout
             layout.add_region(0x80000000, 128 * 1024 * 1024, true, crate::memory::MemoryZone::Normal);
-            console_println!("⚠️  Using fallback memory layout: 128MB at 0x80000000");
+            console_println!("[!]  Using fallback memory layout: 128MB at 0x80000000");
         }
         
         // Add standard MMIO regions
@@ -109,7 +109,7 @@ impl MemoryLayout {
         layout.heap_size = layout.buddy_heap_size + layout.small_heap_size;
         
         // Debug output to see the conflict
-        console_println!("ℹ️ Memory layout debug:");
+        console_println!("[i] Memory layout debug:");
         console_println!("   Kernel start: 0x{:08x}", kernel_start);
         console_println!("   Kernel end: 0x{:08x}", kernel_end);
         console_println!("   Kernel size: {} KB", kernel_size / 1024);
@@ -185,7 +185,7 @@ impl MemoryLayout {
         let linker_heap_start = 0x80400000;
         let kernel_end_with_guard = self.kernel_end + self.kernel_guard_size;
         
-        console_println!("ℹ️ Validation check:");
+        console_println!("[i] Validation check:");
         console_println!("   Kernel end + guard: 0x{:08x}", kernel_end_with_guard);
         console_println!("   Linker heap start: 0x{:08x}", linker_heap_start);
         
@@ -202,7 +202,7 @@ impl MemoryLayout {
             return Err("Total kernel footprint too large (>64MB)");
         }
         
-        console_println!("✅ Memory layout validation passed");
+        console_println!("[o] Memory layout validation passed");
         Ok(())
     }
     

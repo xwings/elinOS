@@ -34,7 +34,7 @@ impl BlockManager {
         let i_blocks_lo = inode.i_blocks_lo;
         let first_block = inode.i_block[0];
         
-        console_println!("   ℹ️  File details: size={}, blocks={}, first_block={}, uses_extents={}", 
+        console_println!("   [i]  File details: size={}, blocks={}, first_block={}, uses_extents={}", 
             file_size, i_blocks_lo, first_block, (i_flags & EXT2_EXTENTS_FL) != 0);
         
         // If file size is 0 but blocks are allocated, there might be content to read
@@ -77,16 +77,16 @@ impl BlockManager {
         let eh_entries = extent_header.eh_entries;
         let eh_depth = extent_header.eh_depth;
         
-        console_println!("   ℹ️  File extent header: magic=0x{:04x}, entries={}, depth={}", 
+        console_println!("   [i]  File extent header: magic=0x{:04x}, entries={}, depth={}", 
             eh_magic, eh_entries, eh_depth);
         
         if eh_magic != EXT2_EXT_MAGIC {
-            console_println!("   ❌ Invalid extent magic for file");
+            console_println!("   [x] Invalid extent magic for file");
             return Err(FilesystemError::CorruptedFilesystem);
         }
         
         if eh_depth != 0 {
-            console_println!("   ❌ Multi-level extent trees not supported for files");
+            console_println!("   [x] Multi-level extent trees not supported for files");
             return Err(FilesystemError::UnsupportedFilesystem);
         }
         
@@ -107,7 +107,7 @@ impl BlockManager {
             let extent_offset = extents_start + i * core::mem::size_of::<Ext2Extent>();
             
             if extent_offset + core::mem::size_of::<Ext2Extent>() > i_block_bytes.len() {
-                console_println!("   ⚠️ File extent {} extends beyond i_block", i);
+                console_println!("   [!] File extent {} extends beyond i_block", i);
                 break;
             }
             
@@ -124,7 +124,7 @@ impl BlockManager {
             // Calculate physical block number
             let physical_block = ((ee_start_hi as u64) << 32) | (ee_start_lo as u64);
             
-            console_println!("   ℹ️  File extent {}: logical={}, len={}, physical={}", 
+            console_println!("   [i]  File extent {}: logical={}, len={}, physical={}", 
                 i, ee_block, ee_len, physical_block);
             
             // Read file data from this extent
@@ -135,12 +135,12 @@ impl BlockManager {
                 
                 let block_num = physical_block + block_offset as u64;
                 
-                //console_println!("   ℹ️  Reading file block {} (from extent)", block_num);
+                //console_println!("   [i]  Reading file block {} (from extent)", block_num);
                 
                 let block_data = match sb_mgr.read_block_data(block_num) {
                     Ok(data) => data,
                     Err(_) => {
-                        console_println!("   ⚠️ Failed to read file extent block {}", block_num);
+                        console_println!("   [!] Failed to read file extent block {}", block_num);
                         continue;
                     }
                 };
@@ -149,7 +149,7 @@ impl BlockManager {
                 
                 for i in 0..bytes_to_copy {
                     if file_content.push(block_data[i]).is_err() {
-                        console_println!("   ⚠️ File content buffer full");
+                        console_println!("   [!] File content buffer full");
                         return Ok(file_content);
                     }
                     bytes_read += 1;
@@ -157,7 +157,7 @@ impl BlockManager {
             }
         }
         
-        console_println!("   ✅ Read {} bytes from extent-based file", bytes_read);
+        console_println!("   [o] Read {} bytes from extent-based file", bytes_read);
         Ok(file_content)
     }
     
@@ -169,37 +169,37 @@ impl BlockManager {
         // Copy i_block array to avoid packed field alignment issues
         let i_block_copy = inode.i_block;
         
-        // console_println!("   ℹ️  Reading from direct blocks, target size: {}", file_size);
-        //console_println!("   ℹ️  First 5 block numbers: {:?}", &i_block_copy[..5]);
+        // console_println!("   [i]  Reading from direct blocks, target size: {}", file_size);
+        //console_println!("   [i]  First 5 block numbers: {:?}", &i_block_copy[..5]);
         
         // Read file data from direct blocks
         for (i, &block_num) in i_block_copy.iter().take(12).enumerate() {
-            // console_println!("   ℹ️ Block {}: {}", i, block_num);
+            // console_println!("   [i] Block {}: {}", i, block_num);
             
             if block_num == 0 {
-                console_println!("   ⚠️  Block {} is 0, stopping", i);
+                console_println!("   [!]  Block {} is 0, stopping", i);
                 break;
             }
             
             if bytes_read >= file_size {
-                console_println!("   ✅ Read enough bytes ({}), stopping", bytes_read);
+                console_println!("   [o] Read enough bytes ({}), stopping", bytes_read);
                 break;
             }
             
             // Validate block number
             if block_num > 1000000 {
-                console_println!("   ⚠️ Skipping invalid block number: {}", block_num);
+                console_println!("   [!] Skipping invalid block number: {}", block_num);
                 continue;
             }
             
-            console_println!("   ℹ️  Reading block {} from disk", block_num);
+            console_println!("   [i]  Reading block {} from disk", block_num);
             let block_data = match sb_mgr.read_block_data(block_num as u64) {
                 Ok(data) => {
-                    console_println!("   ✅ Successfully read block {}, got {} bytes", block_num, data.len());
+                    console_println!("   [o] Successfully read block {}, got {} bytes", block_num, data.len());
                     data
                 },
                 Err(e) => {
-                    console_println!("   ❌ Failed to read block {}: {:?}", block_num, e);
+                    console_println!("   [x] Failed to read block {}: {:?}", block_num, e);
                     continue;
                 }
             };
@@ -209,7 +209,7 @@ impl BlockManager {
             
             for i in 0..bytes_to_copy {
                 if file_content.push(block_data[i]).is_err() {
-                    console_println!("   ⚠️ File content buffer full");
+                    console_println!("   [!] File content buffer full");
                     break;
                 }
                 bytes_read += 1;
@@ -218,10 +218,10 @@ impl BlockManager {
                 }
             }
             
-            // console_println!("   ℹ️  Total bytes read so far: {}", bytes_read);
+            // console_println!("   [i]  Total bytes read so far: {}", bytes_read);
         }
         
-        console_println!("   ✅ Read {} bytes from block-based file", bytes_read);
+        console_println!("   [o] Read {} bytes from block-based file", bytes_read);
         Ok(file_content)
     }
     

@@ -223,7 +223,7 @@ fn sys_alloc_test(size: usize) -> SysCallResult {
     let start_time = 0; // TODO: Add timing
     
     if let Some(addr) = memory::allocate_memory(size) {
-        console_println!("✅ Allocated {} bytes at 0x{:x}", size, addr);
+        console_println!("[o] Allocated {} bytes at 0x{:x}", size, addr);
         
         // Test writing to the memory
         unsafe {
@@ -231,20 +231,20 @@ fn sys_alloc_test(size: usize) -> SysCallResult {
             *ptr = 0xAA; // Write test pattern
             let read_val = *ptr;
             if read_val == 0xAA {
-                console_println!("✅ Memory write/read test passed");
+                console_println!("[o] Memory write/read test passed");
             } else {
-                console_println!("❌ Memory write/read test failed: wrote 0xAA, read 0x{:x}", read_val);
+                console_println!("[x] Memory write/read test failed: wrote 0xAA, read 0x{:x}", read_val);
             }
         }
         
         // Show updated stats
         let stats = memory::get_memory_stats();
-        console_println!("ℹ️ Updated stats: {} allocations, {} bytes allocated", 
+        console_println!("[i] Updated stats: {} allocations, {} bytes allocated", 
                         stats.allocation_count, stats.allocated_bytes);
         
         SysCallResult::Success(addr as isize)
     } else {
-        console_println!("❌ Allocation failed");
+        console_println!("[x] Allocation failed");
         SysCallResult::Error(crate::syscall::ENOMEM)
     }
 }
