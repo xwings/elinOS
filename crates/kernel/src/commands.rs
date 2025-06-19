@@ -573,6 +573,8 @@ pub fn cmd_syscall() -> Result<(), &'static str> {
     syscall::sys_print("    SYS_EXIT (93)      - Exit process\n")?;
     syscall::sys_print("    SYS_GETPID (172)   - Get process ID\n")?;
     syscall::sys_print("    SYS_GETPPID (173)  - Get parent process ID\n")?;
+    syscall::sys_print("    SYS_FORK (220)     - Create child process\n")?;
+    syscall::sys_print("    SYS_WAIT4 (260)    - Wait for child process\n")?;
 
     syscall::sys_print("  Device Management:\n")?;
     syscall::sys_print("    SYS_GETDEVICES (950) - Device information (elinOS)\n")?;

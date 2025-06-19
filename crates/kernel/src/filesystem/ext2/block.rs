@@ -77,8 +77,8 @@ impl BlockManager {
         let eh_entries = extent_header.eh_entries;
         let eh_depth = extent_header.eh_depth;
         
-        console_println!("   [i]  File extent header: magic=0x{:04x}, entries={}, depth={}", 
-            eh_magic, eh_entries, eh_depth);
+        // console_println!("   [i]  File extent header: magic=0x{:04x}, entries={}, depth={}", 
+        //    eh_magic, eh_entries, eh_depth);
         
         if eh_magic != EXT2_EXT_MAGIC {
             console_println!("   [x] Invalid extent magic for file");

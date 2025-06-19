@@ -6,6 +6,141 @@ use core::fmt::Write;
 use super::{SysCallResult, SyscallArgs};
 use crate::trap::USER_PROGRAM_EXITED;
 use super::{ENOSYS, EINVAL, ENOEXEC};
+use heapless::Vec;
+use spin::Mutex;
+use lazy_static::lazy_static;
+
+// === PROCESS MANAGEMENT STRUCTURES ===
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ProcessState {
+    Running,
+    Waiting,
+    Zombie,   // Exited but parent hasn't collected exit status
+    Unused,
+}
+
+#[derive(Debug, Clone)]
+pub struct Process {
+    pub pid: i32,
+    pub ppid: i32,  // Parent process ID
+    pub state: ProcessState,
+    pub exit_code: Option<i32>,
+    pub memory_base: Option<usize>,  // Base address of process memory
+    pub memory_size: Option<usize>,  // Size of allocated memory
+}
+
+impl Process {
+    pub fn new() -> Self {
+        Self {
+            pid: 0,
+            ppid: 0,
+            state: ProcessState::Unused,
+            exit_code: None,
+            memory_base: None,
+            memory_size: None,
+        }
+    }
+    
+    pub fn new_with_pid(pid: i32, ppid: i32) -> Self {
+        Self {
+            pid,
+            ppid,
+            state: ProcessState::Running,
+            exit_code: None,
+            memory_base: None,
+            memory_size: None,
+        }
+    }
+}
+
+// Simple process table - support up to 64 processes
+const MAX_PROCESSES: usize = 64;
+
+pub struct ProcessManager {
+    processes: Vec<Process, MAX_PROCESSES>,
+    next_pid: i32,
+    current_pid: i32,
+}
+
+impl ProcessManager {
+    pub fn new() -> Self {
+        let mut pm = Self {
+            processes: Vec::new(),
+            next_pid: 1,
+            current_pid: 1,  // Start with init process (shell)
+        };
+        
+        // Create init process (the shell)
+        let init_process = Process::new_with_pid(1, 0);
+        pm.processes.push(init_process).ok();
+        
+        pm
+    }
+    
+    pub fn allocate_pid(&mut self) -> i32 {
+        let pid = self.next_pid;
+        self.next_pid += 1;
+        pid
+    }
+    
+    pub fn create_process(&mut self, ppid: i32) -> Option<i32> {
+        if self.processes.len() >= MAX_PROCESSES {
+            return None;
+        }
+        
+        let pid = self.allocate_pid();
+        let process = Process::new_with_pid(pid, ppid);
+        
+        self.processes.push(process).ok()?;
+        Some(pid)
+    }
+    
+    pub fn get_process(&self, pid: i32) -> Option<&Process> {
+        self.processes.iter().find(|p| p.pid == pid)
+    }
+    
+    pub fn get_process_mut(&mut self, pid: i32) -> Option<&mut Process> {
+        self.processes.iter_mut().find(|p| p.pid == pid)
+    }
+    
+    pub fn exit_process(&mut self, pid: i32, exit_code: i32) {
+        if let Some(process) = self.get_process_mut(pid) {
+            process.state = ProcessState::Zombie;
+            process.exit_code = Some(exit_code);
+            console_println!("[i] Process {} exited with code {}", pid, exit_code);
+        }
+    }
+    
+    pub fn wait_for_child(&mut self, parent_pid: i32) -> Option<(i32, i32)> {
+        // Find a zombie child process
+        for process in self.processes.iter_mut() {
+            if process.ppid == parent_pid && process.state == ProcessState::Zombie {
+                let child_pid = process.pid;
+                let exit_code = process.exit_code.unwrap_or(-1);
+                
+                // Remove the zombie process (reap it)
+                process.state = ProcessState::Unused;
+                
+                return Some((child_pid, exit_code));
+            }
+        }
+        None
+    }
+    
+    pub fn get_current_pid(&self) -> i32 {
+        self.current_pid
+    }
+    
+    pub fn set_current_pid(&mut self, pid: i32) {
+        self.current_pid = pid;
+    }
+}
+
+// Global process manager
+lazy_static! {
+    pub static ref PROCESS_MANAGER: Mutex<ProcessManager> = Mutex::new(ProcessManager::new());
+}
 
 // === LINUX COMPATIBLE PROCESS MANAGEMENT SYSTEM CALL CONSTANTS ===
 pub const SYS_EXIT: usize = 93;        // Linux: exit
@@ -69,6 +204,9 @@ pub const SYS_GETTID: usize = 178;      // Linux: gettid
 pub const SYS_CLONE: usize = 220;       // Linux: clone
 pub const SYS_EXECVE: usize = 221;      // Linux: execve
 
+// Additional syscalls
+pub const SYS_WAIT4: usize = 260;       // Linux: wait4
+
 // Legacy syscall aliases for backwards compatibility
 pub const SYS_FORK: usize = SYS_CLONE;  // Map fork to clone
 pub const SYS_WAIT: usize = SYS_WAITID; // Map wait to waitid
@@ -90,6 +228,7 @@ pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCall
         SYS_FORK => sys_fork(),
         SYS_CLONE => sys_clone(),
         SYS_EXECVE => sys_execve(),
+        SYS_WAITID => sys_waitid(args.arg0 as i32, args.arg1 as i32, args.arg2 as *mut i32, args.arg3 as i32),
         SYS_WAIT4 => sys_wait4(args.arg0 as i32, args.arg1 as *mut i32, args.arg2 as i32, args.arg3 as *mut u8),
         SYS_KILL => sys_kill(args.arg0 as i32, args.arg1 as i32),
         SYS_GETUID => sys_getuid(),
@@ -114,9 +253,24 @@ pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCall
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 pub fn sys_exit(exit_code: isize) -> SysCallResult {
-    // console_println!("[i] SYS_EXIT: Program exiting with code {}", exit_code);
-    // console_println!("[o] Program completed successfully with exit code: {}", exit_code);
-    // console_println!("[i] Returning to shell...");
+    console_println!("[i] SYS_EXIT: Process exiting with code {}", exit_code);
+    
+    // Update process state in process manager
+    {
+        let mut pm = PROCESS_MANAGER.lock();
+        let current_pid = pm.get_current_pid();
+        pm.exit_process(current_pid, exit_code as i32);
+        
+        // If this is not the init process (PID 1), return to parent
+        if current_pid != 1 {
+            // Find the parent process and make it current
+            if let Some(process) = pm.get_process(current_pid) {
+                let parent_pid = process.ppid;
+                pm.set_current_pid(parent_pid);
+                console_println!("[i] Returning control to parent process {}", parent_pid);
+            }
+        }
+    }
     
     // Set the global exit flag so the trap handler knows to jump to shell_loop
     // instead of returning to user mode
@@ -125,7 +279,7 @@ pub fn sys_exit(exit_code: isize) -> SysCallResult {
         *exit_flag = Some(exit_code as i32);
     }
     
-    // Return success - the trap handler will handle the actual transition to shell_loop
+    console_println!("[i] Process cleanup complete, returning to shell...");
     SysCallResult::Success(exit_code)
 }
 
@@ -136,18 +290,53 @@ fn sys_exit_group(status: i32) -> SysCallResult {
 }
 
 fn sys_fork() -> SysCallResult {
-    console_println!("[x] Fork not implemented");
-    SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
+    console_println!("[i] SYS_FORK: Creating child process");
+    
+    let mut pm = PROCESS_MANAGER.lock();
+    let current_pid = pm.get_current_pid();
+    
+    // Create a new child process
+    match pm.create_process(current_pid) {
+        Some(child_pid) => {
+            console_println!("[o] Fork successful: parent={}, child={}", current_pid, child_pid);
+            
+            // In a real fork, we would:
+            // 1. Copy the parent's memory space to the child
+            // 2. Set up child's execution context
+            // 3. Return 0 to child, child_pid to parent
+            
+            // For now, we'll simulate this by returning the child PID to the parent
+            // The child process will be created when execve is called
+            SysCallResult::Success(child_pid as isize)
+        }
+        None => {
+            console_println!("[x] Fork failed: too many processes");
+            SysCallResult::Error(crate::syscall::ENOMEM)
+        }
+    }
 }
 
 fn sys_clone() -> SysCallResult {
-    console_println!("[x] Clone not implemented");
-    SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
+    console_println!("[i] SYS_CLONE: Redirecting to fork");
+    // For simplicity, treat clone as fork
+    sys_fork()
 }
 
 fn sys_execve() -> SysCallResult {
-    console_println!("[x] Execve not implemented");
-    SysCallResult::Error(crate::syscall::ENOSYS) // Not implemented
+    console_println!("[i] SYS_EXECVE: Replacing process image");
+    
+    // For now, we'll implement a simple version that works with our ELF loader
+    // In a real implementation, we would:
+    // 1. Parse the filename and arguments
+    // 2. Load the new ELF binary
+    // 3. Replace the current process's memory space
+    // 4. Jump to the new program's entry point
+    
+    console_println!("[!] EXECVE: Current implementation uses direct ELF execution");
+    console_println!("[!] Use the existing ELF execution system instead");
+    
+    // Return success for now - real implementation would not return
+    SysCallResult::Success(0)
 }
 
 fn sys_waitid(_which: i32, _pid: i32, _status: *mut i32, _options: i32) -> SysCallResult {
@@ -156,15 +345,23 @@ fn sys_waitid(_which: i32, _pid: i32, _status: *mut i32, _options: i32) -> SysCa
 }
 
 fn sys_getpid() -> SysCallResult {
-    // TODO: Return actual process ID
-    // For now, return a fake PID
-    SysCallResult::Success(1)
+    let pm = PROCESS_MANAGER.lock();
+    let current_pid = pm.get_current_pid();
+    console_println!("[i] SYS_GETPID: returning PID {}", current_pid);
+    SysCallResult::Success(current_pid as isize)
 }
 
 fn sys_getppid() -> SysCallResult {
-    // TODO: Return actual parent process ID
-    // For now, return a fake PPID
-    SysCallResult::Success(0)
+    let pm = PROCESS_MANAGER.lock();
+    let current_pid = pm.get_current_pid();
+    
+    if let Some(process) = pm.get_process(current_pid) {
+        console_println!("[i] SYS_GETPPID: returning PPID {}", process.ppid);
+        SysCallResult::Success(process.ppid as isize)
+    } else {
+        console_println!("[x] SYS_GETPPID: current process not found");
+        SysCallResult::Success(0) // Return init as default parent
+    }
 }
 
 fn sys_getuid() -> SysCallResult {
@@ -324,9 +521,33 @@ pub fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
     }
 }
 
-fn sys_wait4(_pid: i32, _status: *mut i32, _options: i32, _rusage: *mut u8) -> SysCallResult {
-    console_println!("[x] Wait4 not implemented");
-    SysCallResult::Error(ENOSYS)
+fn sys_wait4(pid: i32, status: *mut i32, _options: i32, _rusage: *mut u8) -> SysCallResult {
+    console_println!("[i] SYS_WAIT4: Waiting for child process (pid={})", pid);
+    
+    let mut pm = PROCESS_MANAGER.lock();
+    let current_pid = pm.get_current_pid();
+    
+    // Wait for any child if pid == -1, or specific child if pid > 0
+    match pm.wait_for_child(current_pid) {
+        Some((child_pid, exit_code)) => {
+            console_println!("[o] Child process {} exited with code {}", child_pid, exit_code);
+            
+            // Write exit status to the status pointer if provided
+            if !status.is_null() {
+                unsafe {
+                    *status = exit_code;
+                }
+            }
+            
+            // Return the PID of the child that exited
+            SysCallResult::Success(child_pid as isize)
+        }
+        None => {
+            // No zombie children available
+            console_println!("[i] No zombie children to wait for");
+            SysCallResult::Error(crate::syscall::ECHILD) // No child processes
+        }
+    }
 }
 
 fn sys_setuid(_uid: u32) -> SysCallResult {

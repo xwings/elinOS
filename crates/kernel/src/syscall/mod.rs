@@ -166,7 +166,7 @@ pub fn get_syscall_category(syscall_num: usize) -> &'static str {
         23..=33 | 59 => "Device and I/O Management",
         
         // Process management (Linux numbers) - non-overlapping ranges
-        93..=100 | 129..=178 | 220..=221 => "Process Management",
+        93..=100 | 129..=178 | 220..=221 | 260 => "Process Management",
         
         // Time operations (Linux numbers) - non-overlapping ranges  
         101..=115 => "Time and Timer Operations",
@@ -232,7 +232,8 @@ pub fn handle_syscall(args: SyscallArgs) -> SysCallResult {
         => memory::handle_memory_syscall(&args),
         
         // === PROCESS MANAGEMENT (Linux numbers - third range) ===
-        220..=221      // clone, execve
+        220..=221 |    // clone, execve
+        260            // wait4
         => process::handle_process_syscall(syscall_num, &args),
         
         // === SYSTEM INFORMATION (Linux numbers) ===
@@ -307,7 +308,7 @@ pub fn sys_show_categories() -> Result<(), &'static str> {
     sys_print("  Process Management:\n")?;
     sys_print("    93-100: exit/waitid/futex/getpid/getppid/kill/etc\n")?;
     sys_print("    129-178: kill/getpid/getppid/etc\n")?;
-    sys_print("    220-221: clone/execve\n")?;
+    sys_print("    220-221: clone/execve, 260: wait4\n")?;
     sys_print("  Device and I/O Management:\n")?;
     sys_print("    23-33: dup/dup3/fcntl/ioctl/flock/mknodat/etc\n")?;
     sys_print("    59: pipe2, 950: getdevices (elinOS-specific)\n")?;
