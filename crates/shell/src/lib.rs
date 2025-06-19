@@ -10,6 +10,15 @@ use heapless::{String, Vec};
 pub mod commands;
 pub mod parser;
 
+/// Escape sequences for terminal input
+#[derive(Debug, Clone, Copy)]
+enum EscapeSequence {
+    UpArrow,
+    DownArrow,
+    LeftArrow,
+    RightArrow,
+}
+
 /// Maximum length for command buffer
 pub const MAX_COMMAND_LEN: usize = 1024;
 
@@ -70,6 +79,8 @@ pub struct Shell<I: ShellInterface> {
     config: ShellConfig,
     command_buffer: Vec<u8, MAX_COMMAND_LEN>,
     history: Vec<String<MAX_COMMAND_LEN>, MAX_HISTORY_ENTRIES>,
+    history_index: Option<usize>,  // Current position in history navigation
+    current_input: String<MAX_COMMAND_LEN>,  // Store current input when navigating history
 }
 
 impl<I: ShellInterface> Shell<I> {
@@ -80,6 +91,8 @@ impl<I: ShellInterface> Shell<I> {
             config: ShellConfig::default(),
             command_buffer: Vec::new(),
             history: Vec::new(),
+            history_index: None,
+            current_input: String::new(),
         };
         
         // Load history from filesystem
@@ -97,6 +110,8 @@ impl<I: ShellInterface> Shell<I> {
             config,
             command_buffer: Vec::new(),
             history: Vec::new(),
+            history_index: None,
+            current_input: String::new(),
         };
         
         // Load history from filesystem
@@ -161,9 +176,11 @@ impl<I: ShellInterface> Shell<I> {
         }
     }
     
-    /// Read a command from input (safe character handling)
+    /// Read a command from input with history navigation support
     fn read_command(&mut self) -> Result<(), &'static str> {
         self.command_buffer.clear();
+        self.history_index = None;  // Reset history navigation
+        self.current_input.clear();
         
         loop {
             let ch = self.interface.read_char();
@@ -177,12 +194,46 @@ impl<I: ShellInterface> Shell<I> {
                     if !self.command_buffer.is_empty() {
                         self.command_buffer.pop();
                         self.interface.print("\x08 \x08")?;  // Move back, print space, move back
+                        
+                        // Update current_input if we're not navigating history
+                        if self.history_index.is_none() {
+                            if let Ok(current_str) = core::str::from_utf8(&self.command_buffer) {
+                                self.current_input.clear();
+                                let _ = self.current_input.push_str(current_str);
+                            }
+                        }
+                    }
+                }
+                b'\x1b' => {  // ESC - start of escape sequence
+                    if let Some(sequence) = self.read_escape_sequence()? {
+                        match sequence {
+                            EscapeSequence::UpArrow => {
+                                self.navigate_history_up()?;
+                            }
+                            EscapeSequence::DownArrow => {
+                                self.navigate_history_down()?;
+                            }
+                            _ => {
+                                // Ignore other escape sequences for now
+                            }
+                        }
                     }
                 }
                 b' '..=b'~' => {  // Printable ASCII
                     if self.command_buffer.len() < self.config.max_command_len - 1 {
                         if self.command_buffer.push(ch).is_ok() {
                             self.interface.print(core::str::from_utf8(&[ch]).unwrap_or("?"))?;
+                            
+                            // Update current_input if we're not navigating history
+                            if self.history_index.is_none() {
+                                if let Ok(current_str) = core::str::from_utf8(&self.command_buffer) {
+                                    self.current_input.clear();
+                                    let _ = self.current_input.push_str(current_str);
+                                }
+                            } else {
+                                // User started typing while in history mode - exit history mode
+                                self.history_index = None;
+                            }
                         }
                     }
                 }
@@ -192,6 +243,135 @@ impl<I: ShellInterface> Shell<I> {
             }
         }
         
+        Ok(())
+    }
+    
+    /// Read escape sequence for arrow keys
+    fn read_escape_sequence(&self) -> Result<Option<EscapeSequence>, &'static str> {
+        // Read the next character after ESC
+        let ch1 = self.interface.read_char();
+        if ch1 != b'[' {
+            return Ok(None);  // Not a standard escape sequence
+        }
+        
+        // Read the final character
+        let ch2 = self.interface.read_char();
+        match ch2 {
+            b'A' => Ok(Some(EscapeSequence::UpArrow)),
+            b'B' => Ok(Some(EscapeSequence::DownArrow)),
+            b'C' => Ok(Some(EscapeSequence::RightArrow)),
+            b'D' => Ok(Some(EscapeSequence::LeftArrow)),
+            _ => Ok(None),  // Unknown escape sequence
+        }
+    }
+    
+    /// Navigate up in command history
+    fn navigate_history_up(&mut self) -> Result<(), &'static str> {
+        if self.history.is_empty() {
+            return Ok(());
+        }
+        
+        // Save current input if we're not already navigating history
+        if self.history_index.is_none() {
+            if let Ok(current_str) = core::str::from_utf8(&self.command_buffer) {
+                self.current_input.clear();
+                let _ = self.current_input.push_str(current_str);
+            }
+        }
+        
+        // Navigate to previous command
+        let new_index = match self.history_index {
+            None => self.history.len() - 1,  // Start from the most recent
+            Some(idx) => {
+                if idx > 0 {
+                    idx - 1
+                } else {
+                    return Ok(());  // Already at oldest command
+                }
+            }
+        };
+        
+        self.history_index = Some(new_index);
+        self.load_history_command(new_index)?;
+        Ok(())
+    }
+    
+    /// Navigate down in command history
+    fn navigate_history_down(&mut self) -> Result<(), &'static str> {
+        if self.history.is_empty() {
+            return Ok(());
+        }
+        
+        match self.history_index {
+            None => Ok(()),  // Not in history mode
+            Some(idx) => {
+                if idx + 1 < self.history.len() {
+                    // Move to next command in history
+                    let new_index = idx + 1;
+                    self.history_index = Some(new_index);
+                    self.load_history_command(new_index)?;
+                } else {
+                    // Return to current input
+                    self.history_index = None;
+                    self.restore_current_input()?;
+                }
+                Ok(())
+            }
+        }
+    }
+    
+    /// Load a command from history into the command buffer
+    fn load_history_command(&mut self, index: usize) -> Result<(), &'static str> {
+        if let Some(cmd) = self.history.get(index) {
+            // Clear current line
+            self.clear_current_line()?;
+            
+            // Load command into buffer
+            self.command_buffer.clear();
+            for byte in cmd.as_bytes() {
+                if self.command_buffer.push(*byte).is_err() {
+                    break;
+                }
+            }
+            
+            // Display the command
+            self.interface.print(cmd)?;
+        }
+        Ok(())
+    }
+    
+    /// Restore current input when exiting history navigation
+    fn restore_current_input(&mut self) -> Result<(), &'static str> {
+        // Clear current line
+        self.clear_current_line()?;
+        
+        // Load current input into buffer
+        self.command_buffer.clear();
+        for byte in self.current_input.as_bytes() {
+            if self.command_buffer.push(*byte).is_err() {
+                break;
+            }
+        }
+        
+        // Display the current input
+        self.interface.print(&self.current_input)?;
+        Ok(())
+    }
+    
+    /// Clear the current line on the terminal
+    fn clear_current_line(&self) -> Result<(), &'static str> {
+        // Move cursor to beginning of line and clear to end
+        self.interface.print("\r")?;
+        self.interface.print(self.config.prompt)?;
+        
+        // Clear rest of line by printing spaces
+        for _ in 0..self.command_buffer.len() {
+            self.interface.print(" ")?;
+        }
+        
+        // Move cursor back to start of input area
+        self.interface.print("\r")?;
+        self.interface.print(self.config.prompt)?;
         Ok(())
     }
     

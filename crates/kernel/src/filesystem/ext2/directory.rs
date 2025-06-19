@@ -469,7 +469,7 @@ impl DirectoryManager {
             
             // Validate entry
             if inode_num == 0 {
-                console_println!("   [x] Invalid entry (inode=0), breaking");
+                // console_println!("   [x] Invalid entry (inode=0), breaking");
                 break;
             }
             
