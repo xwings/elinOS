@@ -309,15 +309,15 @@ impl FileSystem for Ext2FileSystem {
         
         let (parent_inode, filename) = self.resolve_path_to_parent_and_filename(path)?;
         
-        // Remove directory entry
+                // Remove directory entry
         {
             let sb_mgr = &self.superblock_mgr;
             let inode_mgr = &self.inode_mgr;
             self.directory_mgr.remove_directory_entry(parent_inode, &filename, sb_mgr, inode_mgr)?;
         }
-        
+
         // Free blocks and inode
-        self.block_mgr.free_inode_blocks(&inode)?;
+        self.block_mgr.free_inode_blocks(&inode, &mut self.superblock_mgr)?;
         self.inode_mgr.free_inode(inode_num, &self.superblock_mgr)?;
         
         Ok(())
@@ -342,15 +342,15 @@ impl FileSystem for Ext2FileSystem {
         
         let (parent_inode, dirname) = self.resolve_path_to_parent_and_filename(path)?;
         
-        // Remove directory entry
+                // Remove directory entry
         {
             let sb_mgr = &self.superblock_mgr;
             let inode_mgr = &self.inode_mgr;
             self.directory_mgr.remove_directory_entry(parent_inode, &dirname, sb_mgr, inode_mgr)?;
         }
-        
+
         // Free blocks and inode
-        self.block_mgr.free_inode_blocks(&inode)?;
+        self.block_mgr.free_inode_blocks(&inode, &mut self.superblock_mgr)?;
         self.inode_mgr.free_inode(inode_num, &self.superblock_mgr)?;
         
         Ok(())

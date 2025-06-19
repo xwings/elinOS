@@ -696,7 +696,7 @@ fn cmd_mkdir(path: &str) -> Result<(), &'static str> {
 fn cmd_rm(path: &str) -> Result<(), &'static str> { // For files
     match crate::filesystem::FILESYSTEM.lock().delete_file(path) {
         Ok(()) => {
-            syscall::sys_print("Removed file '")?;
+            syscall::sys_print("[o] Removed file '")?;
             syscall::sys_print(path)?;
             syscall::sys_print("'.\n")?;
             Ok(())
@@ -711,7 +711,7 @@ fn cmd_rm(path: &str) -> Result<(), &'static str> { // For files
 fn cmd_rmdir(path: &str) -> Result<(), &'static str> { // For directories
     match crate::filesystem::FILESYSTEM.lock().delete_directory(path) {
         Ok(()) => {
-            syscall::sys_print("Removed directory '")?;
+            syscall::sys_print("[o] Removed directory '")?;
             syscall::sys_print(path)?;
             syscall::sys_print("'.\n")?;
             Ok(())

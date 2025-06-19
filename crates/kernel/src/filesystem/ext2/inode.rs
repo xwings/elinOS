@@ -158,7 +158,7 @@ impl InodeManager {
         if byte_index < inode_bitmap_data.len() {
             inode_bitmap_data[byte_index] |= 1 << bit_in_byte_index;
             sb_mgr.write_block_data(inode_bitmap_block as u32, &inode_bitmap_data)?;
-            console_println!("allocate_inode: Marked inode {} as used in bitmap.", free_inode_num);
+            //console_println!("allocate_inode: Marked inode {} as used in bitmap.", free_inode_num);
         } else {
             return Err(FilesystemError::CorruptedFilesystem);
         }
@@ -169,7 +169,7 @@ impl InodeManager {
         // Write inode to disk
         self.write_inode(free_inode_num, &new_inode, sb_mgr)?;
         
-        console_println!("[i] Created new inode {} with mode 0x{:04x}", free_inode_num, mode);
+        //console_println!("[i] Created new inode {} with mode 0x{:04x}", free_inode_num, mode);
         Ok(free_inode_num)
     }
     
@@ -181,12 +181,12 @@ impl InodeManager {
             .ok_or(FilesystemError::InvalidSuperblock)?;
 
         if group_desc.bg_free_inodes_count_lo == 0 {
-            console_println!("find_free_inode: No free inodes in group 0 per descriptor.");
+            console_println!("[x] find_free_inode: No free inodes in group 0 per descriptor.");
             return Err(FilesystemError::FilesystemFull);
         }
 
         let inode_bitmap_block = group_desc.bg_inode_bitmap_lo;
-        console_println!("find_free_inode: Reading inode bitmap from block {}", inode_bitmap_block);
+        //console_println!("find_free_inode: Reading inode bitmap from block {}", inode_bitmap_block);
         let inode_bitmap_data = sb_mgr.read_block_data(inode_bitmap_block as u64)?;
 
         // Find free bit in bitmap
@@ -199,14 +199,14 @@ impl InodeManager {
                             continue; // Out of range for this group
                         }
                         let inode_num = bit_index as u32 + 1;
-                        console_println!("find_free_inode: Found free inode bit {} -> inode num {}", bit_index, inode_num);
+                        // console_println!("find_free_inode: Found free inode bit {} -> inode num {}", bit_index, inode_num);
                         return Ok(inode_num);
                     }
                 }
             }
         }
         
-        console_println!("find_free_inode: No free bit found in inode bitmap for group 0.");
+        console_println!("[x] find_free_inode: No free bit found in inode bitmap for group 0.");
         Err(FilesystemError::FilesystemFull)
     }
     
@@ -220,7 +220,7 @@ impl InodeManager {
         self.write_inode(inode_num, &inode, sb_mgr)?;
         
         // TODO: Update inode bitmap
-        console_println!("[i]  Freed inode {}", inode_num);
+        // console_println!("[i]  Freed inode {}", inode_num);
         Ok(())
     }
     

@@ -88,7 +88,7 @@ impl DirectoryManager {
     }
     
     pub fn add_directory_entry(&self, parent_inode: u32, child_inode: u32, name: &str, file_type: u8, sb_mgr: &mut SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("[i] Adding directory entry: {} -> {} (type {})", name, child_inode, file_type);
+        // console_println!("[i] Adding directory entry: {} -> {} (type {})", name, child_inode, file_type);
         
         if name.len() > 255 {
             return Err(FilesystemError::FilenameTooLong);
@@ -149,12 +149,16 @@ impl DirectoryManager {
             // Write back the updated parent inode
             inode_mgr.write_inode(parent_inode, &parent_dir_inode, sb_mgr)?;
             
-            console_println!("[o] Added '{}' to new directory block {}", name, new_block);
+            // console_println!("[o] Added '{}' to new directory block {}", name, new_block);
         } else {
             // Add to existing directory block using entry splitting logic
             let mut block_data = sb_mgr.read_block_data(first_block as u64)?;
             let mut entry_added = false;
             let mut offset = 0;
+            
+            // console_println!("[i] Directory block {} contents before adding '{}':", first_block, name);
+            // console_println!("    Block size: {}, first 32 bytes: {:02x?}", 
+            //                block_data.len(), &block_data[0..32.min(block_data.len())]);
             
             while offset < block_data.len() {
                 if offset + core::mem::size_of::<Ext2DirEntry>() > block_data.len() {
@@ -170,6 +174,19 @@ impl DirectoryManager {
                 let current_inode = dir_entry.inode;
                 
                                 if current_rec_len == 0 {
+                    break;
+                }
+                
+                // Additional validation for corrupted entries
+                if current_rec_len > block_data.len() - offset {
+                    console_println!("[x] rec_len {} exceeds remaining block space {}, breaking", 
+                                    current_rec_len, block_data.len() - offset);
+                    break;
+                }
+                
+                // Sanity check for obviously corrupted rec_len values
+                if current_rec_len > 4096 {  // Block size is typically 1024 or 4096
+                    console_println!("[x] Suspiciously large rec_len {}, breaking", current_rec_len);
                     break;
                 }
                 
@@ -206,8 +223,18 @@ impl DirectoryManager {
                 
                 // Scenario 2: Split current entry if it has enough slack space
                 if current_inode != 0 && current_rec_len >= space_used_by_current + required_rec_len as usize {
-                    console_println!("[i] Splitting entry at offset {} (current_rec_len={}, used={}, needed={})", 
-                                    offset, current_rec_len, space_used_by_current, required_rec_len);
+                    // console_println!("[i] Splitting entry at offset {} (current_rec_len={}, used={}, needed={})", 
+                    //                offset, current_rec_len, space_used_by_current, required_rec_len);
+                    
+                    // Calculate remaining space after splitting
+                    let remaining_space = current_rec_len - space_used_by_current;
+                    
+                    // Validate that remaining space is reasonable
+                    if remaining_space < required_rec_len as usize || remaining_space > block_data.len() {
+                        console_println!("[x] Invalid remaining space {} for split, skipping", remaining_space);
+                        offset += current_rec_len;
+                        continue;
+                    }
                     
                     // Shorten the current entry to its actual size
                     unsafe {
@@ -217,7 +244,13 @@ impl DirectoryManager {
                     
                     // Create new entry in the freed space
                     let new_entry_offset = offset + space_used_by_current;
-                    let remaining_space = current_rec_len - space_used_by_current;
+                    
+                    // Validate new entry offset
+                    if new_entry_offset + core::mem::size_of::<Ext2DirEntry>() > block_data.len() {
+                        console_println!("[x] New entry offset {} would exceed block boundary", new_entry_offset);
+                        offset += current_rec_len;
+                        continue;
+                    }
                     
                     let new_entry = Ext2DirEntry {
                         inode: child_inode,
@@ -234,14 +267,25 @@ impl DirectoryManager {
                     
                     // Write the filename
                     let name_start = new_entry_offset + core::mem::size_of::<Ext2DirEntry>();
-                    for (i, &byte) in name_bytes.iter().enumerate() {
-                        if name_start + i < block_data.len() {
+                    if name_start + name_bytes.len() <= block_data.len() {
+                        for (i, &byte) in name_bytes.iter().enumerate() {
                             block_data[name_start + i] = byte;
                         }
+                        
+                        // Zero out any remaining space in the entry for cleanliness
+                        let name_end = name_start + name_bytes.len();
+                        let entry_end = new_entry_offset + remaining_space;
+                        for i in name_end..entry_end {
+                            if i < block_data.len() {
+                                block_data[i] = 0;
+                            }
+                        }
+                        
+                        entry_added = true;
+                        break;
+                    } else {
+                        console_println!("[x] Name would exceed block boundary at offset {}", name_start);
                     }
-                    
-                    entry_added = true;
-                    break;
                 }
                 
                 // Move to next entry, but check if this is the last entry
@@ -253,8 +297,11 @@ impl DirectoryManager {
             }
             
             if entry_added {
+                // console_println!("[i] Directory block {} contents after adding '{}':", first_block, name);
+                // console_println!("    First 32 bytes: {:02x?}", &block_data[0..32.min(block_data.len())]);
+                
                 sb_mgr.write_block_data(first_block, &block_data)?;
-                console_println!("[o] Added '{}' to existing directory block {}", name, first_block);
+                // console_println!("[o] Added '{}' to existing directory block {}", name, first_block);
             } else {
                 console_println!("[x] No space found in directory block for '{}'", name);
                 return Err(FilesystemError::FilesystemFull);
@@ -296,7 +343,7 @@ impl DirectoryManager {
             // Write the updated block back to disk
             sb_mgr.write_block_data(first_block, &block_data)?;
             
-            console_println!("[o] Successfully removed directory entry '{}' from inode {}", name, parent_inode);
+            // console_println!("[o] Successfully removed directory entry '{}' from inode {}", name, parent_inode);
             Ok(())
         } else {
             console_println!("[x] Entry '{}' not found in directory inode {}", name, parent_inode);
@@ -332,7 +379,7 @@ impl DirectoryManager {
                 let name_bytes = &block_data[name_start..name_end];
                 if let Ok(name_str) = core::str::from_utf8(name_bytes) {
                     if name_str == target_name {
-                        console_println!("[i] Found target entry '{}' at offset {}, marking as deleted", target_name, offset);
+                        // console_println!("[i] Found target entry '{}' at offset {}, marking as deleted", target_name, offset);
                         
                         // Mark the entry as deleted by setting inode to 0
                         unsafe {
@@ -341,7 +388,7 @@ impl DirectoryManager {
                             // Keep rec_len and other fields for proper directory traversal
                         }
                         
-                        console_println!("[i]  Entry '{}' marked as deleted (inode=0)", target_name);
+                        //console_println!("[i]  Entry '{}' marked as deleted (inode=0)", target_name);
                         return Ok(());
                     }
                 }
@@ -359,7 +406,7 @@ impl DirectoryManager {
     }
     
     pub fn create_dot_entries(&self, dir_inode: u32, parent_inode: u32, sb_mgr: &mut SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("[i] Creating . and .. entries for inode {}", dir_inode);
+        //console_println!("[i] Creating . and .. entries for inode {}", dir_inode);
         
         // Add "." entry (current directory)
         self.add_directory_entry(dir_inode, dir_inode, ".", EXT2_FT_DIR, sb_mgr, inode_mgr)?;
@@ -367,7 +414,7 @@ impl DirectoryManager {
         // Add ".." entry (parent directory)
         self.add_directory_entry(dir_inode, parent_inode, "..", EXT2_FT_DIR, sb_mgr, inode_mgr)?;
         
-        console_println!("[o] Created . and .. entries for directory inode {}", dir_inode);
+        //console_println!("[o] Created . and .. entries for directory inode {}", dir_inode);
         Ok(())
     }
     
@@ -579,7 +626,7 @@ impl DirectoryManager {
             offset += rec_len;
         }
         
-        console_println!("      [x] No match found in block");
+        // console_println!("      [x] No match found in block");
         Ok(None)
     }
     

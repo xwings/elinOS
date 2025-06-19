@@ -268,20 +268,57 @@ impl SuperblockManager {
         // For now, use a simple incrementing counter starting from block 1000
         // In a real implementation, you'd check the block bitmap
         
+        use spin::Mutex;
+        use heapless::FnvIndexSet;
+        
+        static ALLOCATED_BLOCKS: Mutex<FnvIndexSet<u32, 1024>> = Mutex::new(FnvIndexSet::new());
         static mut NEXT_BLOCK: u32 = 1000;
         
         unsafe {
-            let block_num = NEXT_BLOCK;
-            NEXT_BLOCK += 1;
+            let mut allocated = ALLOCATED_BLOCKS.lock();
             
-            // Simple validation - don't exceed reasonable limits
-            if block_num > 100000 {
-                return Err(FilesystemError::FilesystemFull);
+            // Find the next available block
+            loop {
+                let block_num = NEXT_BLOCK;
+                NEXT_BLOCK += 1;
+                
+                // Simple validation - don't exceed reasonable limits
+                if block_num > 100000 {
+                    return Err(FilesystemError::FilesystemFull);
+                }
+                
+                // Check if this block is already allocated
+                if !allocated.contains(&block_num) {
+                    // Mark as allocated
+                    if allocated.insert(block_num).is_ok() {
+                        // console_println!("[i] Allocated block {}", block_num);
+                        return Ok(block_num);
+                    } else {
+                        console_println!("[!] Block allocation table full");
+                        return Err(FilesystemError::FilesystemFull);
+                    }
+                }
+                
+                // This block is already allocated, try the next one
+                //console_println!("[i] Block {} already allocated, trying next", block_num);
             }
-            
-            console_println!("[i] Allocated block {}", block_num);
-            Ok(block_num)
         }
+    }
+    
+    /// Free a block (simplified implementation)
+    pub fn free_block(&mut self, block_num: u32) -> FilesystemResult<()> {
+        use spin::Mutex;
+        use heapless::FnvIndexSet;
+        
+        static ALLOCATED_BLOCKS: Mutex<FnvIndexSet<u32, 1024>> = Mutex::new(FnvIndexSet::new());
+        
+        let mut allocated = ALLOCATED_BLOCKS.lock();
+        // if allocated.remove(&block_num) {
+        //     console_println!("[i] Freed block {}", block_num);
+        // } else {
+        //     console_println!("[!] Attempted to free unallocated block {}", block_num);
+        // }
+        Ok(())
     }
     
     /// Sync superblock to disk

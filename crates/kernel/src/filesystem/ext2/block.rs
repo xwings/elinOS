@@ -247,10 +247,10 @@ impl BlockManager {
         
         // For traditional direct blocks, check if we need to allocate first block
         let first_block = if inode.i_block[0] == 0 {
-            console_println!("   [i] No blocks allocated, allocating first block");
+            // console_println!("   [i] No blocks allocated, allocating first block");
             let new_block = sb_mgr.allocate_block()?;
             inode.i_block[0] = new_block;
-            console_println!("   [o] Allocated block {} for file", new_block);
+            // console_println!("   [o] Allocated block {} for file", new_block);
             new_block
         } else {
             inode.i_block[0]
@@ -298,9 +298,20 @@ impl BlockManager {
         }
     }
     
-    pub fn free_inode_blocks(&self, inode: &Ext2Inode) -> FilesystemResult<()> {
-        // console_println!("[i]  Freeing blocks for inode");
-        // TODO: Implement actual block freeing
+    pub fn free_inode_blocks(&self, inode: &Ext2Inode, sb_mgr: &mut SuperblockManager) -> FilesystemResult<()> {
+        // console_println!("[i] Freeing blocks for inode");
+        
+        // Free direct blocks
+        // Copy i_block array to avoid packed field alignment issues
+        let i_block_copy = inode.i_block;
+        for &block_num in i_block_copy.iter().take(12) {
+            if block_num != 0 {
+                sb_mgr.free_block(block_num)?;
+            }
+        }
+        
+        // TODO: Handle indirect blocks when implemented
+        
         Ok(())
     }
     
