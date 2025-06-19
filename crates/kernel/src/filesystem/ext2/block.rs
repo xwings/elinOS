@@ -22,20 +22,20 @@ impl BlockManager {
     }
     
     pub fn init(&mut self, _sb_mgr: &SuperblockManager) -> FilesystemResult<()> {
-        // console_println!("🧱 Block manager initialized");
+        // console_println!("[i] Block manager initialized");
         Ok(())
     }
     
     pub fn read_file_content(&self, inode: &Ext2Inode, file_size: usize, sb_mgr: &SuperblockManager) -> FilesystemResult<Vec<u8, 8192>> {
-        console_println!("🔍Reading file content of size {}", file_size);
+        // console_println!("🔍Reading file content of size {}", file_size);
         
         // Copy flags and first block to avoid packed field issues
         let i_flags = inode.i_flags;
         let i_blocks_lo = inode.i_blocks_lo;
         let first_block = inode.i_block[0];
         
-        console_println!("   [i]  File details: size={}, blocks={}, first_block={}, uses_extents={}", 
-            file_size, i_blocks_lo, first_block, (i_flags & EXT2_EXTENTS_FL) != 0);
+        //console_println!("   [i]  File details: size={}, blocks={}, first_block={}, uses_extents={}", 
+        //    file_size, i_blocks_lo, first_block, (i_flags & EXT2_EXTENTS_FL) != 0);
         
         // If file size is 0 but blocks are allocated, there might be content to read
         // This can happen if the file was created but size wasn't updated properly
@@ -157,7 +157,7 @@ impl BlockManager {
             }
         }
         
-        console_println!("   [o] Read {} bytes from extent-based file", bytes_read);
+        // console_println!("   [o] Read {} bytes from extent-based file", bytes_read);
         Ok(file_content)
     }
     
@@ -177,12 +177,12 @@ impl BlockManager {
             // console_println!("   [i] Block {}: {}", i, block_num);
             
             if block_num == 0 {
-                console_println!("   [!]  Block {} is 0, stopping", i);
+                //console_println!("   [!]  Block {} is 0, stopping", i);
                 break;
             }
             
             if bytes_read >= file_size {
-                console_println!("   [o] Read enough bytes ({}), stopping", bytes_read);
+                // console_println!("   [o] Read enough bytes ({}), stopping", bytes_read);
                 break;
             }
             
@@ -192,10 +192,10 @@ impl BlockManager {
                 continue;
             }
             
-            console_println!("   [i]  Reading block {} from disk", block_num);
+            // console_println!("   [i]  Reading block {} from disk", block_num);
             let block_data = match sb_mgr.read_block_data(block_num as u64) {
                 Ok(data) => {
-                    console_println!("   [o] Successfully read block {}, got {} bytes", block_num, data.len());
+                    // console_println!("   [o] Successfully read block {}, got {} bytes", block_num, data.len());
                     data
                 },
                 Err(e) => {
@@ -221,24 +221,91 @@ impl BlockManager {
             // console_println!("   [i]  Total bytes read so far: {}", bytes_read);
         }
         
-        console_println!("   [o] Read {} bytes from block-based file", bytes_read);
+        // console_println!("   [o] Read {} bytes from block-based file", bytes_read);
         Ok(file_content)
     }
     
-    pub fn write_file_content(&self, inode: &mut Ext2Inode, offset: u64, data: &[u8]) -> FilesystemResult<usize> {
-        // console_println!("✏️  Writing {} bytes at offset {}", data.len(), offset);
-        // TODO: Implement actual file writing
-        Ok(data.len())
+    pub fn write_file_content(&self, inode: &mut Ext2Inode, offset: u64, data: &[u8], sb_mgr: &mut SuperblockManager) -> FilesystemResult<usize> {
+        // console_println!("✏️  Writing {} bytes at offset {} to inode", data.len(), offset);
+        
+        if data.is_empty() {
+            return Ok(0);
+        }
+        
+        // For simplicity, only support writing from offset 0 for now
+        if offset != 0 {
+            console_println!("   [!] Only offset 0 writing supported currently");
+            return Err(FilesystemError::NotImplemented);
+        }
+        
+        // Check if file uses extents (not supported for writing yet)
+        let i_flags = inode.i_flags;
+        if (i_flags & EXT2_EXTENTS_FL) != 0 {
+            console_println!("   [!] Writing to extent-based files not yet supported");
+            return Err(FilesystemError::NotImplemented);
+        }
+        
+        // For traditional direct blocks, check if we need to allocate first block
+        let first_block = if inode.i_block[0] == 0 {
+            console_println!("   [i] No blocks allocated, allocating first block");
+            let new_block = sb_mgr.allocate_block()?;
+            inode.i_block[0] = new_block;
+            console_println!("   [o] Allocated block {} for file", new_block);
+            new_block
+        } else {
+            inode.i_block[0]
+        };
+        
+        // console_println!("   [i] Writing to block {}", first_block);
+        
+        // Read existing block data or create empty block
+        let mut block_data = if inode.get_size() == 0 {
+            // New file, create empty block
+            let mut empty_block = Vec::new();
+            for _ in 0..sb_mgr.get_block_size() {
+                empty_block.push(0).map_err(|_| FilesystemError::FilesystemFull)?;
+            }
+            empty_block
+        } else {
+            // Existing file, read current block data
+            match sb_mgr.read_block_data(first_block as u64) {
+                Ok(data) => data,
+                Err(e) => {
+                    console_println!("   [x] Failed to read existing block data: {:?}", e);
+                    return Err(e);
+                }
+            }
+        };
+        
+        // Copy new data into block
+        let bytes_to_write = core::cmp::min(data.len(), block_data.len());
+        block_data[..bytes_to_write].copy_from_slice(&data[..bytes_to_write]);
+        
+        // Write block back to disk
+        match sb_mgr.write_block_data(first_block as u32, &block_data) {
+            Ok(()) => {
+                // console_println!("   [o] Successfully wrote {} bytes to block {}", bytes_to_write, first_block);
+                
+                // Update inode size
+                inode.set_size(bytes_to_write as u64);
+                
+                Ok(bytes_to_write)
+            }
+            Err(e) => {
+                console_println!("   [x] Failed to write block data: {:?}", e);
+                Err(e)
+            }
+        }
     }
     
     pub fn free_inode_blocks(&self, inode: &Ext2Inode) -> FilesystemResult<()> {
-        // console_println!("🗑️  Freeing blocks for inode");
+        // console_println!("[i]  Freeing blocks for inode");
         // TODO: Implement actual block freeing
         Ok(())
     }
     
     pub fn truncate_file(&self, inode: &mut Ext2Inode, new_size: u64) -> FilesystemResult<()> {
-        // console_println!("✂️  Truncating file to {} bytes", new_size);
+        // console_println!("[i] Truncating file to {} bytes", new_size);
         inode.set_size(new_size);
         Ok(())
     }

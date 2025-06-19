@@ -118,6 +118,18 @@ impl Ext2FileSystem {
         
         Ok((parent_inode, filename))
     }
+    
+    /// Get a file entry for an existing file (public method)
+    pub fn get_file_entry(&self, path: &str) -> FilesystemResult<FileEntry> {
+        let inode_num = self.resolve_path_to_inode(path)?;
+        let inode = self.inode_mgr.read_inode(inode_num, &self.superblock_mgr)?;
+        
+        if self.directory_mgr.is_directory(&inode) {
+            FileEntry::new_directory(path, inode_num as u64)
+        } else {
+            FileEntry::new_file(path, inode_num as u64, self.inode_mgr.get_file_size(&inode))
+        }
+    }
 }
 
 impl FileSystem for Ext2FileSystem {
@@ -277,7 +289,7 @@ impl FileSystem for Ext2FileSystem {
         let inode_num = file.inode as u32;
         let mut inode = self.inode_mgr.read_inode(inode_num, &self.superblock_mgr)?;
         
-        let bytes_written = self.block_mgr.write_file_content(&mut inode, offset, data)?;
+        let bytes_written = self.block_mgr.write_file_content(&mut inode, offset, data, &mut self.superblock_mgr)?;
         self.inode_mgr.write_inode(inode_num, &inode, &self.superblock_mgr)?;
         
         Ok(bytes_written)

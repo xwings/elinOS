@@ -457,33 +457,33 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
             let fs_info = fs.get_filesystem_info();
             drop(fs);
             
-            syscall::sys_print("[i] Filesystem contents (VirtIO disk):\n")?;
-            syscall::sys_print("Type: ")?;
-            match fs_type {
-                crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
-                crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
-                crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
-            }
-            syscall::sys_print("\n")?;
+            //syscall::sys_print("[i] Filesystem contents (VirtIO disk):\n")?;
+            //syscall::sys_print("Type: ")?;
+            //match fs_type {
+            //    crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
+            //    crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
+            //    crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
+            //}
+            // syscall::sys_print("\n")?;
             
-            if let Some((signature, _total_blocks, _block_size)) = fs_info {
-                syscall::sys_print("Boot signature/Magic: 0x")?;
-                // Simple hex output without format!
-                let hex_chars = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f'];
-                let mut hex_str = [0u8; 4];
-                hex_str[0] = hex_chars[((signature >> 12) & 0xF) as usize];
-                hex_str[1] = hex_chars[((signature >> 8) & 0xF) as usize];
-                hex_str[2] = hex_chars[((signature >> 4) & 0xF) as usize];
-                hex_str[3] = hex_chars[(signature & 0xF) as usize];
-                syscall::sys_print(core::str::from_utf8(&hex_str).unwrap_or("????"))?;
-                syscall::sys_print("\n")?;
+            // if let Some((signature, _total_blocks, _block_size)) = fs_info {
+            //     //syscall::sys_print("Boot signature/Magic: 0x")?;
+            //     // Simple hex output without format!
+            //     let hex_chars = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f'];
+            //     let mut hex_str = [0u8; 4];
+            //     hex_str[0] = hex_chars[((signature >> 12) & 0xF) as usize];
+            //     hex_str[1] = hex_chars[((signature >> 8) & 0xF) as usize];
+            //     hex_str[2] = hex_chars[((signature >> 4) & 0xF) as usize];
+            //     hex_str[3] = hex_chars[(signature & 0xF) as usize];
+            //     syscall::sys_print(core::str::from_utf8(&hex_str).unwrap_or("????"))?;
+            //     syscall::sys_print("\n")?;
                 
-                syscall::sys_print("Total blocks/sectors: ")?;
-                syscall::sys_print("(numeric display not implemented)\n")?;
-                syscall::sys_print("Block/sector size: ")?;
-                syscall::sys_print("(numeric display not implemented)\n")?;
-                syscall::sys_print("\n")?;
-            }
+            //     // syscall::sys_print("Total blocks/sectors: ")?;
+            //     // syscall::sys_print("(numeric display not implemented)\n")?;
+            //     // syscall::sys_print("Block/sector size: ")?;
+            //     // syscall::sys_print("(numeric display not implemented)\n")?;
+            //     syscall::sys_print("\n")?;
+            // }
             
             if files.is_empty() {
                 syscall::sys_print("(No files found)\n")?;
@@ -526,16 +526,16 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
             
             syscall::sys_print("[i] Reading file: ")?;
             syscall::sys_print(filename)?;
-            syscall::sys_print(" (from ")?;
-            match fs_type {
-                crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
-                crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
-                crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
-            }
-            syscall::sys_print(" filesystem)\n")?;
+            // syscall::sys_print(" (from ")?;
+            // match fs_type {
+            //     crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
+            //     crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
+            //     crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
+            // }
+            // syscall::sys_print(" filesystem)\n")?;
             
             if let Ok(content_str) = core::str::from_utf8(&content) {
-                syscall::sys_print("Content:\n")?;
+                syscall::sys_print(" ontent:\n")?;
                 syscall::sys_print(content_str)?;
                 syscall::sys_print("\n")?;
             } else {

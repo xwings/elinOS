@@ -279,7 +279,7 @@ impl SuperblockManager {
                 return Err(FilesystemError::FilesystemFull);
             }
             
-            console_println!("🧱 Allocated block {}", block_num);
+            console_println!("[i] Allocated block {}", block_num);
             Ok(block_num)
         }
     }

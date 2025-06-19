@@ -27,6 +27,7 @@ pub enum FilesystemError {
     DirectoryNotEmpty,
     PathNotFound,
     InvalidFileNameCharacter,
+    NotImplemented,
     Other(heapless::String<64>),
 }
 
@@ -53,6 +54,7 @@ impl core::fmt::Display for FilesystemError {
             FilesystemError::DirectoryNotEmpty => write!(f, "Directory not empty"),
             FilesystemError::PathNotFound => write!(f, "Path not found"),
             FilesystemError::InvalidFileNameCharacter => write!(f, "Invalid file name character"),
+            FilesystemError::NotImplemented => write!(f, "Feature not implemented"),
             FilesystemError::Other(ref s) => write!(f, "Other error: {}", s),
         }
     }

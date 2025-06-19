@@ -355,6 +355,48 @@ pub fn file_exists(filename: &str) -> bool {
     fs.file_exists(filename)
 }
 
+/// Get file entry for an existing file (for internal use)
+fn get_file_entry(fs: &UnifiedFileSystem, filename: &str) -> FilesystemResult<FileEntry> {
+    match &fs.filesystem {
+        Filesystem::Fat32(_fs) => {
+            // For FAT32, we need to search through files list
+            // For now, use delete/recreate as fallback
+            Err(FilesystemError::NotImplemented)
+        }
+        Filesystem::Ext2(ext2_fs) => {
+            // Use the public method from ext2 filesystem
+            ext2_fs.get_file_entry(filename)
+        }
+        Filesystem::None => Err(FilesystemError::NotMounted),
+    }
+}
+
+/// Write data to a file (create if it doesn't exist)
+pub fn write_file(filename: &str, content: &str) -> FilesystemResult<()> {
+    let mut fs = FILESYSTEM.lock();
+    
+    let file_entry = if fs.file_exists(filename) {
+        // Try to get existing file entry efficiently
+        match get_file_entry(&fs, filename) {
+            Ok(entry) => entry,
+            Err(_) => {
+                // Fallback: delete and recreate
+                fs.delete_file(filename)?;
+                fs.create_file(filename)?
+            }
+        }
+    } else {
+        // Create new file
+        fs.create_file(filename)?
+    };
+    
+    // Write content to file
+    let data = content.as_bytes();
+    fs.write_file(&file_entry, 0, data)?;
+    
+    Ok(())
+}
+
 /// Check filesystem status and display information
 pub fn check_filesystem() -> Result<(), FilesystemError> {
     let fs = FILESYSTEM.lock();

@@ -140,7 +140,7 @@ impl Fat32FileSystem {
         let bytes_per_sector = boot_sector.bytes_per_sector;
         console_println!("   [i] {} total sectors", total_sectors);
         console_println!("   💾 {} bytes per sector", bytes_per_sector);
-        console_println!("   🧱 {} sectors per cluster", boot_sector.sectors_per_cluster);
+        console_println!("   [i] {} sectors per cluster", boot_sector.sectors_per_cluster);
 
         self.boot_sector = Some(boot_sector);
         self.bytes_per_sector = bytes_per_sector;
@@ -163,7 +163,7 @@ impl Fat32FileSystem {
         console_println!("   [i]  FAT starts at sector: {}", self.first_fat_sector);
         console_println!("   [i]  Sectors per FAT: {}", self.sectors_per_fat);
         console_println!("   💾 Data region starts at sector: {}", self.data_region_start_sector);
-        console_println!("   🧱 Total data clusters: {}", self.total_data_clusters);
+        console_println!("   [i] Total data clusters: {}", self.total_data_clusters);
         if let Some(fs_info) = self.fs_info_sector_num {
             console_println!("   [i]  FSInfo sector at: {}", fs_info);
         }
@@ -1177,7 +1177,7 @@ impl FileSystem for Fat32FileSystem {
         // TODO: Implement path parsing and proper directory traversal.
         let filename_str = path;
 
-        console_println!("🗑️ Deleting file '{}' (assumed in root)", filename_str);
+        console_println!("[i] Deleting file '{}' (assumed in root)", filename_str);
 
         let fat_8_3_name_to_find = Self::filename_to_fat_8_3(filename_str)?;
         let dir_start_cluster = self.root_dir_cluster;
@@ -1278,7 +1278,7 @@ impl FileSystem for Fat32FileSystem {
         let dirname_str = path;
         let parent_dir_cluster = self.root_dir_cluster; // Assuming deletion from root
 
-        console_println!("🗑️ Deleting directory '{}' (assumed in root)", dirname_str);
+        console_println!("[i] Deleting directory '{}' (assumed in root)", dirname_str);
 
         let fat_8_3_name_to_find = Self::filename_to_fat_8_3(dirname_str)?;
         
@@ -1419,7 +1419,7 @@ impl FileSystem for Fat32FileSystem {
         }
 
         console_println!(
-            "✂️ Truncating file '{}' (start_cluster: {}) from size {} to new_size {}",
+            "[i]Truncating file '{}' (start_cluster: {}) from size {} to new_size {}",
             file.name,
             file.inode, // inode is start_cluster
             file.size,

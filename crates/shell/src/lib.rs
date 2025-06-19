@@ -16,6 +16,12 @@ pub const MAX_COMMAND_LEN: usize = 1024;
 /// Maximum path length
 pub const MAX_PATH_LEN: usize = 256;
 
+/// Maximum number of history entries
+pub const MAX_HISTORY_ENTRIES: usize = 100;
+
+/// History file path
+pub const HISTORY_FILE_PATH: &str = "/.shell_history";
+
 /// Shell configuration
 pub struct ShellConfig {
     pub prompt: &'static str,
@@ -50,6 +56,12 @@ pub trait ShellInterface {
     
     /// Request system reboot  
     fn request_reboot(&self) -> Result<(), &'static str>;
+    
+    /// Read a file from filesystem
+    fn read_file(&self, path: &str) -> Result<Vec<u8, 4096>, &'static str>;
+    
+    /// Write a file to filesystem
+    fn write_file(&self, path: &str, data: &[u8]) -> Result<(), &'static str>;
 }
 
 /// Main shell structure
@@ -57,25 +69,42 @@ pub struct Shell<I: ShellInterface> {
     interface: I,
     config: ShellConfig,
     command_buffer: Vec<u8, MAX_COMMAND_LEN>,
+    history: Vec<String<MAX_COMMAND_LEN>, MAX_HISTORY_ENTRIES>,
 }
 
 impl<I: ShellInterface> Shell<I> {
     /// Create a new shell instance
     pub fn new(interface: I) -> Self {
-        Self {
+        let mut shell = Self {
             interface,
             config: ShellConfig::default(),
             command_buffer: Vec::new(),
+            history: Vec::new(),
+        };
+        
+        // Load history from filesystem
+        if let Err(_e) = shell.load_history() {
+            // History file might not exist on first run - that's normal
         }
+        
+        shell
     }
     
     /// Create shell with custom config
     pub fn with_config(interface: I, config: ShellConfig) -> Self {
-        Self {
+        let mut shell = Self {
             interface,
             config,
             command_buffer: Vec::new(),
+            history: Vec::new(),
+        };
+        
+        // Load history from filesystem
+        if let Err(_e) = shell.load_history() {
+            // History file might not exist on first run - that's normal
         }
+        
+        shell
     }
     
     /// Show welcome message
@@ -103,13 +132,28 @@ impl<I: ShellInterface> Shell<I> {
             
             // Process command
             if !self.command_buffer.is_empty() {
+                // Convert command buffer to string and clone for processing
                 let command_str = core::str::from_utf8(&self.command_buffer)
                     .map_err(|_| "Invalid UTF-8 in command")?;
+                let command_copy = String::<MAX_COMMAND_LEN>::try_from(command_str.trim())
+                    .map_err(|_| "Command too long")?;
                 
                 // Process the command (this is safe - no trap handling)
-                if let Err(e) = self.process_command(command_str.trim()) {
-                    self.interface.print("Error: ")?;
-                    self.interface.println(e)?;
+                let result = self.process_command(&command_copy);
+                
+                // Add to history if not empty and command processed successfully
+                if !command_copy.is_empty() {
+                    self.add_to_history(&command_copy);
+                }
+                
+                if let Err(e) = result {
+                    // Don't show error for clean exit
+                    if e != "exit_shell" {
+                        self.interface.print("Error: ")?;
+                        self.interface.println(e)?;
+                    } else {
+                        return Err(e);  // Propagate exit request
+                    }
                 }
             }
             
@@ -167,6 +211,7 @@ impl<I: ShellInterface> Shell<I> {
         
         match cmd {
             "help" => self.cmd_help(),
+            "history" => self.cmd_history(),
             "exit" | "quit" => self.cmd_exit(),
             "shutdown" => self.cmd_shutdown(),
             "reboot" => self.cmd_reboot(),
@@ -181,6 +226,7 @@ impl<I: ShellInterface> Shell<I> {
     fn cmd_help(&self) -> Result<(), &'static str> {
         self.interface.println("Built-in Shell Commands:")?;
         self.interface.println("  help     - Show this help message")?;
+        self.interface.println("  history  - Show command history")?;
         self.interface.println("  exit     - Exit the shell")?;
         self.interface.println("  quit     - Exit the shell")?;
         self.interface.println("  shutdown - Shutdown the system")?;
@@ -188,6 +234,56 @@ impl<I: ShellInterface> Shell<I> {
         self.interface.println("")?;
         self.interface.println("System Commands:")?;
         self.interface.println("  Use any system command - they will be passed to the kernel")?;
+        Ok(())
+    }
+    
+    /// History command - show command history
+    fn cmd_history(&self) -> Result<(), &'static str> {
+        self.interface.println("Command History:")?;
+        self.interface.println("────────────────")?;
+        
+        if self.history.is_empty() {
+            self.interface.println("  (no commands in history)")?;
+        } else {
+            for (i, cmd) in self.history.iter().enumerate() {
+                // Show recent commands with line numbers (simple formatting)
+                self.interface.print("  ")?;
+                if i < 9 {
+                    self.interface.print("  ")?;
+                } else if i < 99 {
+                    self.interface.print(" ")?;
+                }
+                // Simple number display
+                let num = i + 1;
+                if num < 10 {
+                    let digit_str = [(b'0' + num as u8)];
+                    self.interface.print(core::str::from_utf8(&digit_str).unwrap_or("?"))?;
+                } else if num < 100 {
+                    let digits = [(b'0' + (num / 10) as u8), (b'0' + (num % 10) as u8)];
+                    self.interface.print(core::str::from_utf8(&digits).unwrap_or("??"))?;
+                } else {
+                    self.interface.print("99+")?;
+                }
+                self.interface.print("  ")?;
+                self.interface.println(cmd)?;
+            }
+        }
+        
+        self.interface.println("")?;
+        self.interface.print("Total commands: ")?;
+        // Simple number display for count
+        let count = self.history.len();
+        if count == 0 {
+            self.interface.println("0")?;
+        } else if count < 10 {
+            let digit_str = [(b'0' + count as u8)];
+            self.interface.println(core::str::from_utf8(&digit_str).unwrap_or("?"))?;
+        } else if count < 100 {
+            let digits = [(b'0' + (count / 10) as u8), (b'0' + (count % 10) as u8)];
+            self.interface.println(core::str::from_utf8(&digits).unwrap_or("??"))?;
+        } else {
+            self.interface.println("99+")?;
+        }
         Ok(())
     }
     
@@ -207,5 +303,77 @@ impl<I: ShellInterface> Shell<I> {
     fn cmd_reboot(&self) -> Result<(), &'static str> {
         self.interface.println("Rebooting system...")?;
         self.interface.request_reboot()
+    }
+    
+    /// Add command to history
+    fn add_to_history(&mut self, command: &str) {
+        // Don't add duplicate consecutive commands
+        if let Some(last_cmd) = self.history.last() {
+            if last_cmd == command {
+                return;
+            }
+        }
+        
+        // Don't add history command itself to history
+        if command.trim() == "history" {
+            return;
+        }
+        
+        // Create history entry
+        if let Ok(cmd_string) = String::try_from(command) {
+            // Remove oldest entry if at capacity
+            if self.history.len() >= MAX_HISTORY_ENTRIES {
+                self.history.remove(0);
+            }
+            
+            // Add new command
+            if self.history.push(cmd_string).is_ok() {
+                // Save history to file (ignore errors for now)
+                let _ = self.save_history();
+            }
+        }
+    }
+    
+    /// Load history from filesystem
+    fn load_history(&mut self) -> Result<(), &'static str> {
+        match self.interface.read_file(HISTORY_FILE_PATH) {
+            Ok(data) => {
+                // Parse history file
+                let content = core::str::from_utf8(&data)
+                    .map_err(|_| "Invalid UTF-8 in history file")?;
+                
+                self.history.clear();
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if !trimmed.is_empty() {
+                        if let Ok(cmd_string) = String::try_from(trimmed) {
+                            if self.history.push(cmd_string).is_err() {
+                                break;  // History buffer is full
+                            }
+                        }
+                    }
+                }
+                
+                Ok(())
+            }
+            Err(_) => {
+                // History file doesn't exist yet - that's okay
+                Ok(())
+            }
+        }
+    }
+    
+    /// Save history to filesystem
+    fn save_history(&self) -> Result<(), &'static str> {
+        // Build history file content
+        let mut content = String::<4096>::new();
+        
+        for cmd in &self.history {
+            content.push_str(cmd).map_err(|_| "History content too large")?;
+            content.push('\n').map_err(|_| "History content too large")?;
+        }
+        
+        // Write to filesystem
+        self.interface.write_file(HISTORY_FILE_PATH, content.as_bytes())
     }
 } 

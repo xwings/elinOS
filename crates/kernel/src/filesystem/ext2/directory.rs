@@ -43,7 +43,7 @@ impl DirectoryManager {
     }
     
     pub fn find_entry_in_dir(&self, dir_inode_num: u32, entry_name: &str, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<Option<(Ext2DirEntry, u32, usize)>> {
-        console_println!("[i] Looking for '{}' in directory inode {}", entry_name, dir_inode_num);
+        // console_println!("[i] Looking for '{}' in directory inode {}", entry_name, dir_inode_num);
         
         let dir_inode = inode_mgr.read_inode(dir_inode_num, sb_mgr)?;
         
@@ -54,13 +54,13 @@ impl DirectoryManager {
         // Search in first direct block (simplified)
         if dir_inode.i_block[0] != 0 {
             let block_num = dir_inode.i_block[0];
-            console_println!("      Searching in block {}", block_num);
+            //console_println!("      Searching in block {}", block_num);
             let block_data = sb_mgr.read_block_data(block_num as u64)?;
             let result = self.find_entry_in_block(&block_data, entry_name, block_num);
             
             if let Ok(Some((entry, _, _))) = &result {
                 let inode_num = entry.inode;
-                console_println!("   [o] Found '{}' -> inode {}", entry_name, inode_num);
+                //console_println!("   [o] Found '{}' -> inode {}", entry_name, inode_num);
             } else {
                 console_println!("   [x] '{}' not found", entry_name);
             }
@@ -88,7 +88,7 @@ impl DirectoryManager {
     }
     
     pub fn add_directory_entry(&self, parent_inode: u32, child_inode: u32, name: &str, file_type: u8, sb_mgr: &mut SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
-        console_println!("➕ Adding directory entry: {} -> {} (type {})", name, child_inode, file_type);
+        console_println!("[i] Adding directory entry: {} -> {} (type {})", name, child_inode, file_type);
         
         if name.len() > 255 {
             return Err(FilesystemError::FilenameTooLong);
@@ -206,7 +206,7 @@ impl DirectoryManager {
                 
                 // Scenario 2: Split current entry if it has enough slack space
                 if current_inode != 0 && current_rec_len >= space_used_by_current + required_rec_len as usize {
-                    console_println!("✂️  Splitting entry at offset {} (current_rec_len={}, used={}, needed={})", 
+                    console_println!("[i] Splitting entry at offset {} (current_rec_len={}, used={}, needed={})", 
                                     offset, current_rec_len, space_used_by_current, required_rec_len);
                     
                     // Shorten the current entry to its actual size
@@ -341,7 +341,7 @@ impl DirectoryManager {
                             // Keep rec_len and other fields for proper directory traversal
                         }
                         
-                        console_println!("🗑️  Entry '{}' marked as deleted (inode=0)", target_name);
+                        console_println!("[i]  Entry '{}' marked as deleted (inode=0)", target_name);
                         return Ok(());
                     }
                 }
@@ -446,7 +446,7 @@ impl DirectoryManager {
     
     fn parse_directory_block_for_listing(&self, block_data: &[u8], result: &mut Vec<(heapless::String<64>, usize, bool), 32>, sb_mgr: &SuperblockManager, inode_mgr: &InodeManager) -> FilesystemResult<()> {
         let mut offset = 0;
-        console_println!("[i] Parsing directory block ({} bytes):", block_data.len());
+        // console_println!("[i] Parsing directory block ({} bytes):", block_data.len());
         
         while offset < block_data.len() {
             if offset + mem::size_of::<Ext2DirEntry>() > block_data.len() {
@@ -464,8 +464,8 @@ impl DirectoryManager {
             let name_len = dir_entry.name_len as usize;
             let file_type = dir_entry.file_type;
             
-            console_println!("   Entry at offset {}: inode={}, rec_len={}, name_len={}, file_type={}", 
-                offset, inode_num, rec_len, name_len, file_type);
+            // console_println!("   Entry at offset {}: inode={}, rec_len={}, name_len={}, file_type={}", 
+            //     offset, inode_num, rec_len, name_len, file_type);
             
             // Validate entry
             if inode_num == 0 {
@@ -501,7 +501,7 @@ impl DirectoryManager {
             
             let name_bytes = &block_data[name_start..name_end];
             if let Ok(name_str) = core::str::from_utf8(name_bytes) {
-                console_println!("   [i] Found entry: '{}'", name_str);
+                // console_println!("   [i] Found entry: '{}'", name_str);
                 if let Ok(short_name) = heapless::String::try_from(name_str) {
                     // Use the file_type from directory entry as primary source
                     // EXT2_FT_DIR = 2, EXT2_FT_REG_FILE = 1
@@ -518,7 +518,7 @@ impl DirectoryManager {
                         }
                     };
                     
-                    console_println!("   [o] Added: '{}' (dir: {}, size: {})", name_str, is_dir, size);
+                    // console_println!("   [o] Added: '{}' (dir: {}, size: {})", name_str, is_dir, size);
                     let _ = result.push((short_name, size, is_dir));
                 } else {
                     console_println!("   [x] Filename too long: '{}'", name_str);
@@ -535,13 +535,13 @@ impl DirectoryManager {
             }
         }
         
-        console_println!("[i] Directory parsing complete, found {} entries", result.len());
+        // console_println!("[i] Directory parsing complete, found {} entries", result.len());
         Ok(())
     }
     
     fn find_entry_in_block(&self, block_data: &[u8], entry_name: &str, block_num: u32) -> FilesystemResult<Option<(Ext2DirEntry, u32, usize)>> {
         let mut offset = 0;
-        console_println!("      Scanning block {} for '{}':", block_num, entry_name);
+        // console_println!("      Scanning block {} for '{}':", block_num, entry_name);
         
         while offset < block_data.len() {
             if offset + mem::size_of::<Ext2DirEntry>() > block_data.len() {
@@ -568,9 +568,9 @@ impl DirectoryManager {
             if name_end <= block_data.len() {
                 let name_bytes = &block_data[name_start..name_end];
                 if let Ok(name_str) = core::str::from_utf8(name_bytes) {
-                    console_println!("          Entry: '{}' -> inode {}", name_str, inode_num);
+                    // console_println!("          Entry: '{}' -> inode {}", name_str, inode_num);
                     if name_str == entry_name {
-                        console_println!("         [o] MATCH found!");
+                        // console_println!("         [o] MATCH found!");
                         return Ok(Some((dir_entry, inode_num, offset)));
                     }
                 }

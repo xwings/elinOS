@@ -569,7 +569,7 @@ extern "C" fn syscall_trap_handler() {
             let message_ptr = a2 as *const u8;
             let message_len = a3;
             
-            console_println!("📝 Writing {} bytes to stdout", message_len);
+            // console_println!("📝 Writing {} bytes to stdout", message_len);
             
             // Print the message
             if message_len > 0 && message_len < 1024 {
@@ -580,7 +580,7 @@ extern "C" fn syscall_trap_handler() {
                 }
                 drop(uart);
                 
-                console_println!("[o] Successfully wrote {} bytes", message_len);
+                // console_println!("[o] Successfully wrote {} bytes", message_len);
                 
                 // Return bytes written and continue
                 unsafe {
@@ -621,11 +621,11 @@ extern "C" fn syscall_trap_handler() {
 
 /// Execute user program with software MMU virtual memory translation
 unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf: &LoadedElf) {
-    console_println!("[i] Executing with Software Virtual Memory Manager...");
+    // console_println!("[i] Executing with Software Virtual Memory Manager...");
     
     // Always try to find the executable segment for virtual-to-physical mapping
     // Don't assume entry points >= 0x80000000 are physical addresses
-    console_println!("[i] Looking for executable segment containing entry point 0x{:08x}", entry_point);
+    // console_println!("[i] Looking for executable segment containing entry point 0x{:08x}", entry_point);
     
     // Find the executable segment to get the virtual-to-physical mapping
     for segment in &loaded_elf.segments {
@@ -634,10 +634,10 @@ unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf:
             let segment_start = segment.vaddr as usize;
             let segment_end = segment_start + segment.data_size;
             
-            console_println!("[i] Found executable segment:");
-            console_println!("      Virtual range: 0x{:08x} - 0x{:08x}", segment_start, segment_end);
-            console_println!("      Physical base: 0x{:08x}", data_addr);
-            console_println!("      Size: {} bytes", segment.data_size);
+            // console_println!("[i] Found executable segment:");
+            // console_println!("      Virtual range: 0x{:08x} - 0x{:08x}", segment_start, segment_end);
+            // console_println!("      Physical base: 0x{:08x}", data_addr);
+            // console_println!("      Size: {} bytes", segment.data_size);
             
             // Check if entry point is within this segment
             if entry_point >= segment_start && entry_point < segment_end {
@@ -645,12 +645,12 @@ unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf:
                 let entry_offset = entry_point - segment_start;
                 let physical_entry = data_addr + entry_offset;
                 
-                console_println!("[i] Virtual entry point: 0x{:08x}", entry_point);
-                console_println!("[i] Physical entry point: 0x{:08x}", physical_entry);
-                console_println!("[i] Entry offset: 0x{:x}", entry_offset);
+                // console_println!("[i] Virtual entry point: 0x{:08x}", entry_point);
+                // console_println!("[i] Physical entry point: 0x{:08x}", physical_entry);
+                // console_println!("[i] Entry offset: 0x{:x}", entry_offset);
                 
                 // Execute the program using the translated physical address
-                console_println!("[i] Executing with software virtual memory translation...");
+                // console_println!("[i] Executing with software virtual memory translation...");
                 execute_user_program(physical_entry);
                 
                 return;

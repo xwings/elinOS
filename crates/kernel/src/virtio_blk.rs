@@ -925,10 +925,10 @@ impl RustVmmVirtIOBlock {
             // 3. Add descriptor chain to queue
             head_index = self.queue.add_descriptor_chain(&desc_chain)?;
             
-            console_println!("[i] WRITE Desc chain (head={}) setup (static buffers):", head_index);
-            console_println!("  Request addr: 0x{:x}, len: {}", &VIRTIO_REQUEST_BUFFER as *const _ as u64, core::mem::size_of::<VirtioBlkReq>());
-            console_println!("  Data Buffer addr: 0x{:x}, len: {}", VIRTIO_DATA_BUFFER.as_ptr() as u64, VIRTIO_DATA_BUFFER.len());
-            console_println!("  Status addr: 0x{:x}, len: 1", &mut VIRTIO_STATUS_BUFFER as *mut _ as u64);
+            // console_println!("[i] WRITE Desc chain (head={}) setup (static buffers):", head_index);
+            // console_println!("  Request addr: 0x{:x}, len: {}", &VIRTIO_REQUEST_BUFFER as *const _ as u64, core::mem::size_of::<VirtioBlkReq>());
+            // console_println!("  Data Buffer addr: 0x{:x}, len: {}", VIRTIO_DATA_BUFFER.as_ptr() as u64, VIRTIO_DATA_BUFFER.len());
+            // console_println!("  Status addr: 0x{:x}, len: 1", &mut VIRTIO_STATUS_BUFFER as *mut _ as u64);
 
             // 4. Notify device
             self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, self.queue.queue_index as u32); 
@@ -945,24 +945,24 @@ impl RustVmmVirtIOBlock {
 
             if poll_count % 200000 == 0 { // Log less frequently
                 let interrupt_status = self.read_reg_u32(VIRTIO_MMIO_INTERRUPT_STATUS);
-                console_println!("[i] Poll (Write) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
+                // console_println!("[i] Poll (Write) {}: waiting for head_idx={}, int_stat=0x{:x}", poll_count / 200000, head_index, interrupt_status);
                  unsafe { // Accessing queue members
                     let used_ring_ptr = self.queue.used_ring as *const VirtqUsed;
                     let device_used_idx = read_volatile(&(*used_ring_ptr).idx);
-                    console_println!("[i] Queue (Write) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
+                    // console_println!("[i] Queue (Write) device_used_idx: {}, driver_last_used_idx: {}", device_used_idx, self.queue.last_used_idx);
                 }
             }
 
             if let Some(used_elem) = self.queue.get_used_elem() { // get_used_elem advances last_used_idx
                 if used_elem.id as u16 == head_index {
                     if unsafe { VIRTIO_STATUS_BUFFER } == VIRTIO_BLK_S_OK {
-                        console_println!("[o] VirtIO write successful for sector {}!", sector);
+                        // console_println!("[o] VirtIO write successful for sector {}!", sector);
                         // Acknowledge interrupt for this specific queue processing
                         // self.write_reg_u32(VIRTIO_MMIO_INTERRUPT_ACK, 1 << self.queue.queue_index);
                         return Ok(());
                     } else {
                         let status_val = unsafe { VIRTIO_STATUS_BUFFER };
-                        console_println!("[x] VirtIO write for sector {} failed with device status: 0x{:x}. Returning DiskError::WriteError.", sector, status_val);
+                        // console_println!("[x] VirtIO write for sector {} failed with device status: 0x{:x}. Returning DiskError::WriteError.", sector, status_val);
                         return Err(DiskError::WriteError); 
                     }
                 } else {

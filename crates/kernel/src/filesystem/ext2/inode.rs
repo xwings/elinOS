@@ -169,7 +169,7 @@ impl InodeManager {
         // Write inode to disk
         self.write_inode(free_inode_num, &new_inode, sb_mgr)?;
         
-        console_println!("🆕 Created new inode {} with mode 0x{:04x}", free_inode_num, mode);
+        console_println!("[i] Created new inode {} with mode 0x{:04x}", free_inode_num, mode);
         Ok(free_inode_num)
     }
     
@@ -220,7 +220,7 @@ impl InodeManager {
         self.write_inode(inode_num, &inode, sb_mgr)?;
         
         // TODO: Update inode bitmap
-        console_println!("🗑️  Freed inode {}", inode_num);
+        console_println!("[i]  Freed inode {}", inode_num);
         Ok(())
     }
     

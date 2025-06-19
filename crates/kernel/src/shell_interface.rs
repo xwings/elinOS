@@ -54,4 +54,36 @@ impl ShellInterface for KernelShellInterface {
         // SAFE: Use existing reboot command - preserves exit mechanism  
         crate::commands::cmd_reboot()
     }
+    
+    fn read_file(&self, path: &str) -> Result<heapless::Vec<u8, 4096>, &'static str> {
+        // Use kernel's filesystem to read file
+        match crate::filesystem::read_file(path) {
+            Ok(data) => {
+                // Convert to heapless Vec with size limit
+                let mut result = heapless::Vec::new();
+                let max_len = core::cmp::min(data.len(), 4096);
+                
+                for &byte in data.iter().take(max_len) {
+                    if result.push(byte).is_err() {
+                        break;  // Buffer full
+                    }
+                }
+                
+                Ok(result)
+            }
+            Err(_) => Err("Failed to read file"),
+        }
+    }
+    
+    fn write_file(&self, path: &str, data: &[u8]) -> Result<(), &'static str> {
+        // Convert to string for filesystem write
+        let content = core::str::from_utf8(data)
+            .map_err(|_| "Invalid UTF-8 in file data")?;
+        
+        // Use kernel's filesystem to write file
+        match crate::filesystem::write_file(path, content) {
+            Ok(()) => Ok(()),
+            Err(_) => Err("Failed to write file"),
+        }
+    }
 } 

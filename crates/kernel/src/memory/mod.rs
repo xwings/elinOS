@@ -660,7 +660,7 @@ fn allocate_from_heap_aligned(size: usize, alignment: usize) -> Option<usize> {
 }
 
 pub fn deallocate_memory(addr: usize, size: usize) {
-    console_println!("🗑️  Deallocating {} bytes at 0x{:x}", size, addr);
+    console_println!("[i]  Deallocating {} bytes at 0x{:x}", size, addr);
     let mut manager = MEMORY_MANAGER.lock();
     manager.deallocate(addr as *mut u8, size);
     
