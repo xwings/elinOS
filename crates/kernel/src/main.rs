@@ -17,6 +17,7 @@ pub mod elf;
 pub mod syscall;
 pub mod virtio_blk;
 pub mod trap;  // Add trap module
+pub mod shell_interface;
 
 use crate::uart::Uart;
 
@@ -107,12 +108,58 @@ pub extern "C" fn main() -> ! {
     // console_println!("[o] elinOS initialization complete!");
     console_println!();
     
-    // Show welcome message and enter shell
+    // Initialize and run the independent shell - SAFE: preserves all kernel functionality
+    start_shell();
+}
+
+// === SHELL INITIALIZATION ===
+/// Start the independent shell - SAFE: preserves all existing functionality
+fn start_shell() -> ! {
+    use shell_interface::KernelShellInterface;
+    
+    // Create the kernel interface for the shell
+    let interface = KernelShellInterface::new();
+    let mut shell = shell::Shell::new(interface);
+    
+    // Show welcome message
+    if let Err(e) = shell.show_welcome() {
+        console_println!("[x] Failed to show welcome: {}", e);
+    }
+    
+    // Run the shell loop - SAFE: exit handling preserved through interface
+    loop {
+        match shell.run_loop() {
+            Ok(()) => {
+                // Shell returned normally (shouldn't happen in infinite loop)
+                console_println!("[i] Shell exited normally");
+                break;
+            }
+            Err("exit_shell") => {
+                // Clean shell exit - return to kernel loop
+                console_println!("[i] Shell requested exit, returning to kernel loop");
+                kernel_fallback_shell();
+            }
+            Err(e) => {
+                // Shell error - fall back to kernel shell
+                console_println!("[x] Shell error: {}, falling back to kernel shell", e);
+                kernel_fallback_shell();
+            }
+        }
+    }
+    
+    // If we get here, both shells failed - panic to maintain system safety
+    panic!("All shell interfaces failed");
+}
+
+/// Fallback to original kernel shell if needed - PRESERVES original functionality
+fn kernel_fallback_shell() -> ! {
+    console_println!("[i] Starting kernel fallback shell...");
     show_welcome();
     shell_loop();
 }
 
-// === WELCOME MESSAGE ===
+// === ORIGINAL FUNCTIONS PRESERVED FOR SAFETY ===
+/// Original welcome message - PRESERVED for fallback
 fn show_welcome() {
     console_println!("=====================================");
     console_println!("          Welcome to elinOS!         ");
