@@ -85,19 +85,12 @@ make fat32-disk
 # 创建 ext2 测试磁盘
 make ext2-disk
 
+# 填充磁盘文件
+make populate-disk
+
 # 内核将自动检测并挂载文件系统
 make run
 ```
-
-## 📚 文档
-
-- **[中文文档](docs/zh/)**
-- **[内存管理](docs/zh/memory.md)** - 先进内存子系统详情
-- **[文件系统支持](docs/zh/filesystem.md)** - 存储和文件系统实现
-- **[系统调用](docs/zh/syscalls.md)** - API 参考和 Linux 兼容性
-- **[构建与开发](docs/zh/development.md)** - 开发者设置和工作流程
-- **[命令参考](docs/zh/commands.md)** - Shell 命令参考
-- **[调试指南](docs/zh/debugging.md)** - 调试技巧和技术
 
 ## 💻 系统需求
 
@@ -172,42 +165,6 @@ elinOS> shutdown                # 优雅关闭系统
 elinOS> reboot                  # 重启系统
 ```
 
-## 🛠️ 系统调用接口
-
-elinOS 实现了一个全面的 Linux 兼容系统调用接口，组织为 8 个类别：
-
-### 文件 I/O 操作 (35, 45-47, 56-64, 78-83)
-- `read`、`write`、`openat`、`close`、`lseek`
-- `truncate`、`ftruncate`、`sync`、`fsync`
-- `getdents64`、`newfstatat`、`unlinkat`
-
-### 目录操作 (34, 49-55)
-- `mkdirat`、`chdir`、`fchdir`、`fchmod`
-- `fchmodat`、`fchownat`、`chroot`
-
-### 进程管理 (93-100, 129-178, 220-221, 260)
-- `exit`、`exit_group`、`getpid`、`getppid`
-- `fork`、`clone`、`execve`、`wait4`
-- `kill`、`getuid`、`setuid`、`geteuid`
-
-### 内存管理 (214-239, 960)
-- `brk`、`mmap`、`munmap`、`mprotect`
-- `getmeminfo` (elinOS 特有)
-
-### 设备管理 (23-33, 59, 950)
-- `ioctl`、`fcntl`、`dup`、`dup3`
-- `getdevices` (elinOS 特有)
-
-### 网络操作 (198-213)
-- `socket`、`bind`、`listen`、`accept`、`connect`
-
-### 时间操作 (101-115)
-- `nanosleep`、`clock_gettime`、`gettimeofday`
-
-### elinOS 特有 (900-999)
-- 系统调试、版本、关闭、重启
-- ELF 加载和执行
-
 ## 🔬 开发与研究
 
 elinOS 专为以下用途而设计：
@@ -249,9 +206,10 @@ elinOS 专为以下用途而设计：
 - [x] VirtIO 块设备支持
 - [x] 全面的中断和异常处理
 - [x] 虚拟内存管理（软件 MMU）
+- [x] 基本 ELF 程序加载和执行
 
 ### 🚧 开发中 (v0.2.0)
-- [ ] ELF 程序加载和执行
+- [ ] 高级 ELF 程序加载和执行
 - [ ] 用户空间进程管理
 - [ ] 高级内存保护（硬件 MMU）
 - [ ] 改进的文件系统写操作
@@ -278,20 +236,6 @@ elinOS 专为以下用途而设计：
 - **ext2**：完整的超级块、inode 和区段树支持
 - **统一接口**：所有文件系统类型的通用 API
 - **自动检测**：自动文件系统类型识别
-
-### 系统架构
-- **工作空间结构**：模块化的多包装箱工作空间
-- **内核包装箱**：核心内核功能
-- **Shell 包装箱**：独立的 Shell 实现
-- **文档**：中英文全面文档
-
-## 📈 性能特征
-
-- **启动时间**：在 QEMU 中 < 100ms
-- **内存开销**：内核 < 2MB
-- **文件 I/O**：支持最大 1MB+ 文件（取决于内存）
-- **系统调用**：直接中断处理，开销最小
-- **分配**：亚微秒级小分配
 
 ## 🐛 已知限制
 

@@ -85,19 +85,12 @@ make fat32-disk
 # Create an ext2 test disk with files  
 make ext2-disk
 
+# Populate disk with files  
+make populate-disk
+
 # The kernel will automatically detect and mount the filesystem
 make run
 ```
-
-## 📚 Documentation
-
-- **[English Documentation](docs/en/)**
-- **[Memory Management](docs/en/memory.md)** - Advanced memory subsystem details
-- **[Filesystem Support](docs/en/filesystem.md)** - Storage and filesystem implementation
-- **[System Calls](docs/en/syscalls.md)** - API reference and Linux compatibility
-- **[Building & Development](docs/en/development.md)** - Developer setup and workflow
-- **[Commands](docs/en/commands.md)** - Shell commands reference
-- **[Debugging](docs/en/debugging.md)** - Debugging tips and techniques
 
 ## 💻 System Requirements
 
@@ -172,41 +165,6 @@ elinOS> shutdown                # Graceful system shutdown
 elinOS> reboot                  # System reboot
 ```
 
-## 🛠️ System Call Interface
-
-elinOS implements a comprehensive Linux-compatible system call interface organized into 8 categories:
-
-### File I/O Operations (35, 45-47, 56-64, 78-83)
-- `read`, `write`, `openat`, `close`, `lseek`
-- `truncate`, `ftruncate`, `sync`, `fsync`
-- `getdents64`, `newfstatat`, `unlinkat`
-
-### Directory Operations (34, 49-55)
-- `mkdirat`, `chdir`, `fchdir`, `fchmod`
-- `fchmodat`, `fchownat`, `chroot`
-
-### Process Management (93-100, 129-178, 220-221, 260)
-- `exit`, `exit_group`, `getpid`, `getppid`
-- `fork`, `clone`, `execve`, `wait4`
-- `kill`, `getuid`, `setuid`, `geteuid`
-
-### Memory Management (214-239, 960)
-- `brk`, `mmap`, `munmap`, `mprotect`
-- `getmeminfo` (elinOS-specific)
-
-### Device Management (23-33, 59, 950)
-- `ioctl`, `fcntl`, `dup`, `dup3`
-- `getdevices` (elinOS-specific)
-
-### Network Operations (198-213)
-- `socket`, `bind`, `listen`, `accept`, `connect`
-
-### Time Operations (101-115)
-- `nanosleep`, `clock_gettime`, `gettimeofday`
-
-### elinOS-Specific (900-999)
-- System debug, version, shutdown, reboot
-- ELF loading and execution
 
 ## 🔬 Development & Research
 
@@ -249,9 +207,10 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [x] VirtIO block device support
 - [x] Comprehensive trap and interrupt handling
 - [x] Virtual memory management (software MMU)
+- [x] basic ELF program loading and execution
 
 ### 🚧 In Progress (v0.2.0)
-- [ ] ELF program loading and execution
+- [ ] Advanced ELF program loading and execution
 - [ ] User-space process management
 - [ ] Advanced memory protection (hardware MMU)
 - [ ] Improved filesystem write operations
@@ -279,19 +238,6 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - **Unified Interface**: Common API for all filesystem types
 - **Auto-detection**: Automatic filesystem type identification
 
-### System Architecture
-- **Workspace Structure**: Multi-crate workspace for modularity
-- **Kernel Crate**: Core kernel functionality
-- **Shell Crate**: Independent shell implementation
-- **Documentation**: Comprehensive docs in English and Chinese
-
-## 📈 Performance Characteristics
-
-- **Boot Time**: < 100ms in QEMU
-- **Memory Overhead**: < 2MB for kernel
-- **File I/O**: Supports files up to 1MB+ (memory-dependent)
-- **System Calls**: Direct trap handling with minimal overhead
-- **Allocation**: Sub-microsecond small allocations
 
 ## 🐛 Known Limitations
 
