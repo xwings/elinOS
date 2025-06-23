@@ -130,6 +130,17 @@ impl Ext2FileSystem {
             FileEntry::new_file(path, inode_num as u64, self.inode_mgr.get_file_size(&inode))
         }
     }
+    
+    /// Refresh the in-memory cache by re-reading the root directory
+    fn refresh_root_directory_cache(&mut self) -> FilesystemResult<()> {
+        // Clear the current cache
+        self.files.clear();
+        
+        // Re-parse the root directory to update the cache
+        self.parse_root_directory()?;
+        
+        Ok(())
+    }
 }
 
 impl FileSystem for Ext2FileSystem {
@@ -254,6 +265,9 @@ impl FileSystem for Ext2FileSystem {
             self.directory_mgr.add_directory_entry(parent_inode, new_inode, &filename, EXT2_FT_REG_FILE, sb_mgr, inode_mgr)?;
         }
         
+        // Refresh the in-memory cache to include the new file
+        self.refresh_root_directory_cache()?;
+        
         FileEntry::new_file(&filename, new_inode as u64, 0)
     }
     
@@ -277,6 +291,9 @@ impl FileSystem for Ext2FileSystem {
             self.directory_mgr.add_directory_entry(parent_inode, new_inode, &dirname, EXT2_FT_DIR, sb_mgr, inode_mgr)?;
             self.directory_mgr.create_dot_entries(new_inode, parent_inode, sb_mgr, inode_mgr)?;
         }
+        
+        // Refresh the in-memory cache to include the new directory
+        self.refresh_root_directory_cache()?;
         
         FileEntry::new_directory(&dirname, new_inode as u64)
     }
@@ -320,6 +337,9 @@ impl FileSystem for Ext2FileSystem {
         self.block_mgr.free_inode_blocks(&inode, &mut self.superblock_mgr)?;
         self.inode_mgr.free_inode(inode_num, &self.superblock_mgr)?;
         
+        // Refresh the in-memory cache to reflect the deletion
+        self.refresh_root_directory_cache()?;
+        
         Ok(())
     }
     
@@ -352,6 +372,9 @@ impl FileSystem for Ext2FileSystem {
         // Free blocks and inode
         self.block_mgr.free_inode_blocks(&inode, &mut self.superblock_mgr)?;
         self.inode_mgr.free_inode(inode_num, &self.superblock_mgr)?;
+        
+        // Refresh the in-memory cache to reflect the deletion
+        self.refresh_root_directory_cache()?;
         
         Ok(())
     }

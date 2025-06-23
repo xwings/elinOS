@@ -455,8 +455,15 @@ impl DirectoryManager {
             let name_len = dir_entry.name_len as usize;
             let file_type = dir_entry.file_type;
             
-            if inode_num == 0 || rec_len == 0 || rec_len > block_data.len() - offset {
+            // Check for end of directory
+            if rec_len == 0 || rec_len > block_data.len() - offset {
                 break;
+            }
+            
+            // Skip deleted entries but continue processing
+            if inode_num == 0 {
+                offset += rec_len;
+                continue;
             }
             
             // Extract filename
@@ -514,20 +521,23 @@ impl DirectoryManager {
             // console_println!("   Entry at offset {}: inode={}, rec_len={}, name_len={}, file_type={}", 
             //     offset, inode_num, rec_len, name_len, file_type);
             
-            // Validate entry
-            if inode_num == 0 {
-                // console_println!("   [x] Invalid entry (inode=0), breaking");
-                break;
-            }
-            
+            // Check for end of directory (rec_len == 0 means no more entries)
             if rec_len == 0 || rec_len > block_data.len() - offset {
                 console_println!("   [x] Invalid rec_len {}, breaking", rec_len);
                 break;
             }
             
+            // Skip deleted entries (inode == 0) but continue processing
+            if inode_num == 0 {
+                // console_println!("   [i] Skipping deleted entry at offset {}", offset);
+                offset += rec_len;
+                continue;
+            }
+            
             if name_len == 0 || name_len > 255 {
-                console_println!("   [x] Invalid name_len {}, breaking", name_len);
-                break;
+                console_println!("   [x] Invalid name_len {}, skipping entry", name_len);
+                offset += rec_len;
+                continue;
             }
             
             // Validate inode number is reasonable (should be < 100000 for small filesystems)
@@ -542,8 +552,9 @@ impl DirectoryManager {
             let name_end = name_start + name_len;
             
             if name_end > block_data.len() {
-                console_println!("   [x] Name extends beyond block boundary, breaking");
-                break;
+                console_println!("   [x] Name extends beyond block boundary, skipping entry");
+                offset += rec_len;
+                continue;
             }
             
             let name_bytes = &block_data[name_start..name_end];
@@ -604,8 +615,15 @@ impl DirectoryManager {
             let rec_len = dir_entry.rec_len as usize;
             let name_len = dir_entry.name_len as usize;
             
-            if inode_num == 0 || rec_len == 0 || rec_len > block_data.len() - offset {
+            // Check for end of directory
+            if rec_len == 0 || rec_len > block_data.len() - offset {
                 break;
+            }
+            
+            // Skip deleted entries but continue processing
+            if inode_num == 0 {
+                offset += rec_len;
+                continue;
             }
             
             // Extract filename
@@ -647,8 +665,15 @@ impl DirectoryManager {
             let inode_num = dir_entry.inode;
             let rec_len = dir_entry.rec_len as usize;
             
-            if inode_num == 0 || rec_len == 0 || rec_len > block_data.len() - offset {
+            // Check for end of directory
+            if rec_len == 0 || rec_len > block_data.len() - offset {
                 break;
+            }
+            
+            // Skip deleted entries but continue processing
+            if inode_num == 0 {
+                offset += rec_len;
+                continue;
             }
             
             count += 1;
