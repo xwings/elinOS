@@ -1,7 +1,6 @@
 // Unified Filesystem Module for elinOS
 // Supports multiple filesystem types with automatic detection
 
-pub mod fat32;
 pub mod ext2;
 pub mod traits;
 
@@ -10,14 +9,12 @@ use crate::console_println;
 use heapless::Vec;
 
 pub use traits::{FileSystem, FileEntry, FilesystemError, FilesystemResult};
-use fat32::Fat32FileSystem;
 use ext2::Ext2FileSystem;
 
 /// Filesystem type detection
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FilesystemType {
     Unknown,
-    Fat32,
     Ext2,
 }
 
@@ -25,7 +22,6 @@ impl core::fmt::Display for FilesystemType {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             FilesystemType::Unknown => write!(f, "Unknown"),
-            FilesystemType::Fat32 => write!(f, "FAT32"),
             FilesystemType::Ext2 => write!(f, "ext2"),
         }
     }
@@ -33,7 +29,6 @@ impl core::fmt::Display for FilesystemType {
 
 /// Unified filesystem container
 pub enum Filesystem {
-    Fat32(Fat32FileSystem),
     Ext2(Ext2FileSystem),
     None,
 }
@@ -60,13 +55,6 @@ impl UnifiedFileSystem {
         self.fs_type = detect_filesystem_type()?;
         
         match self.fs_type {
-            FilesystemType::Fat32 => {
-                //console_println!("[i] Mounting FAT32 filesystem...");
-                let mut fat32_fs = Fat32FileSystem::new();
-                fat32_fs.init()?;
-                self.filesystem = Filesystem::Fat32(fat32_fs);
-                console_println!("[o] FAT32 filesystem mounted successfully");
-            }
             FilesystemType::Ext2 => {
                 // console_println!("[i] Mounting ext2 filesystem...");
                 let mut ext2_fs = Ext2FileSystem::new();
@@ -91,7 +79,6 @@ impl UnifiedFileSystem {
     /// Check if filesystem is initialized
     pub fn is_initialized(&self) -> bool {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.is_initialized(),
             Filesystem::Ext2(fs) => fs.is_initialized(),
             Filesystem::None => false,
         }
@@ -100,7 +87,6 @@ impl UnifiedFileSystem {
     /// Check if filesystem is mounted
     pub fn is_mounted(&self) -> bool {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.is_mounted(),
             Filesystem::Ext2(fs) => fs.is_mounted(),
             Filesystem::None => false,
         }
@@ -111,7 +97,6 @@ impl UnifiedFileSystem {
 impl FileSystem for UnifiedFileSystem {
     fn list_files(&self) -> FilesystemResult<Vec<(heapless::String<64>, usize), 32>> {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.list_files(),
             Filesystem::Ext2(fs) => fs.list_files(),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -119,7 +104,6 @@ impl FileSystem for UnifiedFileSystem {
     
     fn list_directory(&self, path: &str) -> FilesystemResult<Vec<(heapless::String<64>, usize, bool), 32>> {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.list_directory(path),
             Filesystem::Ext2(fs) => fs.list_directory(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -127,7 +111,6 @@ impl FileSystem for UnifiedFileSystem {
     
     fn read_file(&self, filename: &str) -> FilesystemResult<heapless::Vec<u8, 32768>> {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.read_file(filename),
             Filesystem::Ext2(fs) => fs.read_file(filename),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -135,7 +118,6 @@ impl FileSystem for UnifiedFileSystem {
     
     fn file_exists(&self, filename: &str) -> bool {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.file_exists(filename),
             Filesystem::Ext2(fs) => fs.file_exists(filename),
             Filesystem::None => false,
         }
@@ -143,7 +125,6 @@ impl FileSystem for UnifiedFileSystem {
     
     fn get_filesystem_info(&self) -> Option<(u16, u32, u16)> {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.get_filesystem_info(),
             Filesystem::Ext2(fs) => fs.get_filesystem_info(),
             Filesystem::None => None,
         }
@@ -151,7 +132,6 @@ impl FileSystem for UnifiedFileSystem {
     
     fn is_initialized(&self) -> bool {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.is_initialized(),
             Filesystem::Ext2(fs) => fs.is_initialized(),
             Filesystem::None => false,
         }
@@ -159,7 +139,6 @@ impl FileSystem for UnifiedFileSystem {
     
     fn is_mounted(&self) -> bool {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.is_mounted(),
             Filesystem::Ext2(fs) => fs.is_mounted(),
             Filesystem::None => false,
         }
@@ -168,7 +147,6 @@ impl FileSystem for UnifiedFileSystem {
     // TODO: Implement these methods for UnifiedFileSystem by dispatching to the active FS
     fn create_file(&mut self, path: &str) -> FilesystemResult<FileEntry> {
         match &mut self.filesystem {
-            Filesystem::Fat32(fs) => fs.create_file(path),
             Filesystem::Ext2(fs) => fs.create_file(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -176,7 +154,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn create_directory(&mut self, path: &str) -> FilesystemResult<FileEntry> {
         match &mut self.filesystem {
-            Filesystem::Fat32(fs) => fs.create_directory(path),
             Filesystem::Ext2(fs) => fs.create_directory(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -184,7 +161,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn write_file(&mut self, file: &FileEntry, offset: u64, data: &[u8]) -> FilesystemResult<usize> {
         match &mut self.filesystem {
-            Filesystem::Fat32(fs) => fs.write_file(file, offset, data),
             Filesystem::Ext2(fs) => fs.write_file(file, offset, data),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -192,7 +168,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn delete_file(&mut self, path: &str) -> FilesystemResult<()> {
         match &mut self.filesystem {
-            Filesystem::Fat32(fs) => fs.delete_file(path),
             Filesystem::Ext2(fs) => fs.delete_file(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -200,7 +175,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn delete_directory(&mut self, path: &str) -> FilesystemResult<()> {
         match &mut self.filesystem {
-            Filesystem::Fat32(fs) => fs.delete_directory(path),
             Filesystem::Ext2(fs) => fs.delete_directory(path),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -208,7 +182,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn truncate_file(&mut self, file: &FileEntry, new_size: u64) -> FilesystemResult<()> {
         match &mut self.filesystem {
-            Filesystem::Fat32(fs) => fs.truncate_file(file, new_size),
             Filesystem::Ext2(fs) => fs.truncate_file(file, new_size),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -216,7 +189,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn sync(&mut self) -> FilesystemResult<()> {
         match &mut self.filesystem {
-            Filesystem::Fat32(fs) => fs.sync(),
             Filesystem::Ext2(fs) => fs.sync(),
             Filesystem::None => Err(FilesystemError::NotMounted),
         }
@@ -224,7 +196,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn read_file_to_buffer(&self, filename: &str, buffer: &mut [u8]) -> FilesystemResult<usize> {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.read_file_to_buffer(filename, buffer),
             Filesystem::Ext2(fs) => fs.read_file_to_buffer(filename, buffer),
             Filesystem::None => Err(FilesystemError::NotInitialized),
         }
@@ -232,7 +203,6 @@ impl FileSystem for UnifiedFileSystem {
 
     fn get_file_size(&self, filename: &str) -> FilesystemResult<usize> {
         match &self.filesystem {
-            Filesystem::Fat32(fs) => fs.get_file_size(filename),
             Filesystem::Ext2(fs) => fs.get_file_size(filename),
             Filesystem::None => Err(FilesystemError::NotInitialized),
         }
@@ -249,23 +219,16 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
         return Err(FilesystemError::DeviceError);
     }
 
-    // Try FAT32 detection (check Boot Sector Signature)
-    // console_println!("filesystem::detect_filesystem_type: Attempting to read sector 0 for FAT32 check...");
-    let mut sector0_buf = [0u8; 512];
-    match disk_device.read_blocks(0, &mut sector0_buf) {
+    // IMPORTANT: Warm up VirtIO driver with a simple read to ensure clean buffer state
+    // This prevents VirtIO buffer corruption issues that occur when ext2 detection
+    let mut warmup_buf = [0u8; 512];
+    match disk_device.read_blocks(0, &mut warmup_buf) {
         Ok(_) => {
-            // console_println!("filesystem::detect_filesystem_type: Successfully read sector 0.");
-            // Check for FAT32 signature 0x55AA at offset 510
-            if sector0_buf[510] == 0x55 && sector0_buf[511] == 0xAA {
-                // Further checks for FAT32 (e.g., filesystem type string)
-                // For now, assume FAT32 if signature matches
-                // console_println!("filesystem::detect_filesystem_type: FAT32 signature found.");
-                return Ok(FilesystemType::Fat32);
-            }
+            //console_println!("[o] VirtIO driver warmed up successfully");
         }
         Err(e) => {
-            // console_println!("filesystem::detect_filesystem_type: Failed to read sector 0 for FAT32 check: {:?}", e);
-            // Don't return error yet, try ext2
+            console_println!("[!] VirtIO warmup failed: {:?}, continuing anyway", e);
+            // Continue anyway - the warmup attempt may have still helped
         }
     }
 
@@ -358,11 +321,6 @@ pub fn file_exists(filename: &str) -> bool {
 /// Get file entry for an existing file (for internal use)
 fn get_file_entry(fs: &UnifiedFileSystem, filename: &str) -> FilesystemResult<FileEntry> {
     match &fs.filesystem {
-        Filesystem::Fat32(_fs) => {
-            // For FAT32, we need to search through files list
-            // For now, use delete/recreate as fallback
-            Err(FilesystemError::NotImplemented)
-        }
         Filesystem::Ext2(ext2_fs) => {
             // Use the public method from ext2 filesystem
             ext2_fs.get_file_entry(filename)
