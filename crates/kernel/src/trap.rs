@@ -267,7 +267,7 @@ fn handle_syscall(ctx: &mut TrapContext) {
         
         // Instead of returning to user mode (which would crash), 
         // jump directly to shell_loop to restart the shell
-        crate::shell_loop();
+        crate::enhanced_shell_loop();
         
         // This should never be reached since shell_loop never returns
         return;
