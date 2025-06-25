@@ -111,13 +111,13 @@ help: ## Show this help message
 .PHONY: build
 build: ## Build the kernel (debug mode)
 	@echo -e "$(COLOR_BLUE)Building $(PROJECT_NAME) (debug)...$(COLOR_RESET)"
-	@cd crates/kernel && cargo build $(CARGO_FLAGS) $(DEBUG_FLAGS)
+	@cd kernel && cargo build $(CARGO_FLAGS) $(DEBUG_FLAGS)
 	@echo -e "$(COLOR_GREEN)✓ Build completed: $(DEBUG_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
 
 .PHONY: build-release
 build-release: ## Build the kernel (release mode)
 	@echo -e "$(COLOR_BLUE)Building $(PROJECT_NAME) (release)...$(COLOR_RESET)"
-	@cd crates/kernel && cargo build $(CARGO_FLAGS) $(RELEASE_FLAGS)
+	@cd kernel && cargo build $(CARGO_FLAGS) $(RELEASE_FLAGS)
 	@echo -e "$(COLOR_GREEN)✓ Release build completed: $(RELEASE_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
 
 .PHONY: rebuild
@@ -140,7 +140,7 @@ clean: ## Clean build artifacts
 .PHONY: check
 check: ## Check code without building
 	@echo -e "$(COLOR_BLUE)Checking code...$(COLOR_RESET)"
-	@cd crates/kernel && cargo check $(CARGO_FLAGS)
+	@cd kernel && cargo check $(CARGO_FLAGS)
 
 # =============================================================================
 # C Programs Compilation
@@ -247,12 +247,12 @@ run-debug: build ## Run the kernel with GDB debugging enabled
 .PHONY: test
 test: ## Run unit tests
 	@echo -e "$(COLOR_BLUE)Running unit tests...$(COLOR_RESET)"
-	@cd crates/kernel && cargo test $(CARGO_FLAGS)
+	@cd kernel && cargo test $(CARGO_FLAGS)
 
 .PHONY: test-release
 test-release: ## Run unit tests (release mode)
 	@echo -e "$(COLOR_BLUE)Running unit tests (release)...$(COLOR_RESET)"
-	@cd crates/kernel && cargo test $(CARGO_FLAGS) $(RELEASE_FLAGS)
+	@cd kernel && cargo test $(CARGO_FLAGS) $(RELEASE_FLAGS)
 
 .PHONY: integration
 integration: build ## Run integration tests
@@ -262,39 +262,39 @@ integration: build ## Run integration tests
 .PHONY: bench
 bench: ## Run benchmarks
 	@echo -e "$(COLOR_BLUE)Running benchmarks...$(COLOR_RESET)"
-	@cd crates/kernel && cargo bench $(CARGO_FLAGS)
+	@cd kernel && cargo bench $(CARGO_FLAGS)
 
 .PHONY: format
 format: ## Format code with rustfmt
 	@echo -e "$(COLOR_BLUE)Formatting code...$(COLOR_RESET)"
-	@cd crates/kernel && cargo fmt
+	@cd kernel && cargo fmt
 	@echo -e "$(COLOR_GREEN)✓ Code formatted$(COLOR_RESET)"
 
 .PHONY: format-check
 format-check: ## Check code formatting
 	@echo -e "$(COLOR_BLUE)Checking code formatting...$(COLOR_RESET)"
-	@cd crates/kernel && cargo fmt -- --check
+	@cd kernel && cargo fmt -- --check
 
 .PHONY: clippy
 clippy: ## Run Clippy linter
 	@echo -e "$(COLOR_BLUE)Running Clippy linter...$(COLOR_RESET)"
-	@cd crates/kernel && cargo clippy $(CARGO_FLAGS) -- -D warnings
+	@cd kernel && cargo clippy $(CARGO_FLAGS) -- -D warnings
 
 .PHONY: clippy-fix
 clippy-fix: ## Run Clippy with automatic fixes
 	@echo -e "$(COLOR_BLUE)Running Clippy with fixes...$(COLOR_RESET)"
-	@cd crates/kernel && cargo clippy $(CARGO_FLAGS) --fix --allow-dirty
+	@cd kernel && cargo clippy $(CARGO_FLAGS) --fix --allow-dirty
 
 .PHONY: doc
 doc: ## Generate documentation
 	@echo -e "$(COLOR_BLUE)Generating documentation...$(COLOR_RESET)"
-	@cd crates/kernel && cargo doc $(CARGO_FLAGS) --no-deps --document-private-items
+	@cd kernel && cargo doc $(CARGO_FLAGS) --no-deps --document-private-items
 	@echo -e "$(COLOR_GREEN)✓ Documentation generated: $(DOCS_DIR)/$(KERNEL_NAME)/index.html$(COLOR_RESET)"
 
 .PHONY: doc-open
 doc-open: doc ## Generate and open documentation
 	@echo -e "$(COLOR_BLUE)Opening documentation...$(COLOR_RESET)"
-	@cd crates/kernel && cargo doc $(CARGO_FLAGS) --no-deps --document-private-items --open
+	@cd kernel && cargo doc $(CARGO_FLAGS) --no-deps --document-private-items --open
 
 .PHONY: check-all
 check-all: format-check clippy test ## Run all quality checks
