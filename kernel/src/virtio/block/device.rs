@@ -70,7 +70,6 @@ impl RustVmmVirtIOBlock {
         self.set_driver_ok()?;
         
         self.initialized = true;
-        console_println!("[o] rust-vmm VirtIO block device initialized successfully");
         Ok(())
     }
 
@@ -83,7 +82,6 @@ impl RustVmmVirtIOBlock {
         for &addr in &mmio_addresses {
             if self.probe_mmio_device(addr)? {
                 self.mmio_base = addr;
-                console_println!("[o] VirtIO block device found at 0x{:x}", addr);
                 return Ok(true);
             }
         }
