@@ -58,14 +58,3 @@ jobs:
     - name: Run automated tests
       run: |
         python3 test_runner.py
-
-    # Upload test artifacts on failure for debugging
-    - name: Upload artifacts on failure
-      if: failure()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-debug-${{ github.sha }}
-        path: |
-          target/riscv64gc-unknown-none-elf/debug/kernel
-          disk.img
-          *.log 
