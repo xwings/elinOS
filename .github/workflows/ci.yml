@@ -53,7 +53,7 @@ jobs:
     # Build everything needed for testing
     - name: Build kernel and prepare disk
       run: |
-        make all
+        make build && make ext2-disk && make c-programs && make populate-disk
 
     # Run the automated Python test suite
     - name: Run automated tests
