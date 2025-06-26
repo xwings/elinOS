@@ -163,6 +163,9 @@ impl InodeManager {
             return Err(FilesystemError::CorruptedFilesystem);
         }
         
+        // TODO: Update free inode count in group descriptor and superblock
+        // This should be done to keep counts accurate
+        
         // Create new inode
         let new_inode = Ext2Inode::new(mode, uid, gid, links_count, flags);
         
@@ -219,8 +222,28 @@ impl InodeManager {
         
         self.write_inode(inode_num, &inode, sb_mgr)?;
         
-        // TODO: Update inode bitmap
-        // console_println!("[i]  Freed inode {}", inode_num);
+        // Clear the bit in the inode bitmap
+        let group_desc = sb_mgr.get_group_descriptor()
+            .ok_or(FilesystemError::InvalidSuperblock)?;
+        let inode_bitmap_block = group_desc.bg_inode_bitmap_lo;
+        let mut inode_bitmap_data = sb_mgr.read_block_data(inode_bitmap_block as u64)?;
+        
+        // Clear the bit in the bitmap
+        let bit_index = (inode_num - 1) as usize;
+        let byte_index = bit_index / 8;
+        let bit_in_byte_index = bit_index % 8;
+        
+        if byte_index < inode_bitmap_data.len() {
+            inode_bitmap_data[byte_index] &= !(1 << bit_in_byte_index);
+            sb_mgr.write_block_data(inode_bitmap_block as u32, &inode_bitmap_data)?;
+            console_println!("[i] Freed inode {} in bitmap", inode_num);
+        } else {
+            return Err(FilesystemError::CorruptedFilesystem);
+        }
+        
+        // TODO: Update free inode count in group descriptor and superblock
+        // This should increment the free count when an inode is freed
+        
         Ok(())
     }
     
