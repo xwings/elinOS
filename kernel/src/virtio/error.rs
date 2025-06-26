@@ -4,7 +4,7 @@ use crate::console_println;
 use core::fmt;
 
 /// VirtIO disk operation errors
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiskError {
     NotFound,
     InvalidSector,

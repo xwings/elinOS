@@ -38,6 +38,11 @@ pub struct MemoryLayout {
     pub small_heap_start: usize,
     pub small_heap_size: usize,
     
+    // Device memory region (for VirtIO and other devices)
+    pub device_memory_start: usize,
+    pub device_memory_size: usize,
+    pub device_memory_used: usize,
+    
     // Safety margins
     pub kernel_guard_size: usize,
     pub stack_guard_size: usize,
@@ -75,6 +80,9 @@ impl MemoryLayout {
             buddy_heap_size: 0,
             small_heap_start: 0,
             small_heap_size: 0,
+            device_memory_start: 0,
+            device_memory_size: 0,
+            device_memory_used: 0,
             kernel_guard_size: 4096,
             stack_guard_size: 4096,
             regions: Vec::new(),
@@ -107,6 +115,13 @@ impl MemoryLayout {
         layout.small_heap_start = layout.buddy_heap_start + layout.buddy_heap_size;
         layout.small_heap_size = 64 * 1024; // 64KB for small allocator
         layout.heap_size = layout.buddy_heap_size + layout.small_heap_size;
+        
+        // Set up device memory region after regular heap
+        // Device memory needs to be DMA-accessible and properly aligned
+        let device_memory_size = 1024 * 1024; // 1MB for device operations (VirtIO, etc.)
+        layout.device_memory_start = layout.small_heap_start + layout.small_heap_size;
+        layout.device_memory_size = device_memory_size;
+        layout.device_memory_used = 0;
         
         // Debug output to see the conflict
         console_println!("[i] Memory layout debug:");
@@ -198,12 +213,40 @@ impl MemoryLayout {
             return Err("Kernel size unreasonably large (>32MB)");
         }
         
-        if self.total_kernel_footprint > 64 * 1024 * 1024 {
-            return Err("Total kernel footprint too large (>64MB)");
+        // Check device memory doesn't overlap with other regions
+        let device_end = self.device_memory_start + self.device_memory_size;
+        if self.device_memory_start < linker_heap_start + 512 * 1024 {
+            return Err("Device memory too close to heap");
         }
         
         console_println!("[o] Memory layout validation passed");
         Ok(())
+    }
+    
+    /// Allocate device memory from the reserved device memory region
+    pub fn allocate_device_memory(&mut self, size: usize, alignment: usize) -> Result<usize, &'static str> {
+        // Align the current used offset
+        let aligned_used = (self.device_memory_used + alignment - 1) & !(alignment - 1);
+        
+        // Check if we have enough space
+        if aligned_used + size > self.device_memory_size {
+            return Err("Not enough device memory");
+        }
+        
+        let allocated_addr = self.device_memory_start + aligned_used;
+        self.device_memory_used = aligned_used + size;
+        
+        // Zero out the allocated memory
+        unsafe {
+            core::ptr::write_bytes(allocated_addr as *mut u8, 0, size);
+        }
+        
+        Ok(allocated_addr)
+    }
+    
+    /// Get device memory statistics
+    pub fn get_device_memory_stats(&self) -> (usize, usize, usize) {
+        (self.device_memory_start, self.device_memory_size, self.device_memory_used)
     }
     
     /// Display detailed memory layout information
@@ -234,6 +277,14 @@ impl MemoryLayout {
         
         console_println!("Total kernel footprint: {} KB",
             (self.small_heap_start + self.small_heap_size - self.kernel_start) / 1024);
+        
+        console_println!("   Heap start: 0x{:08x}", self.heap_start);
+        console_println!("   Heap size: {} KB", self.heap_size / 1024);
+        console_println!("   Available memory: {} MB", self.available_memory / (1024 * 1024));
+        console_println!("   Device memory: 0x{:08x} - 0x{:08x} ({} KB)", 
+                        self.device_memory_start, 
+                        self.device_memory_start + self.device_memory_size,
+                        self.device_memory_size / 1024);
     }
 }
 

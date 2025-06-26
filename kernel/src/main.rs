@@ -126,7 +126,12 @@ pub extern "C" fn main() -> ! {
         console_println!("[o] Virtual Memory Management enabled!");
     }
 
-    // Initialize VirtIO disk interface
+    // Initialize VirtIO block device  
+    console_println!("[i] Initializing VirtIO block device...");
+    if let Err(_) = virtio::init_virtio_memory() {
+        console_println!("[x] Failed to initialize VirtIO memory manager");
+    }
+    
     if let Err(e) = virtio::init_virtio_blk() {
         console_println!("[x] VirtIO disk initialization failed: {}", e);
     } else {

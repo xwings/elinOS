@@ -196,9 +196,8 @@ impl RustVmmVirtIOBlock {
                 console_println!("  Device area offset: {} bytes", device_area_offset);
                 console_println!("  Total queue size: {} bytes", total_size);
                 
-                // Allocate page-aligned memory
-                const QUEUE_MEMORY_BASE: usize = 0x81000000;
-                let desc_table_addr = QUEUE_MEMORY_BASE;
+                // Allocate page-aligned memory using VirtIO memory manager
+                let desc_table_addr = super::super::allocate_virtio_memory(total_size)?;
                 let avail_ring_addr = desc_table_addr + driver_area_offset;
                 let used_ring_addr = desc_table_addr + device_area_offset;
                 
@@ -236,26 +235,22 @@ impl RustVmmVirtIOBlock {
                 
             } else {
                 // Modern VirtIO: Uses separate registers for each ring
-                const QUEUE_MEMORY_BASE: usize = 0x81000000;
                 let desc_table_size = 16 * queue_size as usize;
                 let avail_ring_size = 6 + 2 * queue_size as usize;
                 let used_ring_size = 6 + 8 * queue_size as usize;
                 
-                let desc_table_addr = QUEUE_MEMORY_BASE;
+                // Calculate the total span of memory used by the modern queue setup
+                let modern_used_ring_content_size = 4 + (8 * queue_size as usize);
+                let total_size = desc_table_size + avail_ring_size + modern_used_ring_content_size + 64; // Add padding
+                
+                // Allocate memory using VirtIO memory manager
+                let desc_table_addr = super::super::allocate_virtio_memory(total_size)?;
                 let avail_ring_addr = desc_table_addr + desc_table_size;
                 let used_ring_addr = (avail_ring_addr + avail_ring_size + 3) & !3; // 4-byte aligned
-                
-                // Calculate the total span of memory used by the modern queue setup
-                // Used ring actual size: header (flags u16, idx u16) + elements (id u32, len u32)
-                let modern_used_ring_content_size = 4 + (8 * queue_size as usize);
-                // The used_ring_addr is the start. The end is used_ring_addr + modern_used_ring_content_size.
-                // The total span is from desc_table_addr to the end of the used ring.
-                let modern_queue_memory_end_addr = used_ring_addr + modern_used_ring_content_size;
-                let modern_total_span = modern_queue_memory_end_addr - desc_table_addr;
 
                 // Zero out the queue memory region before use
                 unsafe {
-                    core::ptr::write_bytes(desc_table_addr as *mut u8, 0, modern_total_span);
+                    core::ptr::write_bytes(desc_table_addr as *mut u8, 0, total_size);
                 }
                 
                 // Initialize the queue structure
