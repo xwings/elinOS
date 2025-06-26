@@ -113,27 +113,6 @@ make autotest-builtin
 make test-interactive
 ```
 
-### Test Coverage
-
-The automated tests include:
-- **Filesystem Operations**: `touch`, `rm`, `mkdir`, file creation/deletion
-- **File I/O**: Reading and writing files, content verification
-- **Directory Operations**: Creating, removing, listing directories  
-- **Program Execution**: ELF binary loading and execution
-- **System Commands**: Help, memory info, device listing
-- **Error Handling**: Invalid operations and edge cases
-
-### CI/CD Pipeline
-
-Our GitHub Actions CI automatically:
-- ✅ **Builds** the kernel for debug and release configurations
-- ✅ **Compiles** all C example programs
-- ✅ **Runs** automated tests in QEMU
-- ✅ **Tests** multiple filesystem types (ext2, future FAT32)
-- ✅ **Checks** code formatting and linting
-- ✅ **Validates** security and quality metrics
-- ✅ **Generates** documentation and performance reports
-
 ## 💻 System Requirements
 
 ### Hardware Support
@@ -305,7 +284,8 @@ at your option.
 - **QEMU Team**: For the versatile emulation platform
 - **Linux Kernel**: For system call interface inspiration
 - **Maestro OS**: For memory management architecture insights
+- **Qiling Framework**: For everything else
 
 ---
 
-**elinOS** - *Where Rust meets RISC-V in kernel space* 🦀⚡
+**elinOS** - *Where Rust meets RISC-V in kernel space*
