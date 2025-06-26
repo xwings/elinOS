@@ -212,7 +212,7 @@ impl FileSystem for UnifiedFileSystem {
 /// Detect filesystem type by reading specific disk locations
 pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
     // console_println!("filesystem::detect_filesystem_type: Starting detection...");
-    let mut disk_device = crate::virtio_blk::VIRTIO_BLK.lock();
+            let mut disk_device = crate::virtio::VIRTIO_BLK.lock();
 
     if !disk_device.is_initialized() {
         // console_println!("filesystem::detect_filesystem_type: VirtIO disk not initialized.");

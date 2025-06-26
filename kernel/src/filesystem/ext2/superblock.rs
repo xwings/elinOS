@@ -2,7 +2,7 @@
 
 use super::structures::*;
 use super::super::traits::{FilesystemError, FilesystemResult};
-use crate::{console_println, virtio_blk};
+use crate::{console_println, virtio};
 use heapless::Vec;
 
 /// Manages ext2 superblock operations
@@ -32,7 +32,7 @@ impl SuperblockManager {
     fn read_superblock(&mut self) -> FilesystemResult<()> {
         console_println!("[i] Reading ext2 superblock...");
         
-        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
+        let mut disk_device = virtio::VIRTIO_BLK.lock();
         
         if !disk_device.is_initialized() {
             return Err(FilesystemError::DeviceError);
@@ -111,7 +111,7 @@ impl SuperblockManager {
     
     /// Read a block from disk
     pub fn read_block_data(&self, block_num: u64) -> FilesystemResult<Vec<u8, 4096>> {
-        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
+        let mut disk_device = virtio::VIRTIO_BLK.lock();
         
         if !disk_device.is_initialized() {
             return Err(FilesystemError::DeviceError);
@@ -140,7 +140,7 @@ impl SuperblockManager {
     
     /// Write a block to disk
     pub fn write_block_data(&self, block_num: u32, data: &[u8]) -> FilesystemResult<()> {
-        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
+        let mut disk_device = virtio::VIRTIO_BLK.lock();
         
         if !disk_device.is_initialized() {
             return Err(FilesystemError::DeviceError);
@@ -182,7 +182,7 @@ impl SuperblockManager {
             );
         }
         
-        let mut disk_device = virtio_blk::VIRTIO_BLK.lock();
+        let mut disk_device = virtio::VIRTIO_BLK.lock();
         
         if !disk_device.is_initialized() {
             return Err(FilesystemError::DeviceError);

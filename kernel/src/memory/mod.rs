@@ -34,7 +34,7 @@ pub enum MemoryZone {
 
 // Simple heap allocator for kernel (fallback)
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Dynamic heap configuration - calculated at runtime
 static mut HEAP_SPACE: Option<&'static mut [u8]> = None;

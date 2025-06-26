@@ -1,7 +1,7 @@
 // Common traits and types for filesystem implementations
 
 use heapless::Vec;
-use crate::virtio_blk::DiskError;
+use crate::virtio::DiskError;
 use crate::console_println;
 
 /// Unified filesystem error types

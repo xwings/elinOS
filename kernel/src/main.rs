@@ -15,7 +15,7 @@ pub mod memory;
 pub mod filesystem;  // Now points to filesystem/mod.rs
 pub mod elf;
 pub mod syscall;
-pub mod virtio_blk;
+pub mod virtio;
 pub mod trap;  // Add trap module
 
 use crate::uart::Uart;
@@ -127,7 +127,7 @@ pub extern "C" fn main() -> ! {
     }
 
     // Initialize VirtIO disk interface
-    if let Err(e) = virtio_blk::init_virtio_blk() {
+    if let Err(e) = virtio::init_virtio_blk() {
         console_println!("[x] VirtIO disk initialization failed: {}", e);
     } else {
         console_println!("[o] VirtIO disk ready");
