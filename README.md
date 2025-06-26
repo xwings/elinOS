@@ -2,11 +2,12 @@
 
 **A Modern RISC-V Experimental Operating System Kernel Written in Rust**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/username/elinOS)
+[![CI](https://github.com/username/elinOS/actions/workflows/ci.yml/badge.svg)](https://github.com/username/elinOS/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 [![RISC-V](https://img.shields.io/badge/arch-RISC--V64-orange)](https://riscv.org/)
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![no_std](https://img.shields.io/badge/no__std-yes-green)](https://docs.rust-embedded.org/book/intro/no-std.html)
+[![Tests](https://img.shields.io/badge/tests-automated-brightgreen)](#testing)
 
 > **elinOS** is an experimental operating system kernel designed for research, learning, and exploring advanced memory management techniques. Built entirely in Rust for RISC-V architecture, it features dynamic hardware detection, sophisticated multi-tier memory allocators, real filesystem implementations, and a comprehensive Linux-compatible system call interface.
 
@@ -91,6 +92,47 @@ make populate-disk
 # The kernel will automatically detect and mount the filesystem
 make run
 ```
+
+## 🧪 Testing
+
+elinOS includes comprehensive automated testing for kernel functionality:
+
+### Automated Test Suite
+
+```bash
+# Run full automated test suite
+make autotest
+
+# Run quick tests only  
+make autotest-quick
+
+# Run built-in kernel tests
+make autotest-builtin
+
+# Interactive testing (manual)
+make test-interactive
+```
+
+### Test Coverage
+
+The automated tests include:
+- **Filesystem Operations**: `touch`, `rm`, `mkdir`, file creation/deletion
+- **File I/O**: Reading and writing files, content verification
+- **Directory Operations**: Creating, removing, listing directories  
+- **Program Execution**: ELF binary loading and execution
+- **System Commands**: Help, memory info, device listing
+- **Error Handling**: Invalid operations and edge cases
+
+### CI/CD Pipeline
+
+Our GitHub Actions CI automatically:
+- ✅ **Builds** the kernel for debug and release configurations
+- ✅ **Compiles** all C example programs
+- ✅ **Runs** automated tests in QEMU
+- ✅ **Tests** multiple filesystem types (ext2, future FAT32)
+- ✅ **Checks** code formatting and linting
+- ✅ **Validates** security and quality metrics
+- ✅ **Generates** documentation and performance reports
 
 ## 💻 System Requirements
 

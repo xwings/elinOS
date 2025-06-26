@@ -217,6 +217,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             let path_arg = cmd.strip_prefix("cd ").unwrap_or("").trim();
             cmd_cd(path_arg)
         },
+
         
 
         
@@ -310,7 +311,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     syscall::sys_print("  /programs/hello - Execute with absolute path\n")?;
     
     syscall::sys_print("\n[i] System Control:\n")?;
-    syscall::sys_print("  shutdown        - Shutdown the system via SBI\n")?;
+        syscall::sys_print("  shutdown        - Shutdown the system via SBI\n")?;
     syscall::sys_print("  reboot          - Reboot the system via SBI\n")?;
     
     Ok(())
@@ -603,6 +604,7 @@ pub fn cmd_version() -> Result<(), &'static str> {
         syscall::SysCallResult::Error(_) => Err("Syscall failed"),
     }
 }
+
 
 pub fn cmd_shutdown() -> Result<(), &'static str> {
     let result = syscall::syscall_handler(

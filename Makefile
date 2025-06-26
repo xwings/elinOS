@@ -259,6 +259,34 @@ integration: build ## Run integration tests
 	@echo -e "$(COLOR_BLUE)Running integration tests...$(COLOR_RESET)"
 	@echo -e "$(COLOR_YELLOW)Integration tests not yet implemented$(COLOR_RESET)"
 
+.PHONY: autotest
+autotest: all ## Run automated kernel tests using Python test runner
+	@echo -e "$(COLOR_BLUE)Running automated kernel tests...$(COLOR_RESET)"
+	@python3 test_runner.py || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
+	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
+
+.PHONY: autotest-quick
+autotest-quick: all ## Run quick automated kernel tests
+	@echo -e "$(COLOR_BLUE)Running quick automated kernel tests...$(COLOR_RESET)"
+	@python3 test_runner.py --quick || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
+	@echo -e "$(COLOR_GREEN)✓ Quick tests passed$(COLOR_RESET)"
+
+.PHONY: autotest-builtin
+autotest-builtin: all ## Run built-in kernel test suite
+	@echo -e "$(COLOR_BLUE)Running built-in kernel tests...$(COLOR_RESET)"
+	@python3 test_runner.py --builtin || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
+	@echo -e "$(COLOR_GREEN)✓ Built-in tests passed$(COLOR_RESET)"
+
+.PHONY: test-interactive
+test-interactive: all ## Start kernel for interactive testing
+	@echo -e "$(COLOR_BLUE)Starting kernel for interactive testing...$(COLOR_RESET)"
+	@echo -e "$(COLOR_YELLOW)Available test commands:$(COLOR_RESET)"
+	@echo -e "  - test         : Run full automated test suite"
+	@echo -e "  - test quick   : Run quick test suite"
+	@echo -e "  - shutdown     : Exit QEMU"
+	@echo -e "$(COLOR_CYAN)Starting QEMU...$(COLOR_RESET)"
+	@$(MAKE) run
+
 .PHONY: bench
 bench: ## Run benchmarks
 	@echo -e "$(COLOR_BLUE)Running benchmarks...$(COLOR_RESET)"

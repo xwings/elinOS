@@ -1,0 +1,71 @@
+name: elinOS CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Run Automated Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    # Install Rust toolchain
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly
+        targets: riscv64gc-unknown-none-elf
+
+    # Install RISC-V cross-compilation tools and dependencies
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gcc-riscv64-unknown-elf \
+          qemu-system-misc \
+          python3-pip
+
+    - name: Install Python dependencies
+      run: |
+        pip3 install pexpect
+
+    # Build everything needed for testing
+    - name: Build kernel and prepare disk
+      run: |
+        make all
+
+    # Run the automated Python test suite
+    - name: Run automated tests
+      run: |
+        python3 test_runner.py
+
+    # Upload test artifacts on failure for debugging
+    - name: Upload artifacts on failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-debug-${{ github.sha }}
+        path: |
+          target/riscv64gc-unknown-none-elf/debug/kernel
+          disk.img
+          *.log 
