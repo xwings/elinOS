@@ -127,7 +127,7 @@ rebuild: clean build ## Clean and rebuild the kernel
 rebuild-release: clean build-release ## Clean and rebuild the kernel (release)
 
 .PHONY: all
-all: build c-programs prepare-disk ## Build kernel, compile C programs, and prepare disk
+all: build ext2-disk c-programs populate-disk
 
 .PHONY: clean
 clean: ## Clean build artifacts
