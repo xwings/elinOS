@@ -265,16 +265,6 @@ citest: all ## Run automated kernel tests using Python test runner
 	@python3 test_runner.py --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
 	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
 
-.PHONY: test-interactive
-test-interactive: all ## Start kernel for interactive testing
-	@echo -e "$(COLOR_BLUE)Starting kernel for interactive testing...$(COLOR_RESET)"
-	@echo -e "$(COLOR_YELLOW)Available test commands:$(COLOR_RESET)"
-	@echo -e "  - test         : Run full automated test suite"
-	@echo -e "  - test quick   : Run quick test suite"
-	@echo -e "  - shutdown     : Exit QEMU"
-	@echo -e "$(COLOR_CYAN)Starting QEMU...$(COLOR_RESET)"
-	@$(MAKE) run
-
 .PHONY: bench
 bench: ## Run benchmarks
 	@echo -e "$(COLOR_BLUE)Running benchmarks...$(COLOR_RESET)"
