@@ -51,9 +51,14 @@ jobs:
         pip3 install pexpect
 
     # Build everything needed for testing
-    - name: Build kernel and prepare disk
+    - name: Build kernel
       run: |
-        make build && make ext2-disk && make c-programs && make populate-disk
+        make build
+    
+    # Build everything needed for testing
+    - name: Prepare disk
+      run: |
+        make ext2-disk && make c-programs && make populate-disk
 
     # Run the automated Python test suite
     - name: Run automated tests
