@@ -16,21 +16,21 @@ class ElinOSTestRunner:
         
     def start_qemu(self):
         """Start QEMU with elinOS"""
-        print("🚀 Starting elinOS in QEMU...")
+        print("[i] Starting elinOS in QEMU...")
         try:
             # Start QEMU with the kernel
             self.qemu_process = pexpect.spawn('make run', timeout=self.timeout)
             
             # Wait for the kernel to boot and show the prompt
             self.qemu_process.expect('elinOS>', timeout=60)  # Longer timeout for boot
-            print("✅ elinOS booted successfully")
+            print("[o] elinOS booted successfully")
             
             return True
         except pexpect.TIMEOUT:
-            print("❌ Timeout waiting for elinOS to boot")
+            print("[x] Timeout waiting for elinOS to boot")
             return False
         except pexpect.EOF:
-            print("❌ QEMU process ended unexpectedly")
+            print("[x] QEMU process ended unexpectedly")
             return False
     
     def send_command(self, command, expected_output=None, timeout=None):
@@ -38,7 +38,7 @@ class ElinOSTestRunner:
         if timeout is None:
             timeout = self.timeout
             
-        print(f"📝 Sending command: {command}")
+        print(f"[i] Sending command: {command}")
         
         try:
             # Send the command
@@ -49,25 +49,25 @@ class ElinOSTestRunner:
             
             # Get the output
             output = self.qemu_process.before.decode('utf-8', errors='ignore')
-            print(f"📄 Output: {output.strip()}")
+            print(f"[i] Output: {output.strip()}")
             
             # Check expected output if provided
             if expected_output and expected_output not in output:
-                print(f"❌ Expected '{expected_output}' not found in output")
+                print(f"[x] Expected '{expected_output}' not found in output")
                 return False
                 
             return True
             
         except pexpect.TIMEOUT:
-            print(f"❌ Timeout waiting for command '{command}' to complete")
+            print(f"[x] Timeout waiting for command '{command}' to complete")
             return False
         except pexpect.EOF:
-            print("❌ QEMU process ended unexpectedly")
+            print("[x] QEMU process ended unexpectedly")
             return False
     
     def run_test_suite(self):
         """Run the complete test suite"""
-        print("🧪 Running elinOS Test Suite")
+        print("[i] Running elinOS Test Suite")
         print("=" * 50)
         
         tests = [
@@ -101,16 +101,16 @@ class ElinOSTestRunner:
             print(f"\n[{i}/{len(tests)}] Test: {command}")
             
             if self.send_command(command, expected):
-                print("✅ PASS")
+                print("[o] PASS")
                 passed += 1
             else:
-                print("❌ FAIL")
+                print("[x] FAIL")
                 failed += 1
             
             # Small delay between commands
             time.sleep(1)
         
-        print(f"\n🎯 Test Results:")
+        print(f"\n[i] Test Results:")
         print(f"   Passed: {passed}")
         print(f"   Failed: {failed}")
         print(f"   Success Rate: {passed/(passed+failed)*100:.1f}%")
@@ -119,21 +119,21 @@ class ElinOSTestRunner:
     
     def run_builtin_tests(self):
         """Run the built-in kernel test suite"""
-        print("🧪 Running Built-in Test Suite")
+        print("[i] Running Built-in Test Suite")
         print("=" * 50)
         
         # Run the built-in test command
         if self.send_command("test", "Test Summary", timeout=60):
-            print("✅ Built-in tests completed")
+            print("[o] Built-in tests completed")
             return True
         else:
-            print("❌ Built-in tests failed")
+            print("[x] Built-in tests failed")
             return False
     
     def cleanup(self):
         """Clean up QEMU process"""
         if self.qemu_process and self.qemu_process.isalive():
-            print("🛑 Shutting down QEMU...")
+            print("Shutting down QEMU...")
             try:
                 self.qemu_process.sendline("shutdown")
                 self.qemu_process.expect(pexpect.EOF, timeout=10)
@@ -173,7 +173,7 @@ def main():
         sys.exit(0 if success else 1)
         
     except KeyboardInterrupt:
-        print("\n🛑 Test interrupted by user")
+        print("\n[x] Test interrupted by user")
         sys.exit(1)
     finally:
         runner.cleanup()

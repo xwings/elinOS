@@ -1,8 +1,7 @@
 # elinOS
 
-**A Modern RISC-V Experimental Operating System Kernel Written in Rust**
+**Experimental RISC-V64 Kernel Written in Rust**
 
-[![CI](https://github.com/username/elinOS/actions/workflows/ci.yml/badge.svg)](https://github.com/username/elinOS/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 [![RISC-V](https://img.shields.io/badge/arch-RISC--V64-orange)](https://riscv.org/)
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
@@ -13,23 +12,22 @@
 
 ## 🌟 Key Features
 
-### 🧠 **Advanced Memory Management**
+### **Memory Management**
 - **Multi-Tier Architecture**: Buddy allocator + Slab allocator + Fallible operations
 - **Dynamic Hardware Detection**: Automatically detects available RAM and configures allocators
 - **Memory Zones**: DMA, Normal, and High memory zone support with automatic detection
 - **Adaptive Sizing**: Buffer sizes and allocator configurations scale based on detected memory
 - **Sophisticated Allocation**: Handles everything from 8-byte objects to multi-megabyte allocations
 
-### 💾 **Comprehensive Filesystem Support**
+### **Comprehensive Filesystem Support**
 - **Multi-Filesystem**: Native FAT32 and ext2 implementations with automatic detection
 - **Auto-Detection**: Probes boot sectors and superblocks to identify filesystem type
-- **FAT32 Features**: Boot sector parsing, directory enumeration, cluster chain management, 8.3 filenames
 - **ext2 Features**: Superblock validation, inode parsing, extent tree traversal, group descriptors
 - **File Operations**: Create, read, write, delete files and directories
 - **VirtIO Block Device**: Full VirtIO 1.0/1.1 support with auto-detection
 - **Dynamic Buffering**: File buffers scale from 4KB to 1MB+ based on available memory
 
-### ⚙️ **System Architecture**
+### **System Architecture**
 - **RISC-V 64-bit**: Native support for RV64GC with supervisor mode and interrupt handling
 - **Linux-Compatible System Calls**: 100+ system calls across 8 categories
 - **Memory Safety**: Zero-cost abstractions with comprehensive error handling
@@ -37,7 +35,7 @@
 - **Trap Handling**: Complete interrupt and exception handling system
 - **Virtual Memory**: Software MMU implementation with memory protection
 
-### 🖥️ **Interactive Shell Interface**
+### **Interactive Shell Interface**
 - **Built-in Commands**: 20+ shell commands for system interaction
 - **File System Operations**: `ls`, `cat`, `touch`, `mkdir`, `rm`, `rmdir`, `cd`, `pwd`
 - **System Monitoring**: `memory`, `devices`, `config`, `syscall`, `version`
@@ -45,7 +43,7 @@
 - **Path Resolution**: Full path resolution with `.` and `..` support
 - **Modular Design**: Separate shell crate for clean architecture
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -93,7 +91,7 @@ make populate-disk
 make run
 ```
 
-## 🧪 Testing
+## Testing
 
 elinOS includes comprehensive automated testing for kernel functionality:
 
@@ -113,7 +111,7 @@ make autotest-builtin
 make test-interactive
 ```
 
-## 💻 System Requirements
+## System Requirements
 
 ### Hardware Support
 - **Architecture**: RISC-V 64-bit (RV64GC)
@@ -197,7 +195,7 @@ elinOS is designed for:
 - **RISC-V Development**: Exploring RISC-V architecture features
 - **System Programming**: Learning low-level Rust programming
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
@@ -217,9 +215,9 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - Include tests for new functionality
 - Ensure memory safety and performance
 
-## 🛣️ Current Status & Roadmap
+## Current Status & Roadmap
 
-### ✅ Completed (v0.1.0)
+### Completed (v0.1.0)
 - [x] Dynamic memory management with buddy + slab allocators
 - [x] Hardware auto-detection and adaptive sizing
 - [x] Complete FAT32 and ext2 filesystem implementations
@@ -230,14 +228,14 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [x] Virtual memory management (software MMU)
 - [x] basic ELF program loading and execution
 
-### 🚧 In Progress (v0.2.0)
+### In Progress (v0.2.0)
 - [ ] Advanced ELF program loading and execution
 - [ ] User-space process management
 - [ ] Advanced memory protection (hardware MMU)
 - [ ] Improved filesystem write operations
 - [ ] Network stack implementation
 
-### 🔮 Future Goals (v0.3.0+)
+### Future Goals (v0.3.0+)
 - [ ] SMP (multi-core) support
 - [ ] Advanced scheduler with priority queues
 - [ ] Device driver framework
@@ -245,30 +243,15 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [ ] Security hardening and capability system
 - [ ] Performance optimizations
 
-## 📊 Technical Specifications
 
-### Memory Management
-- **Buddy Allocator**: Powers-of-2 block allocation for large objects
-- **Slab Allocator**: Efficient small object allocation (8B to 4KB)
-- **Fallible Operations**: Graceful handling of OOM conditions
-- **Auto-scaling**: Memory configuration adapts to detected hardware
-
-### Filesystem Support
-- **FAT32**: Complete implementation with cluster chain management
-- **ext2**: Full superblock, inode, and extent tree support
-- **Unified Interface**: Common API for all filesystem types
-- **Auto-detection**: Automatic filesystem type identification
-
-
-## 🐛 Known Limitations
-
+## Known Limitations
 - **User Space**: No user processes yet (kernel-only)
 - **Networking**: System calls defined but not implemented
 - **SMP**: Single-core only
 - **Hardware**: Limited to QEMU and compatible platforms
 - **Debugging**: Basic debugging support
 
-## 📜 License
+## License
 
 This project is licensed under either of
 
@@ -277,7 +260,7 @@ This project is licensed under either of
 
 at your option.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Rust Community**: For the excellent `no_std` ecosystem
 - **RISC-V Foundation**: For the open, extensible architecture
