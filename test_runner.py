@@ -132,8 +132,6 @@ class ElinOSTestRunner:
 
 def main():
     parser = argparse.ArgumentParser(description='elinOS Automated Test Runner')
-    parser.add_argument('--quick', action='store_true',
-                       help='Run quick test suite')
     parser.add_argument('--timeout', type=int, default=30,
                        help='Command timeout in seconds (default: 30)')
     
@@ -147,10 +145,7 @@ def main():
             sys.exit(1)
         
         # Run tests based on arguments
-        if args.quick:
-            success = runner.send_command("test quick", "Test Summary", timeout=60)
-        else:
-            success = runner.run_test_suite()
+        success = runner.run_test_suite()
         
         # Exit with appropriate code
         sys.exit(0 if success else 1)

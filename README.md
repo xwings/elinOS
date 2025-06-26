@@ -124,7 +124,7 @@ make test-interactive
 - **QEMU**: 5.0+ with RISC-V system emulation
 - **Build Tools**: GNU Make, GCC toolchain
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -260,15 +260,3 @@ This project is licensed under either of
 
 at your option.
 
-## Acknowledgments
-
-- **Rust Community**: For the excellent `no_std` ecosystem
-- **RISC-V Foundation**: For the open, extensible architecture
-- **QEMU Team**: For the versatile emulation platform
-- **Linux Kernel**: For system call interface inspiration
-- **Maestro OS**: For memory management architecture insights
-- **Qiling Framework**: For everything else
-
----
-
-**elinOS** - *Where Rust meets RISC-V in kernel space*
