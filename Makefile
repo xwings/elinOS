@@ -259,23 +259,11 @@ integration: build ## Run integration tests
 	@echo -e "$(COLOR_BLUE)Running integration tests...$(COLOR_RESET)"
 	@echo -e "$(COLOR_YELLOW)Integration tests not yet implemented$(COLOR_RESET)"
 
-.PHONY: autotest
-autotest: all ## Run automated kernel tests using Python test runner
+.PHONY: citest
+citest: all ## Run automated kernel tests using Python test runner
 	@echo -e "$(COLOR_BLUE)Running automated kernel tests...$(COLOR_RESET)"
-	@python3 test_runner.py || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
+	@python3 test_runner.py --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
 	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
-
-.PHONY: autotest-quick
-autotest-quick: all ## Run quick automated kernel tests
-	@echo -e "$(COLOR_BLUE)Running quick automated kernel tests...$(COLOR_RESET)"
-	@python3 test_runner.py --quick || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
-	@echo -e "$(COLOR_GREEN)✓ Quick tests passed$(COLOR_RESET)"
-
-.PHONY: autotest-builtin
-autotest-builtin: all ## Run built-in kernel test suite
-	@echo -e "$(COLOR_BLUE)Running built-in kernel tests...$(COLOR_RESET)"
-	@python3 test_runner.py --builtin || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
-	@echo -e "$(COLOR_GREEN)✓ Built-in tests passed$(COLOR_RESET)"
 
 .PHONY: test-interactive
 test-interactive: all ## Start kernel for interactive testing
@@ -333,13 +321,6 @@ fix-all: format clippy-fix ## Apply all automatic fixes
 # =============================================================================
 # Disk Image Commands
 # =============================================================================
-
-.PHONY: fat32-disk
-fat32-disk: ## Create a FAT32 test disk image
-	@echo -e "$(COLOR_BLUE)Creating FAT32 disk image ($(DISK_SIZE))...$(COLOR_RESET)"
-	@dd if=/dev/zero of=$(DISK_IMAGE) bs=1M count=$(shell echo $(DISK_SIZE) | sed 's/M//') 2>/dev/null
-	@mkfs.fat -F32 $(DISK_IMAGE) >/dev/null 2>&1
-	@echo -e "$(COLOR_GREEN)✓ FAT32 disk image created: $(DISK_IMAGE)$(COLOR_RESET)"
 
 .PHONY: ext2-disk
 ext2-disk: ## Create an ext2 test disk image

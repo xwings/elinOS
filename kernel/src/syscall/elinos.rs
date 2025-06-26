@@ -1,7 +1,7 @@
 // elinOS-Specific System Calls (900-999)
 // Handles elinOS-specific operations like debug, version, stats, etc.
 
-use crate::{sbi, console_println};
+use crate::{sbi, console_println, console_print};
 use super::{SysCallResult, SyscallArgs};
 use core::arch::asm;
 
@@ -33,70 +33,32 @@ pub fn handle_elinos_syscall(args: &SyscallArgs) -> SysCallResult {
 // === SYSTEM CALL IMPLEMENTATIONS ===
 
 pub fn sys_elinos_version() -> SysCallResult {
-    if let Err(e) = crate::syscall::sys_print("elinOS Version Information:\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("===============================================\n\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
+    console_println!("elinOS Information:");
+    console_println!("===============================================");
+    console_println!();
     
-    if let Err(e) = crate::syscall::sys_print("🦀 elinOS v0.1.0\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("RISC-V Experimental Operating System\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("Written in Rust for research and development\n\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
+    console_println!("RISC-V64 Experimental Operating System");
+    console_println!("Written in Rust for research and development");
+    console_println!();
     
-    if let Err(e) = crate::syscall::sys_print("Architecture:\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  Target: riscv64gc-unknown-none-elf\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  Memory Model: sv39 (future)\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  Privilege Level: Machine Mode\n\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
+    console_println!("Architecture:");
+    console_println!("  Target: riscv64gc-unknown-none-elf");
+    console_println!("  Memory Model: sv39 (future)");
+    console_println!("  Privilege Level: Machine Mode");
+    console_println!();
     
-    if let Err(e) = crate::syscall::sys_print("Features:\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  [o] VirtIO Block Device Support\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  [o] FAT32/ext2 Filesystem\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  [o] Automatic Filesystem Detection\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  [o] Linux-Compatible System Calls\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  [o] Memory Management\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  [o] Simple Interactive Shell\n\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
+    console_println!("Features:");
+    console_println!("  - VirtIO Block Device Support");
+    console_println!("  - ext2 Filesystem");
+    console_println!("  - Linux-Compatible System Calls");
+    console_println!("  - Memory Management");
+    console_println!("  - Simple Interactive Shell");
+    console_println!();
     
-    if let Err(e) = crate::syscall::sys_print("Build Information:\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  Compiler: rustc (nightly)\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  Built: [compile time]\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
-    if let Err(e) = crate::syscall::sys_print("  Kernel: elinOS\n") {
-        return SysCallResult::Error(crate::syscall::EIO);
-    }
+    console_println!("Build Information:");
+    console_println!("  Compiler: rustc (nightly)");
+    console_println!("  Built: [compile time]");
+    console_println!("  Kernel: elinOS");
     
     SysCallResult::Success(0)
 }

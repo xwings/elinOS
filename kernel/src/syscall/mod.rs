@@ -295,33 +295,33 @@ pub fn sys_device_info() -> Result<(), &'static str> {
 
 // Debug function to show syscall categories
 pub fn sys_show_categories() -> Result<(), &'static str> {
-    sys_print("System Call Categories (Linux Compatible Numbers):\n")?;
-    sys_print("  File I/O Operations:\n")?;
-    sys_print("    35: unlinkat, 45-47: truncate/ftruncate/fallocate\n")?;
-    sys_print("    56-64: openat/close/read/write/readv/writev/sendfile/etc\n")?;
-    sys_print("    78-83: readlinkat/newfstatat/fstat/sync/fsync/fdatasync\n")?;
-    sys_print("  Directory Operations:\n")?;
-    sys_print("    34: mkdirat, 49-55: chdir/fchdir/chroot/fchmod/etc\n")?;
-    sys_print("  Memory Management:\n")?;
-    sys_print("    214-239: brk/munmap/mremap/mmap/mprotect/mlock/etc\n")?;
-    sys_print("    960: getmeminfo (elinOS-specific)\n")?;
-    sys_print("  Process Management:\n")?;
-    sys_print("    93-100: exit/waitid/futex/getpid/getppid/kill/etc\n")?;
-    sys_print("    129-178: kill/getpid/getppid/etc\n")?;
-    sys_print("    220-221: clone/execve, 260: wait4\n")?;
-    sys_print("  Device and I/O Management:\n")?;
-    sys_print("    23-33: dup/dup3/fcntl/ioctl/flock/mknodat/etc\n")?;
-    sys_print("    59: pipe2, 950: getdevices (elinOS-specific)\n")?;
-    sys_print("  Network Operations:\n")?;
-    sys_print("    198-213: socket/bind/listen/accept/connect/etc\n")?;
-    sys_print("  Time and Timer Operations:\n")?;
-    sys_print("    101-115: nanosleep/getitimer/timer_*/clock_*\n")?;
-    sys_print("  System Information:\n")?;
-    sys_print("    160-168: uname/sethostname/getrlimit/setrlimit/etc\n")?;
-    sys_print("    169-171: gettimeofday/settimeofday/adjtimex\n")?;
-    sys_print("    179: sysinfo\n")?;
-    sys_print("  elinOS-Specific Operations:\n")?;
-    sys_print("    900-999: debug/version/shutdown/load_elf/exec_elf/etc\n")?;
+    crate::console_println!("System Call Categories (Linux Compatible Numbers):");
+    crate::console_println!("  File I/O Operations:");
+    crate::console_println!("    35: unlinkat, 45-47: truncate/ftruncate/fallocate");
+    crate::console_println!("    56-64: openat/close/read/write/readv/writev/sendfile/etc");
+    crate::console_println!("    78-83: readlinkat/newfstatat/fstat/sync/fsync/fdatasync");
+    crate::console_println!("  Directory Operations:");
+    crate::console_println!("    34: mkdirat, 49-55: chdir/fchdir/chroot/fchmod/etc");
+    crate::console_println!("  Memory Management:");
+    crate::console_println!("    214-239: brk/munmap/mremap/mmap/mprotect/mlock/etc");
+    crate::console_println!("    960: getmeminfo (elinOS-specific)");
+    crate::console_println!("  Process Management:");
+    crate::console_println!("    93-100: exit/waitid/futex/getpid/getppid/kill/etc");
+    crate::console_println!("    129-178: kill/getpid/getppid/etc");
+    crate::console_println!("    220-221: clone/execve, 260: wait4");
+    crate::console_println!("  Device and I/O Management:");
+    crate::console_println!("    23-33: dup/dup3/fcntl/ioctl/flock/mknodat/etc");
+    crate::console_println!("    59: pipe2, 950: getdevices (elinOS-specific)");
+    crate::console_println!("  Network Operations:");
+    crate::console_println!("    198-213: socket/bind/listen/accept/connect/etc");
+    crate::console_println!("  Time and Timer Operations:");
+    crate::console_println!("    101-115: nanosleep/getitimer/timer_*/clock_*");
+    crate::console_println!("  System Information:");
+    crate::console_println!("    160-168: uname/sethostname/getrlimit/setrlimit/etc");
+    crate::console_println!("    169-171: gettimeofday/settimeofday/adjtimex");
+    crate::console_println!("    179: sysinfo");
+    crate::console_println!("  elinOS-Specific Operations:");
+    crate::console_println!("    900-999: debug/version/shutdown/load_elf/exec_elf/etc");
     Ok(())
 }
 
@@ -344,7 +344,8 @@ pub fn sys_print_num(num: u64) -> Result<(), &'static str> {
     }
     
     let num_str = core::str::from_utf8(&buffer[20 - pos..]).unwrap_or("?");
-    sys_print(num_str)
+    crate::console_print!("{}", num_str);
+    Ok(())
 }
 
 pub fn sys_print_hex(num: u32, digits: usize) -> Result<(), &'static str> {
@@ -359,11 +360,11 @@ pub fn sys_print_hex(num: u32, digits: usize) -> Result<(), &'static str> {
     }
     
     let hex_str = core::str::from_utf8(&buffer[..digits]).unwrap_or("?");
-    sys_print(hex_str)
+    crate::console_print!("{}", hex_str);
+    Ok(())
 }
 
 pub fn sys_print_char(c: char) -> Result<(), &'static str> {
-    let mut buffer = [0u8; 4];
-    let s = c.encode_utf8(&mut buffer);
-    sys_print(s)
+    crate::console_print!("{}", c);
+    Ok(())
 } 

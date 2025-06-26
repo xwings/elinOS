@@ -3,7 +3,7 @@ use crate::filesystem::traits::{FileSystem, FilesystemError, FileEntry};
 use crate::memory::{self, BufferUsage};
 use heapless::String;
 use core::fmt::Write;
-use crate::{UART, console_println};
+use crate::{UART, console_println, console_print};
 
 // Shell commands that use system calls
 
@@ -19,7 +19,7 @@ fn ensure_cwd_initialized() {
             if CURRENT_PATH.push('/').is_err() {
                 // This should ideally not fail with a single char if MAX_PATH_LEN > 0
                 // Consider a panic or a more robust error handling if path initialization is critical
-                syscall::sys_print("CRITICAL: Failed to initialize CWD to root!\n").unwrap_or_default();
+                console_println!("CRITICAL: Failed to initialize CWD to root!");
             }
         }
     }
@@ -60,7 +60,7 @@ fn resolve_path(path_arg: &str) -> String<MAX_PATH_LEN> {
             } else {
                 if components.push(component).is_err() {
                     // Path too deep or too many components, handle error or truncate
-                    syscall::sys_print("Warning: Path too long or complex, may be truncated.\n").unwrap_or_default();
+                    console_println!("Warning: Path too long or complex, may be truncated.");
                     break; 
                 }
             }
@@ -96,9 +96,7 @@ fn print_filesystem_error(e: &FilesystemError) {
     // Using a temporary buffer to format the debug representation.
     let mut err_buf: String<128> = String::new();
     let _ = write!(err_buf, "{:?}", e); // Using Debug format
-    let _ = syscall::sys_print("Error: ");
-    let _ = syscall::sys_print(&err_buf);
-    let _ = syscall::sys_print("\n");
+    console_println!("Error: {}", err_buf);
 }
 
 // Central command processor - main.rs calls this function
@@ -121,7 +119,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         // File operations (working via modular filesystem)
         "ls" => cmd_ls(None),
         "cat" => {
-            syscall::sys_print("Usage: cat <filename>\n")?;
+            console_println!("Usage: cat <filename>");
             Ok(())
         },
         "echo" => cmd_echo(""),
@@ -129,19 +127,19 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
 
         // New file/dir operations
         "touch" => {
-            syscall::sys_print("Usage: touch <filename>\n")?;
+            console_println!("Usage: touch <filename>");
             Ok(())
         },
         "mkdir" => {
-            syscall::sys_print("Usage: mkdir <dirname>\n")?;
+            console_println!("Usage: mkdir <dirname>");
             Ok(())
         },
         "rm" => {
-            syscall::sys_print("Usage: rm <filename>\n")?;
+            console_println!("Usage: rm <filename>");
             Ok(())
         },
         "rmdir" => {
-            syscall::sys_print("Usage: rmdir <dirname>\n")?;
+            console_println!("Usage: rmdir <dirname>");
             Ok(())
         },
         "cd" => {
@@ -160,7 +158,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         cmd if cmd.starts_with("cat ") => {
             let path_arg = &cmd[4..].trim();
             if path_arg.is_empty() {
-                syscall::sys_print("Usage: cat <filename>\n")?;
+                console_println!("Usage: cat <filename>");
                 Ok(())
             } else {
                 let full_path = resolve_path(path_arg);
@@ -176,7 +174,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         cmd if cmd.starts_with("touch ") => {
             let path_arg = cmd.strip_prefix("touch ").unwrap_or("").trim();
             if path_arg.is_empty() {
-                syscall::sys_print("Usage: touch <filename>\n")?;
+                console_println!("Usage: touch <filename>");
                 Ok(())
             } else {
                 let full_path = resolve_path(path_arg);
@@ -186,7 +184,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         cmd if cmd.starts_with("mkdir ") => {
             let path_arg = cmd.strip_prefix("mkdir ").unwrap_or("").trim();
             if path_arg.is_empty() {
-                syscall::sys_print("Usage: mkdir <dirname>\n")?;
+                console_println!("Usage: mkdir <dirname>");
                 Ok(())
             } else {
                 let full_path = resolve_path(path_arg);
@@ -196,7 +194,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         cmd if cmd.starts_with("rm ") => {
             let path_arg = cmd.strip_prefix("rm ").unwrap_or("").trim();
             if path_arg.is_empty() {
-                syscall::sys_print("Usage: rm <filename>\n")?;
+                console_println!("Usage: rm <filename>");
                 Ok(())
             } else {
                 let full_path = resolve_path(path_arg);
@@ -206,7 +204,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         cmd if cmd.starts_with("rmdir ") => {
             let path_arg = cmd.strip_prefix("rmdir ").unwrap_or("").trim();
             if path_arg.is_empty() {
-                syscall::sys_print("Usage: rmdir <dirname>\n")?;
+                console_println!("Usage: rmdir <dirname>");
                 Ok(())
             } else {
                 let full_path = resolve_path(path_arg);
@@ -233,33 +231,28 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             match crate::filesystem::read_file(&full_path) {
                 Ok(file_data) => {
                     // Debug: Show file size and first few bytes
-                    let _ = syscall::sys_print("[i] Debug: File size: ");
-                    let _ = syscall::sys_print_num(file_data.len() as u64);
-                    let _ = syscall::sys_print(" bytes\n");
+                    console_println!("[i] Debug: File size: {}", file_data.len() as u64);
                     
                     if file_data.len() >= 4 {
-                        let _ = syscall::sys_print("[i] Debug: First 4 bytes: ");
+                        console_println!("[i] Debug: First 4 bytes: ");
                         for i in 0..4 {
-                            let _ = syscall::sys_print_hex(file_data[i] as u32, 2);
-                            let _ = syscall::sys_print(" ");
+                            console_print!("{:02x} ", file_data[i] as u32);
                         }
-                        let _ = syscall::sys_print("\n");
+                        console_println!();
                     }
                     
                     // Check if it's an ELF file by looking at magic bytes
                     if file_data.len() >= 4 && &file_data[0..4] == b"\x7fELF" {
                         cmd_execute_elf(&full_path, &file_data)
                     } else {
-                        let _ = syscall::sys_print("[x] Not an executable file: ");
-                        let _ = syscall::sys_print(command);
-                        let _ = syscall::sys_print(" (expected ELF magic: 7f 45 4c 46)\n");
+                        console_println!("[x] Not an executable file: {}", command);
+                        console_println!("(expected ELF magic: 7f 45 4c 46)");
                         Err("Not an executable")
                     }
                 }
                 Err(_) => {
-                    let _ = syscall::sys_print("Unknown command: ");
-                    let _ = syscall::sys_print(command);
-                    let _ = syscall::sys_print("\nType 'help' for available commands.\n");
+                    console_println!("Unknown command: {}", command);
+                    console_println!("Type 'help' for available commands.");
                     Ok(())
                 }
             }
@@ -282,105 +275,112 @@ pub fn get_available_commands() -> &'static [&'static str] {
 // === INDIVIDUAL COMMAND IMPLEMENTATIONS ===
 
 pub fn cmd_help() -> Result<(), &'static str> {
-    syscall::sys_print("[i] ElinOS Commands\n")?;
-    syscall::sys_print("===============================================\n\n")?;
+    console_println!("[i] ElinOS Commands");
+    console_println!("===============================================");
+    console_println!();
     
-    syscall::sys_print("[i] System Information:\n")?;
-    syscall::sys_print("  help            - Show this help message\n")?;
-    syscall::sys_print("  version         - Show kernel version and features\n")?;
-    syscall::sys_print("  memory          - Show memory regions and allocator statistics\n")?;
-    syscall::sys_print("  devices         - List detected VirtIO devices\n")?;
-    syscall::sys_print("  syscall         - Show system call information\n")?;
-    syscall::sys_print("  fscheck         - Check filesystem status and metadata\n")?;
-    syscall::sys_print("  config          - Show system configuration\n")?;
+    console_println!("[i] System Information:");
+    console_println!("  help            - Show this help message");
+    console_println!("  version         - Show kernel version and features");
+    console_println!("  memory          - Show memory regions and allocator statistics");
+    console_println!("  devices         - List detected VirtIO devices");
+    console_println!("  syscall         - Show system call information");
+    console_println!("  fscheck         - Check filesystem status and metadata");
+    console_println!("  config          - Show system configuration");
 
-    syscall::sys_print("\n[i]  Filesystem Operations:\n")?;
-    syscall::sys_print("  ls [path]       - List files/dirs (default: current directory)\n")?;
-    syscall::sys_print("  cat <path>      - Display file contents\n")?;
-    syscall::sys_print("  echo [message]  - Print a message (newline if no message)\n")?;
-    syscall::sys_print("  pwd             - Print current working directory\n")?;
-    syscall::sys_print("  touch <path>    - Create an empty file at the specified path\n")?;
-    syscall::sys_print("  mkdir <path>    - Create a directory at the specified path\n")?;
-    syscall::sys_print("  rm <path>       - Remove a file at the specified path\n")?;
-    syscall::sys_print("  rmdir <path>    - Remove an empty directory at the specified path\n")?;
-    syscall::sys_print("  cd [path]       - Change directory (default: root, use '/', '..')\n")?;
+    console_println!();
+    console_println!("[i]  Filesystem Operations:");
+    console_println!("  ls [path]       - List files/dirs (default: current directory)");
+    console_println!("  cat <path>      - Display file contents");
+    console_println!("  echo [message]  - Print a message (newline if no message)");
+    console_println!("  pwd             - Print current working directory");
+    console_println!("  touch <path>    - Create an empty file at the specified path");
+    console_println!("  mkdir <path>    - Create a directory at the specified path");
+    console_println!("  rm <path>       - Remove a file at the specified path");
+    console_println!("  rmdir <path>    - Remove an empty directory at the specified path");
+    console_println!("  cd [path]       - Change directory (default: root, use '/', '..')");
     
-    syscall::sys_print("\n[i] Program Execution:\n")?;
-    syscall::sys_print("  hello_simple    - Execute ELF binary directly by name\n")?;
-    syscall::sys_print("  ./hello_simple  - Execute with explicit relative path\n")?;
-    syscall::sys_print("  /programs/hello - Execute with absolute path\n")?;
+    console_println!();
+    console_println!("[i] Program Execution:");
+    console_println!("  hello_simple    - Execute ELF binary directly by name");
+    console_println!("  ./hello_simple  - Execute with explicit relative path");
+    console_println!("  /programs/hello - Execute with absolute path");
     
-    syscall::sys_print("\n[i] System Control:\n")?;
-        syscall::sys_print("  shutdown        - Shutdown the system via SBI\n")?;
-    syscall::sys_print("  reboot          - Reboot the system via SBI\n")?;
+    console_println!();
+    console_println!("[i] System Control:");
+    console_println!("  shutdown        - Shutdown the system via SBI");
+    console_println!("  reboot          - Reboot the system via SBI");
     
     Ok(())
 }
 
 pub fn cmd_config() -> Result<(), &'static str> {
-    syscall::sys_print("[i] Dynamic System Configuration\n")?;
-    syscall::sys_print("=====================================\n\n")?;
+    console_println!("[i] Dynamic System Configuration");
+    console_println!("=====================================");
+    console_println!();
     
     // Get memory statistics
     let mem_stats = memory::get_memory_stats();
     
-    syscall::sys_print("[i] Hardware Detection Results:\n")?;
+    console_println!("[i] Hardware Detection Results:");
     
-    syscall::sys_print("  Total RAM: ")?;
+    console_print!("  Total RAM: ");
     show_number_mb(mem_stats.detected_ram_size);
-    syscall::sys_print(" MB \n")?;
+    console_println!(" MB ");
     
-    syscall::sys_print("  Memory Regions: ")?;
+    console_print!("  Memory Regions: ");
     show_number(mem_stats.regions_detected);
-    syscall::sys_print(" (discovered via SBI)\n")?;
+    console_println!(" (discovered via SBI)");
     
-    syscall::sys_print("  Allocator Mode: ")?;
+    console_print!("  Allocator Mode: ");
     match mem_stats.allocator_mode {
-        memory::AllocatorMode::SimpleHeap => syscall::sys_print("Simple Heap (low memory)\n")?,
-        memory::AllocatorMode::TwoTier => syscall::sys_print("Two-Tier (Buddy + Slab)\n")?,
-        memory::AllocatorMode::Hybrid => syscall::sys_print("Hybrid (adaptive)\n")?,
+        memory::AllocatorMode::SimpleHeap => console_println!("Simple Heap (low memory)"),
+        memory::AllocatorMode::TwoTier => console_println!("Two-Tier (Buddy + Slab)"),
+        memory::AllocatorMode::Hybrid => console_println!("Hybrid (adaptive)"),
     }
     
-    syscall::sys_print("\n[i] Calculated Memory Allocations:\n")?;
+    console_println!();
+    console_println!("[i] Calculated Memory Allocations:");
     
-    syscall::sys_print("  Kernel Heap: ")?;
+    console_print!("  Kernel Heap: ");
     show_number_kb(mem_stats.heap_size);
-    syscall::sys_print(" KB (scaled to RAM size)\n")?;
+    console_println!(" KB (scaled to RAM size)");
     
-    syscall::sys_print("  Heap Used: ")?;
+    console_print!("  Heap Used: ");
     show_number_kb(mem_stats.heap_used);
-    syscall::sys_print(" KB\n")?;
+    console_println!(" KB");
     
-    syscall::sys_print("  Heap Utilization: ")?;
+    console_print!("  Heap Utilization: ");
     if mem_stats.heap_size > 0 {
         let utilization = (mem_stats.heap_used * 100) / mem_stats.heap_size;
         show_number(utilization);
-        syscall::sys_print("%\n")?;
+        console_println!("%");
     } else {
-        syscall::sys_print("N/A\n")?;
+        console_println!("N/A");
     }
     
-    syscall::sys_print("\n[i] Dynamic Buffer Sizes:\n")?;
+    console_println!();
+    console_println!("[i] Dynamic Buffer Sizes:");
     
     let sector_buf_size = memory::get_optimal_buffer_size(BufferUsage::SectorIO);
-    syscall::sys_print("  Sector I/O: ")?;
+    console_print!("  Sector I/O: ");
     show_number(sector_buf_size);
-    syscall::sys_print(" bytes\n")?;
+    console_println!(" bytes");
     
     let file_buf_size = memory::get_optimal_buffer_size(BufferUsage::FileRead);
-    syscall::sys_print("  File Reading: ")?;
+    console_print!("  File Reading: ");
     show_number_kb(file_buf_size);
-    syscall::sys_print(" KB\n")?;
+    console_println!(" KB");
     
     let cmd_buf_size = memory::get_optimal_buffer_size(BufferUsage::Command);
-    syscall::sys_print("  Command Input: ")?;
+    console_print!("  Command Input: ");
     show_number(cmd_buf_size);
-    syscall::sys_print(" bytes\n")?;
+    console_println!(" bytes");
     
     let max_file_size = memory::get_max_file_size();
-    syscall::sys_print("  Max File Size: ")?;
+    console_print!("  Max File Size: ");
     show_number_kb(max_file_size);
-    syscall::sys_print(" KB\n")?;
+    console_println!(" KB");
     
     Ok(())
 }
@@ -388,7 +388,7 @@ pub fn cmd_config() -> Result<(), &'static str> {
 // Helper functions for number display without format! macro
 fn show_number(mut num: usize) {
     if num == 0 {
-        let _ = syscall::sys_print("0");
+        console_print!("0");
         return;
     }
     
@@ -402,7 +402,7 @@ fn show_number(mut num: usize) {
     for &digit in digits.iter().rev() {
         let digit_str = [digit];
         if let Ok(s) = core::str::from_utf8(&digit_str) {
-            let _ = syscall::sys_print(s);
+            console_print!("{}", s);
         }
     }
 }
@@ -445,9 +445,7 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
         };
     }
 
-    syscall::sys_print("Listing for target '")?;
-    syscall::sys_print(&list_target_path)?;
-    syscall::sys_print("':\n")?;
+    console_println!("Listing for target '{}':", list_target_path);
 
     // Use the new path-aware directory listing
     match crate::filesystem::list_directory(&list_target_path) {
@@ -458,55 +456,26 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
             let fs_info = fs.get_filesystem_info();
             drop(fs);
             
-            //syscall::sys_print("[i] Filesystem contents (VirtIO disk):\n")?;
-            //syscall::sys_print("Type: ")?;
-            //match fs_type {
-            //    crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
-            //    crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
-            //    crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
-            //}
-            // syscall::sys_print("\n")?;
-            
-            // if let Some((signature, _total_blocks, _block_size)) = fs_info {
-            //     //syscall::sys_print("Boot signature/Magic: 0x")?;
-            //     // Simple hex output without format!
-            //     let hex_chars = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f'];
-            //     let mut hex_str = [0u8; 4];
-            //     hex_str[0] = hex_chars[((signature >> 12) & 0xF) as usize];
-            //     hex_str[1] = hex_chars[((signature >> 8) & 0xF) as usize];
-            //     hex_str[2] = hex_chars[((signature >> 4) & 0xF) as usize];
-            //     hex_str[3] = hex_chars[(signature & 0xF) as usize];
-            //     syscall::sys_print(core::str::from_utf8(&hex_str).unwrap_or("????"))?;
-            //     syscall::sys_print("\n")?;
-                
-            //     // syscall::sys_print("Total blocks/sectors: ")?;
-            //     // syscall::sys_print("(numeric display not implemented)\n")?;
-            //     // syscall::sys_print("Block/sector size: ")?;
-            //     // syscall::sys_print("(numeric display not implemented)\n")?;
-            //     syscall::sys_print("\n")?;
-            // }
-            
             if files.is_empty() {
-                syscall::sys_print("(No files found)\n")?;
+                console_println!("(No files found)");
             } else {
                 for (name, _size, is_directory) in &files {
                     if *is_directory {
-                        syscall::sys_print("  DIR   ")?;
+                        console_print!("  DIR   ");
                     } else {
-                        syscall::sys_print("  FILE  ")?;
+                        console_print!("  FILE  ");
                     }
-                    syscall::sys_print(name.as_str())?;
-                    syscall::sys_print("\n")?;
+                    console_println!("{}", name.as_str());
                 }
-                syscall::sys_print("\nTotal files: ")?;
+                console_print!("\nTotal files: ");
                 show_number(files.len());
-                syscall::sys_print("\n")?;
+                console_println!();
             }
             
             Ok(())
         }
         Err(_) => {
-            syscall::sys_print("Failed to list directory\n")?;
+            console_println!("Failed to list directory");
             Err("Failed to list directory")
         }
     }
@@ -525,68 +494,59 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
             let fs_type = fs.get_filesystem_type();
             drop(fs);
             
-            syscall::sys_print("[i] Reading file: ")?;
-            syscall::sys_print(filename)?;
-            // syscall::sys_print(" (from ")?;
-            // match fs_type {
-            //     crate::filesystem::FilesystemType::Fat32 => syscall::sys_print("FAT32")?,
-            //     crate::filesystem::FilesystemType::Ext2 => syscall::sys_print("ext2")?,
-            //     crate::filesystem::FilesystemType::Unknown => syscall::sys_print("Unknown")?,
-            // }
-            // syscall::sys_print(" filesystem)\n")?;
+            console_println!("[i] Reading file: {}", filename);
             
             if let Ok(content_str) = core::str::from_utf8(&content) {
-                syscall::sys_print(" ontent:\n")?;
-                syscall::sys_print(content_str)?;
-                syscall::sys_print("\n")?;
+                console_println!(" content:");
+                console_print!("{}", content_str);
+                console_println!();
             } else {
-                syscall::sys_print("(Binary file - ")?;
-                syscall::sys_print("bytes count not displayed")?;
-                syscall::sys_print(")\n")?;
+                console_println!("(Binary file - ");
+                console_println!("bytes count not displayed");
+                console_println!(")");
             }
             
             Ok(())
         }
         Err(_) => {
-            syscall::sys_print("[x] File '")?;
-            syscall::sys_print(filename)?;
-            syscall::sys_print("' not found\n")?;
+            console_println!("[x] File '{}' not found", filename);
             Err("File not found")
         }
     }
 }
 
 pub fn cmd_syscall() -> Result<(), &'static str> {
-    syscall::sys_print("System Call Information:\n")?;
+    console_println!("System Call Information:");
      
-    syscall::sys_print("Currently Implemented System Calls:\n")?;
-    syscall::sys_print("  File I/O Operations:\n")?;
-    syscall::sys_print("    SYS_WRITE (64)     - Write to file descriptor\n")?;
-    syscall::sys_print("    SYS_READ (63)      - Read from file descriptor\n")?;
-    syscall::sys_print("    SYS_OPENAT (56)    - Open file (modern Linux openat)\n")?;
-    syscall::sys_print("    SYS_CLOSE (57)     - Close file descriptor\n")?;
-    syscall::sys_print("    SYS_GETDENTS64 (61) - List directory entries\n")?;
+    console_println!("Currently Implemented System Calls:");
+    console_println!("  File I/O Operations:");
+    console_println!("    SYS_WRITE (64)     - Write to file descriptor");
+    console_println!("    SYS_READ (63)      - Read from file descriptor");
+    console_println!("    SYS_OPENAT (56)    - Open file (modern Linux openat)");
+    console_println!("    SYS_CLOSE (57)     - Close file descriptor");
+    console_println!("    SYS_GETDENTS64 (61) - List directory entries");
 
-    syscall::sys_print("  Memory Management:\n")?;
-    syscall::sys_print("    SYS_GETMEMINFO (960) - Memory information (elinOS)\n")?;
+    console_println!("  Memory Management:");
+    console_println!("    SYS_GETMEMINFO (960) - Memory information (elinOS)");
 
-    syscall::sys_print("  Process Management:\n")?;
-    syscall::sys_print("    SYS_EXIT (93)      - Exit process\n")?;
-    syscall::sys_print("    SYS_GETPID (172)   - Get process ID\n")?;
-    syscall::sys_print("    SYS_GETPPID (173)  - Get parent process ID\n")?;
-    syscall::sys_print("    SYS_FORK (220)     - Create child process\n")?;
-    syscall::sys_print("    SYS_WAIT4 (260)    - Wait for child process\n")?;
+    console_println!("  Process Management:");
+    console_println!("    SYS_EXIT (93)      - Exit process");
+    console_println!("    SYS_GETPID (172)   - Get process ID");
+    console_println!("    SYS_GETPPID (173)  - Get parent process ID");
+    console_println!("    SYS_FORK (220)     - Create child process");
+    console_println!("    SYS_WAIT4 (260)    - Wait for child process");
 
-    syscall::sys_print("  Device Management:\n")?;
-    syscall::sys_print("    SYS_GETDEVICES (950) - Device information (elinOS)\n")?;
+    console_println!("  Device Management:");
+    console_println!("    SYS_GETDEVICES (950) - Device information (elinOS)");
 
-    syscall::sys_print("  elinOS-Specific (System Control):\n")?;
-    syscall::sys_print("    SYS_ELINOS_VERSION (902)  - Show version\n")?;
-    syscall::sys_print("    SYS_ELINOS_SHUTDOWN (903) - Shutdown system\n")?;
-    syscall::sys_print("    SYS_ELINOS_REBOOT (904)   - Reboot system\n")?;
+    console_println!("  elinOS-Specific (System Control):");
+    console_println!("    SYS_ELINOS_VERSION (902)  - Show version");
+    console_println!("    SYS_ELINOS_SHUTDOWN (903) - Shutdown system");
+    console_println!("    SYS_ELINOS_REBOOT (904)   - Reboot system");
 
-    syscall::sys_print("\nNumbers in parentheses are Linux-compatible syscall numbers.\n")?;
-    syscall::sys_print("This makes elinOS easier to understand for Linux developers!\n")?;
+    console_println!();
+    console_println!("Numbers in parentheses are Linux-compatible syscall numbers.");
+    console_println!("This makes elinOS easier to understand for Linux developers!");
     Ok(())
 }
 
@@ -639,8 +599,7 @@ pub fn cmd_reboot() -> Result<(), &'static str> {
 }
 
 pub fn cmd_echo(message: &str) -> Result<(), &'static str> {
-    syscall::sys_print(message)?;
-    syscall::sys_print("\n")?;
+    console_println!("{}", message);
     Ok(())
 }
 
@@ -648,7 +607,7 @@ pub fn cmd_fscheck() -> Result<(), &'static str> {
     match crate::filesystem::check_filesystem() {
         Ok(()) => Ok(()),
         Err(_) => {
-            syscall::sys_print("Failed to check filesystem\n")?;
+            console_println!("Failed to check filesystem");
             Err("Failed to check filesystem")
         }
     }
@@ -657,20 +616,15 @@ pub fn cmd_fscheck() -> Result<(), &'static str> {
 fn cmd_pwd() -> Result<(), &'static str> {
     ensure_cwd_initialized();
     unsafe {
-        syscall::sys_print(&CURRENT_PATH)?;
+        console_println!("{}", CURRENT_PATH);
     }
-    syscall::sys_print("\n")?;
     Ok(())
 }
 
 fn cmd_touch(path: &str) -> Result<(), &'static str> {
     match crate::filesystem::FILESYSTEM.lock().create_file(path) {
         Ok(entry) => {
-            syscall::sys_print("Created file '")?;
-            syscall::sys_print(&entry.name)?; // Name from returned FileEntry might be just the basename
-            syscall::sys_print("' at path '")?;
-            syscall::sys_print(path)?;
-            syscall::sys_print("'.\n")?;
+            console_println!("Created file '{}' at path '{}'.", entry.name, path);
             Ok(())
         }
         Err(e) => {
@@ -683,11 +637,7 @@ fn cmd_touch(path: &str) -> Result<(), &'static str> {
 fn cmd_mkdir(path: &str) -> Result<(), &'static str> {
     match crate::filesystem::FILESYSTEM.lock().create_directory(path) {
         Ok(entry) => {
-            syscall::sys_print("Created directory '")?;
-            syscall::sys_print(&entry.name)?;
-            syscall::sys_print("' at path '")?;
-            syscall::sys_print(path)?;
-            syscall::sys_print("'.\n")?;
+            console_println!("Created directory '{}' at path '{}'.", entry.name, path);
             Ok(())
         }
         Err(e) => {
@@ -700,9 +650,7 @@ fn cmd_mkdir(path: &str) -> Result<(), &'static str> {
 fn cmd_rm(path: &str) -> Result<(), &'static str> { // For files
     match crate::filesystem::FILESYSTEM.lock().delete_file(path) {
         Ok(()) => {
-            syscall::sys_print("[o] Removed file '")?;
-            syscall::sys_print(path)?;
-            syscall::sys_print("'.\n")?;
+            console_println!("[o] Removed file '{}'.", path);
             Ok(())
         }
         Err(e) => {
@@ -715,9 +663,7 @@ fn cmd_rm(path: &str) -> Result<(), &'static str> { // For files
 fn cmd_rmdir(path: &str) -> Result<(), &'static str> { // For directories
     match crate::filesystem::FILESYSTEM.lock().delete_directory(path) {
         Ok(()) => {
-            syscall::sys_print("[o] Removed directory '")?;
-            syscall::sys_print(path)?;
-            syscall::sys_print("'.\n")?;
+            console_println!("[o] Removed directory '{}'.", path);
             Ok(())
         }
         Err(e) => {
@@ -735,22 +681,17 @@ fn cmd_cd(path_arg: &str) -> Result<(), &'static str> {
     unsafe {
         CURRENT_PATH.clear();
         if CURRENT_PATH.push_str(&new_path_str).is_err() {
-            syscall::sys_print("Error: New path too long for CWD buffer.\n")?;
+            console_println!("Error: New path too long for CWD buffer.");
             return Err("Path too long");
         }
     }
-    // syscall::sys_print("Current directory: ")?; // cmd_pwd can be used
-    // syscall::sys_print(&new_path_str)?;
-    // syscall::sys_print("\n")?;
     Ok(())
 }
 
 // === ELF OPERATIONS ===
 
 fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("[i] ELF Binary Analysis: ")?;
-    syscall::sys_print(filename)?;
-    syscall::sys_print("\n")?;
+    console_println!("[i] ELF Binary Analysis: {}", filename);
     
     // Read file from filesystem
     match crate::filesystem::read_file(filename) {
@@ -767,24 +708,20 @@ fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
             match result {
                 syscall::SysCallResult::Success(_) => Ok(()),
                 syscall::SysCallResult::Error(_) => {
-                    syscall::sys_print("[x] ELF analysis failed\n")?;
+                    console_println!("[x] ELF analysis failed");
                     Err("ELF analysis failed")
                 }
             }
         }
         Err(_) => {
-            syscall::sys_print("[x] File not found: ")?;
-            syscall::sys_print(filename)?;
-            syscall::sys_print("\n")?;
+            console_println!("[x] File not found: {}", filename);
             Err("File not found")
         }
     }
 }
 
 fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("[i] Loading ELF Binary: ")?;
-    syscall::sys_print(filename)?;
-    syscall::sys_print("\n")?;
+    console_println!("[i] Loading ELF Binary: {}", filename);
     
     // Read file from filesystem
     match crate::filesystem::read_file(filename) {
@@ -800,22 +737,18 @@ fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
             
             match result {
                 syscall::SysCallResult::Success(entry_point) => {
-                    syscall::sys_print("[o] ELF loaded successfully!\n")?;
-                    syscall::sys_print("   Entry point: 0x")?;
-                    let _ = syscall::sys_print_hex(entry_point as u32, 8);
-                    syscall::sys_print("\n")?;
+                    console_println!("[o] ELF loaded successfully!");
+                    console_println!("   Entry point: 0x{:08x}", entry_point as u32);
                     Ok(())
                 }
                 syscall::SysCallResult::Error(_) => {
-                    syscall::sys_print("[x] ELF loading failed\n")?;
+                    console_println!("[x] ELF loading failed");
                     Err("ELF loading failed")
                 }
             }
         }
         Err(_) => {
-            syscall::sys_print("[x] File not found: ")?;
-            syscall::sys_print(filename)?;
-            syscall::sys_print("\n")?;
+            console_println!("[x] File not found: {}", filename);
             Err("File not found")
         }
     }
@@ -823,9 +756,7 @@ fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
 
 // Unified ELF execution function - parse, load, and execute in one step
 fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str> {
-    syscall::sys_print("[i] Executing: ")?;
-    syscall::sys_print(filename)?;
-    syscall::sys_print("\n")?;
+    console_println!("[i] Executing: {}", filename);
     
     // Handle ELF execution (like "./hello_simple")
     if filename.starts_with("./") || filename.starts_with("/") {
@@ -882,20 +813,18 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
     
     match result {
         syscall::SysCallResult::Success(entry_point) => {
-            syscall::sys_print("[o] Program completed successfully!\n")?;
+            console_println!("[o] Program completed successfully!");
             Ok(())
         }
         syscall::SysCallResult::Error(_) => {
-            syscall::sys_print("[x] Execution failed\n")?;
+            console_println!("[x] Execution failed");
             Err("Execution failed")
         }
     }
 }
 
 fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
-    syscall::sys_print("[i] Executing ELF Binary: ")?;
-    syscall::sys_print(filename)?;
-    syscall::sys_print("\n")?;
+    console_println!("[i] Executing ELF Binary: {}", filename);
     
     // Read file from filesystem
     match crate::filesystem::read_file(filename) {
@@ -911,22 +840,18 @@ fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
             
             match result {
                 syscall::SysCallResult::Success(entry_point) => {
-                    syscall::sys_print("[o] ELF execution completed successfully!\n")?;
-                    syscall::sys_print("   Entry point was: 0x")?;
-                    let _ = syscall::sys_print_hex(entry_point as u32, 8);
-                    syscall::sys_print("\n")?;
+                    console_println!("[o] ELF execution completed successfully!");
+                    console_println!("   Entry point was: 0x{:08x}", entry_point as u32);
                     Ok(())
                 }
                 syscall::SysCallResult::Error(_) => {
-                    syscall::sys_print("[x] ELF execution failed\n")?;
+                    console_println!("[x] ELF execution failed");
                     Err("ELF execution failed")
                 }
             }
         }
         Err(_) => {
-            syscall::sys_print("[x] File not found: ")?;
-            syscall::sys_print(filename)?;
-            syscall::sys_print("\n")?;
+            console_println!("[x] File not found: {}", filename);
             Err("File not found")
         }
     }
@@ -934,27 +859,27 @@ fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
 
 /// Show heap usage information
 pub fn cmd_heap() -> Result<(), &'static str> {
-    syscall::sys_print("[i] Heap Status:\n")?;
-    syscall::sys_print("================\n")?;
+    console_println!("[i] Heap Status:");
+    console_println!("================");
     
     let (used, total, available) = memory::get_heap_usage();
     
-    syscall::sys_print("Total heap size: ")?;
+    console_print!("Total heap size: ");
     show_number_kb(total);
-    syscall::sys_print("\nUsed heap: ")?;
+    console_print!("\nUsed heap: ");
     show_number_kb(used);
-    syscall::sys_print("\nAvailable heap: ")?;
+    console_print!("\nAvailable heap: ");
     show_number_kb(available);
     
     let usage_percent = if total > 0 { (used * 100) / total } else { 0 };
-    syscall::sys_print("\nUsage: ")?;
+    console_print!("\nUsage: ");
     show_number(usage_percent);
-    syscall::sys_print("%\n")?;
+    console_println!("%");
     
     if available == 0 {
-        syscall::sys_print("[!]  WARNING: Heap is completely exhausted!\n")?;
+        console_println!("[!]  WARNING: Heap is completely exhausted!");
     } else if usage_percent > 90 {
-        syscall::sys_print("[!]  WARNING: Heap usage is very high!\n")?;
+        console_println!("[!]  WARNING: Heap usage is very high!");
     }
     
     Ok(())
@@ -962,14 +887,14 @@ pub fn cmd_heap() -> Result<(), &'static str> {
 
 /// Reset heap for testing (dangerous)
 pub fn cmd_heap_reset() -> Result<(), &'static str> {
-    syscall::sys_print("[!]  DANGER: This will reset the heap position!\n")?;
-    syscall::sys_print("This may cause memory corruption if other allocations are active.\n")?;
-    syscall::sys_print("Only use for testing purposes.\n")?;
-    syscall::sys_print("Resetting heap...\n")?;
+    console_println!("[!]  DANGER: This will reset the heap position!");
+    console_println!("This may cause memory corruption if other allocations are active.");
+    console_println!("Only use for testing purposes.");
+    console_println!("Resetting heap...");
     
     memory::reset_heap_for_testing();
     
-    syscall::sys_print("[o] Heap position reset to 0\n")?;
+    console_println!("[o] Heap position reset to 0");
     
     // Show new heap status
     cmd_heap()
