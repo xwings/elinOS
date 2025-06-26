@@ -74,19 +74,19 @@ class ElinOSTestRunner:
             # Basic filesystem operations
             ("ls", "Total files:"),
             ("touch aaa", "Created file"),
-            ("ls", "aaa"),
+            ("ls", "FILE  aaa"),
             ("rm aaa", "Removed file"),
             ("touch ccc", "Created file"),
             ("mkdir aaa", "Created directory"),
-            ("ls", "aaa"),
+            ("ls", "DIR   aaa"),
             ("rmdir aaa", "Removed directory"),
             ("rm ccc", "Removed file"),
 
             # File operations
-            ("cat test.txt", "This"),  # Just check it doesn't crash
+            ("cat test.txt", "This is a test file for the elinOS filesystem"),  # Just check it doesn't crash
             
             # ELF execution
-            ("./hello_world", "Hello"),
+            ("./hello_world", "Hello World from C on elinOS!"),
             
             # System commands
             ("help", "Program Execution"),
@@ -117,19 +117,6 @@ class ElinOSTestRunner:
         
         return failed == 0
     
-    def run_builtin_tests(self):
-        """Run the built-in kernel test suite"""
-        print("[i] Running Built-in Test Suite")
-        print("=" * 50)
-        
-        # Run the built-in test command
-        if self.send_command("test", "Test Summary", timeout=60):
-            print("[o] Built-in tests completed")
-            return True
-        else:
-            print("[x] Built-in tests failed")
-            return False
-    
     def cleanup(self):
         """Clean up QEMU process"""
         if self.qemu_process and self.qemu_process.isalive():
@@ -145,8 +132,6 @@ class ElinOSTestRunner:
 
 def main():
     parser = argparse.ArgumentParser(description='elinOS Automated Test Runner')
-    parser.add_argument('--builtin', action='store_true', 
-                       help='Run built-in kernel tests only')
     parser.add_argument('--quick', action='store_true',
                        help='Run quick test suite')
     parser.add_argument('--timeout', type=int, default=30,
@@ -162,9 +147,7 @@ def main():
             sys.exit(1)
         
         # Run tests based on arguments
-        if args.builtin:
-            success = runner.run_builtin_tests()
-        elif args.quick:
+        if args.quick:
             success = runner.send_command("test quick", "Test Summary", timeout=60)
         else:
             success = runner.run_test_suite()

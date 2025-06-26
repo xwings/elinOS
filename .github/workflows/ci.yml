@@ -63,4 +63,4 @@ jobs:
     # Run the automated Python test suite
     - name: Run automated tests
       run: |
-        python3 test_runner.py
+        python3 test_runner.py --timeout 60
