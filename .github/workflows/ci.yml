@@ -35,6 +35,7 @@ jobs:
       with:
         toolchain: nightly
         targets: riscv64gc-unknown-none-elf
+        components: rust-src
 
     # Install RISC-V cross-compilation tools and dependencies
     - name: Install dependencies
