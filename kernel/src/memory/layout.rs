@@ -118,8 +118,11 @@ impl MemoryLayout {
         
         // Set up device memory region after regular heap
         // Device memory needs to be DMA-accessible and properly aligned
+        // The linker places heap at 0x80400000 with 512KB size, so place device memory after that
+        let linker_heap_start = 0x80400000;
+        let linker_heap_size = 512 * 1024; // 512KB as defined by the memory manager
         let device_memory_size = 1024 * 1024; // 1MB for device operations (VirtIO, etc.)
-        layout.device_memory_start = layout.small_heap_start + layout.small_heap_size;
+        layout.device_memory_start = linker_heap_start + linker_heap_size;
         layout.device_memory_size = device_memory_size;
         layout.device_memory_used = 0;
         
@@ -215,8 +218,9 @@ impl MemoryLayout {
         
         // Check device memory doesn't overlap with other regions
         let device_end = self.device_memory_start + self.device_memory_size;
-        if self.device_memory_start < linker_heap_start + 512 * 1024 {
-            return Err("Device memory too close to heap");
+        let linker_heap_end = linker_heap_start + 512 * 1024; // 512KB heap size
+        if self.device_memory_start < linker_heap_end {
+            return Err("Device memory overlaps with linker heap");
         }
         
         console_println!("[o] Memory layout validation passed");
