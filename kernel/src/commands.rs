@@ -848,7 +848,7 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
                         console_println!("[o] ELF loaded, attempting execution...");
                         
                         // Execute the loaded ELF
-                        match loader.execute_elf(&loaded_elf) {
+                        match crate::elf::execute_elf(&loaded_elf) {
                             Ok(()) => {
                                 console_println!("[o] ELF execution completed successfully!");
                             }

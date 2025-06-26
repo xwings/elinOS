@@ -440,6 +440,9 @@ pub fn sys_load_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
                 ElfError::UnsupportedType => "Unsupported ELF type (need executable or shared object)",
                 ElfError::InvalidHeader => "Invalid or corrupted ELF header",
                 ElfError::LoadError => "Error loading ELF segments",
+                ElfError::ExecutionError => "Error executing ELF binary",
+                ElfError::MemoryAllocationFailed => "Memory allocation failed",
+                ElfError::InvalidEntryPoint => "Invalid entry point",
             };
             SysCallResult::Error(ENOEXEC)
         }
@@ -464,7 +467,7 @@ pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
             console_println!("[o] ELF loaded, attempting execution...");
             
             // Execute the loaded ELF
-            match loader.execute_elf(&loaded_elf) {
+            match crate::elf::execute_elf(&loaded_elf) {
                 Ok(()) => {
                     console_println!("[o] ELF execution completed successfully!");
                     SysCallResult::Success(loaded_elf.entry_point as isize)
@@ -487,6 +490,9 @@ pub fn sys_exec_elf(data_ptr: *const u8, size: usize) -> SysCallResult {
                 crate::elf::ElfError::UnsupportedType => "Unsupported ELF type (need executable or shared object)",
                 crate::elf::ElfError::InvalidHeader => "Invalid or corrupted ELF header",
                 crate::elf::ElfError::LoadError => "Error loading ELF segments",
+                crate::elf::ElfError::ExecutionError => "Error executing ELF binary",
+                crate::elf::ElfError::MemoryAllocationFailed => "Memory allocation failed",
+                crate::elf::ElfError::InvalidEntryPoint => "Invalid entry point",
             };
             SysCallResult::Error(ENOEXEC)
         }
@@ -515,6 +521,9 @@ pub fn sys_elf_info(data_ptr: *const u8, size: usize) -> SysCallResult {
                 ElfError::UnsupportedType => "Unsupported ELF type",
                 ElfError::InvalidHeader => "Invalid ELF header",
                 ElfError::LoadError => "ELF load error",
+                ElfError::ExecutionError => "Error executing ELF binary",
+                ElfError::MemoryAllocationFailed => "Memory allocation failed",
+                ElfError::InvalidEntryPoint => "Invalid entry point",
             };
             SysCallResult::Error(ENOEXEC)
         }
