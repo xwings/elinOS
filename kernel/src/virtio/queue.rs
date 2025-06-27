@@ -162,10 +162,30 @@ impl VirtioQueue {
         self.last_used_idx = 0;
         self.ready = false;
 
-        // Initialize tracking - ensure our view matches device state
+        // CRITICAL: Explicitly initialize the available and used ring headers
         unsafe {
+            let avail_ring_ptr = self.avail_ring as *mut VirtqAvail;
             let used_ring_ptr = self.used_ring as *mut VirtqUsed;
-            self.last_used_idx = read_volatile(&(*used_ring_ptr).idx); 
+            
+            // Debug: Check what's in memory before initialization
+            let pre_avail_idx = read_volatile(&(*avail_ring_ptr).idx);
+            let pre_used_idx = read_volatile(&(*used_ring_ptr).idx);
+            // console_println!("[DEBUG] Pre-init: avail_idx={}, used_idx={}", pre_avail_idx, pre_used_idx);
+            
+            // Initialize available ring
+            core::ptr::write_volatile(&mut (*avail_ring_ptr).flags, 0);
+            core::ptr::write_volatile(&mut (*avail_ring_ptr).idx, 0);
+            
+            // Initialize used ring  
+            core::ptr::write_volatile(&mut (*used_ring_ptr).flags, 0);
+            core::ptr::write_volatile(&mut (*used_ring_ptr).idx, 0);
+            
+            // Verify initialization worked
+            let post_avail_idx = read_volatile(&(*avail_ring_ptr).idx);
+            let post_used_idx = read_volatile(&(*used_ring_ptr).idx);
+            // console_println!("[DEBUG] Post-init: avail_idx={}, used_idx={}", post_avail_idx, post_used_idx);
+            
+            self.last_used_idx = post_used_idx;
         }
 
         console_println!("[o] VirtioQueue initialized: size={}, idx={}, desc_base=0x{:x}, avail_base=0x{:x}, used_base=0x{:x}",
@@ -199,8 +219,17 @@ impl VirtioQueue {
             let actual_table_idx = (head_index + i as u16) % self.size;
             let mut desc_to_write = chain[i];
 
+            // Fix the next field to point to the correct absolute descriptor index
             if (desc_to_write.flags & VIRTQ_DESC_F_NEXT) != 0 {
-                desc_to_write.next = (head_index + desc_to_write.next) % self.size;
+                // Calculate the absolute index of the next descriptor in the chain
+                let next_chain_idx = desc_to_write.next as usize;
+                if next_chain_idx < chain.len() {
+                    desc_to_write.next = (head_index + next_chain_idx as u16) % self.size;
+                } else {
+                    // Invalid next index - clear the NEXT flag to prevent corruption
+                    desc_to_write.flags &= !VIRTQ_DESC_F_NEXT;
+                    desc_to_write.next = 0;
+                }
             }
             
             unsafe {
@@ -211,11 +240,27 @@ impl VirtioQueue {
         // Add to available ring
         unsafe {
             let avail_ring_ptr = self.avail_ring as *mut VirtqAvail;
+            
+            // Read current available index from device (should be initialized to 0)
             let device_avail_idx = read_volatile(&(*avail_ring_ptr).idx);
             let ring_idx = device_avail_idx % self.size; 
             
+            // Debug: Show queue state before adding
+            //  console_println!("[DEBUG] Queue add: device_avail_idx={}, ring_idx={}, head_index={}, size={}", 
+            //    device_avail_idx, ring_idx, head_index, self.size);
+            
+            // Write the head descriptor index to the available ring
             core::ptr::write_volatile(&mut (*avail_ring_ptr).ring[ring_idx as usize], head_index);
-            core::ptr::write_volatile(&mut (*avail_ring_ptr).idx, device_avail_idx.wrapping_add(1));
+            
+            // Increment the available index
+            let new_avail_idx = device_avail_idx.wrapping_add(1);
+            core::ptr::write_volatile(&mut (*avail_ring_ptr).idx, new_avail_idx);
+            
+            // Debug: Verify what we wrote
+            let written_head = read_volatile(&(*avail_ring_ptr).ring[ring_idx as usize]);
+            let final_avail_idx = read_volatile(&(*avail_ring_ptr).idx);
+            // console_println!("[DEBUG] Queue after: written_head={}, final_avail_idx={}", 
+            //     written_head, final_avail_idx);
         }
         
         self.next_avail = (self.next_avail + chain.len() as u16) % self.size;

@@ -111,6 +111,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         "memory" => cmd_memory(),
         "heap" => cmd_heap(),
         "heap-reset" => cmd_heap_reset(),
+        "mmap" => cmd_mmap(),
         "devices" => cmd_devices(),
         "syscall" => cmd_syscall(),
         "fscheck" => cmd_fscheck(),
@@ -265,7 +266,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
 // Get list of all available commands (for help and autocomplete)
 pub fn get_available_commands() -> &'static [&'static str] {
     &[
-        "help", "version", "memory", "devices", "syscall", "fscheck", "config",
+        "help", "version", "memory", "heap", "mmap", "devices", "syscall", "fscheck", "config",
         "ls", "cat", "echo", "pwd",
         "touch", "mkdir", "rm", "rmdir", "cd",
         "shutdown", "reboot"
@@ -283,6 +284,8 @@ pub fn cmd_help() -> Result<(), &'static str> {
     console_println!("  help            - Show this help message");
     console_println!("  version         - Show kernel version and features");
     console_println!("  memory          - Show memory regions and allocator statistics");
+    console_println!("  heap            - Show heap usage information");
+    console_println!("  mmap            - Show memory mapping information");
     console_println!("  devices         - List detected VirtIO devices");
     console_println!("  syscall         - Show system call information");
     console_println!("  fscheck         - Check filesystem status and metadata");
@@ -898,4 +901,11 @@ pub fn cmd_heap_reset() -> Result<(), &'static str> {
     
     // Show new heap status
     cmd_heap()
+}
+
+/// Show memory mapping information
+pub fn cmd_mmap() -> Result<(), &'static str> {
+    console_println!("=== Memory Mapping Information ===");
+    crate::memory::mapping::show_memory_mappings();
+    Ok(())
 } 

@@ -7,6 +7,7 @@ pub mod buddy;
 pub mod slab;
 pub mod fallible;
 pub mod mmu;
+pub mod mapping;
 
 use spin::Mutex;
 use crate::{sbi, console_println};

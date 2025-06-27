@@ -44,26 +44,15 @@ impl VirtioMemoryManager {
             return Err(DiskError::NotInitialized);
         }
         
-        // Get mutable access to memory layout
-        // Note: This is a simplified approach - in a real system, you'd want
-        // a more sophisticated memory manager
-        let layout = get_memory_layout();
-        
-        // For now, we'll use the hardcoded approach but this shows the framework
-        // for using the device memory region
-        let (device_start, device_size, device_used) = layout.get_device_memory_stats();
-        
-        // Check if we have enough device memory available
-        if device_used + size > device_size {
-            return Err(DiskError::VirtIOError);
+        // Use the new memory mapping API to allocate DMA buffer
+        match crate::memory::mapping::map_virtual_memory(
+            size,
+            crate::memory::mapping::MemoryPermissions::READ_WRITE,
+            "VirtIO-Queue"
+        ) {
+            Ok(addr) => Ok(addr),
+            Err(_) => Err(DiskError::VirtIOError),
         }
-        
-        // For now, return a safe address in the device memory region
-        // In the future, this would call layout.allocate_device_memory()
-        let page_size = 4096;
-        let aligned_addr = (device_start + page_size - 1) & !(page_size - 1);
-        
-        Ok(aligned_addr)
     }
 }
 
@@ -80,4 +69,20 @@ pub fn init_virtio_memory() -> Result<(), DiskError> {
 pub fn allocate_virtio_memory(size: usize) -> Result<usize, DiskError> {
     let memory_mgr = VIRTIO_MEMORY.lock();
     memory_mgr.allocate_queue_memory(size)
+}
+
+/// Register a VirtIO device MMIO region
+pub fn register_virtio_device(base_addr: usize, size: usize, device_name: &str) -> Result<(), DiskError> {
+    match crate::memory::mapping::map_device_memory(base_addr, size, device_name) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(DiskError::VirtIOError),
+    }
+}
+
+/// Unregister a VirtIO device MMIO region
+pub fn unregister_virtio_device(base_addr: usize) -> Result<(), DiskError> {
+    match crate::memory::mapping::unmap_memory(base_addr) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(DiskError::VirtIOError),
+    }
 } 

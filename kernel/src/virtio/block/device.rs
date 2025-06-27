@@ -82,6 +82,14 @@ impl RustVmmVirtIOBlock {
         for &addr in &mmio_addresses {
             if self.probe_mmio_device(addr)? {
                 self.mmio_base = addr;
+                
+                // Register the device MMIO region using our memory mapping API
+                const VIRTIO_MMIO_SIZE: usize = 0x1000; // 4KB MMIO region
+                match super::super::register_virtio_device(addr, VIRTIO_MMIO_SIZE, "VirtIO-Block") {
+                    Ok(_) => console_println!("[i] VirtIO block device MMIO region registered"),
+                    Err(_) => console_println!("[!] Failed to register VirtIO MMIO region"),
+                }
+                
                 return Ok(true);
             }
         }
@@ -186,7 +194,9 @@ impl RustVmmVirtIOBlock {
                 // Calculate aligned layout exactly like rcore-os
                 let driver_area_offset = desc_table_size;
                 let device_area_offset = align_up(desc_table_size + avail_ring_size);
-                let total_size = align_up(device_area_offset + used_ring_size);
+                let buffer_area_offset = align_up(device_area_offset + used_ring_size);
+                let buffer_area_size = 1024; // Space for request + data + status buffers
+                let total_size = align_up(buffer_area_offset + buffer_area_size);
                 
                 console_println!("[i] Legacy memory layout calculation:");
                 console_println!("  Descriptor table: {} bytes", desc_table_size);
@@ -198,6 +208,7 @@ impl RustVmmVirtIOBlock {
                 let desc_table_addr = super::super::allocate_virtio_memory(total_size)?;
                 let avail_ring_addr = desc_table_addr + driver_area_offset;
                 let used_ring_addr = desc_table_addr + device_area_offset;
+                let buffer_area_addr = desc_table_addr + buffer_area_offset;
                 
                 // Validate memory layout (like rcore-os does)
                 if desc_table_addr % PAGE_SIZE != 0 {
@@ -208,6 +219,7 @@ impl RustVmmVirtIOBlock {
                 console_println!("  Descriptors: 0x{:x}", desc_table_addr);
                 console_println!("  Available:   0x{:x}", avail_ring_addr);
                 console_println!("  Used:        0x{:x}", used_ring_addr);
+                console_println!("  Buffers:     0x{:x}", buffer_area_addr);
                 
                 // Zero out the queue memory region before use
                 unsafe {
@@ -216,6 +228,11 @@ impl RustVmmVirtIOBlock {
                 
                 // Initialize queue structures
                 self.queue.init(queue_size, VIRTIO_BLK_REQUEST_QUEUE_IDX, desc_table_addr, avail_ring_addr, used_ring_addr)?;
+                
+                // Set up buffer area for VirtIO operations
+                unsafe {
+                    VIRTIO_BUFFER_BASE = buffer_area_addr;
+                }
                 
                 // Step 3: Set queue alignment (power of 2, typically page size)
                 let queue_align = PAGE_SIZE as u32;
@@ -302,29 +319,40 @@ impl RustVmmVirtIOBlock {
     fn virtio_read_sector(&mut self, sector: u64, buffer: &mut [u8; 512]) -> DiskResult<()> {
         let head_index;
         unsafe {
-            VIRTIO_REQUEST_BUFFER = VirtioBlkReq::new_read(sector);
-            VIRTIO_STATUS_BUFFER = 0xFF;
+            // Initialize request in virtual buffer
+            let request_ptr = get_request_buffer();
+            *request_ptr = VirtioBlkReq::new_read(sector);
+            
+            // Initialize status in virtual buffer
+            let status_ptr = get_status_buffer();
+            *status_ptr = 0xFF;
             
             let desc_chain = [
                 VirtqDesc {
-                    addr: &VIRTIO_REQUEST_BUFFER as *const _ as u64,
+                    addr: request_ptr as u64,
                     len: core::mem::size_of::<VirtioBlkReq>() as u32,
                     flags: VIRTQ_DESC_F_NEXT,
                     next: 1,
                 },
                 VirtqDesc {
-                    addr: VIRTIO_DATA_BUFFER.as_mut_ptr() as u64,
+                    addr: get_data_buffer() as u64,
                     len: 512,
                     flags: VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT,
                     next: 2,
                 },
                 VirtqDesc {
-                    addr: &mut VIRTIO_STATUS_BUFFER as *mut _ as u64,
+                    addr: status_ptr as u64,
                     len: 1,
                     flags: VIRTQ_DESC_F_WRITE,
                     next: 0,
                 },
             ];
+            
+            // Debug: Show descriptor addresses
+            // console_println!("[DEBUG] VirtIO descriptors (virtual buffers):");
+            // console_println!("  Request: 0x{:x} (len={})", desc_chain[0].addr, desc_chain[0].len);
+            // console_println!("  Data:    0x{:x} (len={})", desc_chain[1].addr, desc_chain[1].len);
+            // console_println!("  Status:  0x{:x} (len={})", desc_chain[2].addr, desc_chain[2].len);
             
             head_index = self.queue.add_descriptor_chain(&desc_chain)?;
             self.write_reg_u32(VIRTIO_MMIO_QUEUE_NOTIFY, self.queue.queue_index as u32);
@@ -338,11 +366,14 @@ impl RustVmmVirtIOBlock {
             }
 
             if let Some(_) = self.queue.wait_for_completion(head_index) {
-                if unsafe { VIRTIO_STATUS_BUFFER } == VIRTIO_BLK_S_OK {
-                    unsafe { buffer.copy_from_slice(&VIRTIO_DATA_BUFFER); }
-                    return Ok(());
-                } else {
-                    return Err(DiskError::ReadError);
+                unsafe {
+                    if *get_status_buffer() == VIRTIO_BLK_S_OK {
+                        let data_buffer = &*get_data_buffer();
+                        buffer.copy_from_slice(data_buffer);
+                        return Ok(());
+                    } else {
+                        return Err(DiskError::ReadError);
+                    }
                 }
             }
             
@@ -361,25 +392,33 @@ impl RustVmmVirtIOBlock {
     fn virtio_write_sector(&mut self, sector: u64, buffer: &[u8; 512]) -> DiskResult<()> {
         let head_index;
         unsafe {
-            VIRTIO_REQUEST_BUFFER = VirtioBlkReq::new_write(sector);
-            VIRTIO_DATA_BUFFER.copy_from_slice(buffer);
-            VIRTIO_STATUS_BUFFER = 0xFF;
+            // Initialize request in virtual buffer
+            let request_ptr = get_request_buffer();
+            *request_ptr = VirtioBlkReq::new_write(sector);
+            
+            // Copy data to virtual buffer
+            let data_buffer = &mut *get_data_buffer();
+            data_buffer.copy_from_slice(buffer);
+            
+            // Initialize status in virtual buffer
+            let status_ptr = get_status_buffer();
+            *status_ptr = 0xFF;
 
             let desc_chain = [
                 VirtqDesc {
-                    addr: &VIRTIO_REQUEST_BUFFER as *const _ as u64,
+                    addr: request_ptr as u64,
                     len: core::mem::size_of::<VirtioBlkReq>() as u32,
                     flags: VIRTQ_DESC_F_NEXT,
                     next: 1,
                 },
                 VirtqDesc {
-                    addr: VIRTIO_DATA_BUFFER.as_ptr() as u64,
-                    len: VIRTIO_DATA_BUFFER.len() as u32,
+                    addr: data_buffer.as_ptr() as u64,
+                    len: 512,
                     flags: VIRTQ_DESC_F_NEXT,
                     next: 2,
                 },
                 VirtqDesc {
-                    addr: &mut VIRTIO_STATUS_BUFFER as *mut _ as u64,
+                    addr: status_ptr as u64,
                     len: 1,
                     flags: VIRTQ_DESC_F_WRITE,
                     next: 0,
@@ -398,10 +437,12 @@ impl RustVmmVirtIOBlock {
             }
 
             if let Some(_) = self.queue.wait_for_completion(head_index) {
-                if unsafe { VIRTIO_STATUS_BUFFER } == VIRTIO_BLK_S_OK {
-                    return Ok(());
-                } else {
-                    return Err(DiskError::WriteError); 
+                unsafe {
+                    if *get_status_buffer() == VIRTIO_BLK_S_OK {
+                        return Ok(());
+                    } else {
+                        return Err(DiskError::WriteError); 
+                    }
                 }
             }
             
@@ -472,10 +513,24 @@ impl RustVmmVirtIOBlock {
     }
 }
 
-// Static buffers for VirtIO operations
-static mut VIRTIO_REQUEST_BUFFER: VirtioBlkReq = VirtioBlkReq { type_: 0, reserved: 0, sector: 0 };
-static mut VIRTIO_DATA_BUFFER: [u8; 512] = [0; 512];
-static mut VIRTIO_STATUS_BUFFER: u8 = 0;
+// VirtIO buffer addresses (will be set during initialization)
+static mut VIRTIO_BUFFER_BASE: usize = 0;
+const VIRTIO_REQUEST_OFFSET: usize = 0;
+const VIRTIO_DATA_OFFSET: usize = 16;  // After 16-byte request
+const VIRTIO_STATUS_OFFSET: usize = 528; // After 16-byte request + 512-byte data
+
+// Helper functions to access buffers in virtual memory
+unsafe fn get_request_buffer() -> *mut VirtioBlkReq {
+    (VIRTIO_BUFFER_BASE + VIRTIO_REQUEST_OFFSET) as *mut VirtioBlkReq
+}
+
+unsafe fn get_data_buffer() -> *mut [u8; 512] {
+    (VIRTIO_BUFFER_BASE + VIRTIO_DATA_OFFSET) as *mut [u8; 512]
+}
+
+unsafe fn get_status_buffer() -> *mut u8 {
+    (VIRTIO_BUFFER_BASE + VIRTIO_STATUS_OFFSET) as *mut u8
+}
 
 // Global instance
 pub static VIRTIO_BLK: Mutex<RustVmmVirtIOBlock> = Mutex::new(RustVmmVirtIOBlock::new());

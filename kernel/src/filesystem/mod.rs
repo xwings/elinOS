@@ -224,7 +224,6 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
     let mut warmup_buf = [0u8; 512];
     match disk_device.read_blocks(0, &mut warmup_buf) {
         Ok(_) => {
-            //console_println!("[o] VirtIO driver warmed up successfully");
         }
         Err(e) => {
             console_println!("[!] VirtIO warmup failed: {:?}, continuing anyway", e);
@@ -261,12 +260,18 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
     if sb_buffer.len() >= 56 + 2 {
         let ext2_magic = u16::from_le_bytes([sb_buffer[56], sb_buffer[57]]);
         if ext2_magic == 0xEF53 {
-            // console_println!("filesystem::detect_filesystem_type: ext2 magic 0xEF53 found.");
+            console_println!("[o] ext2 magic 0xEF53 found at offset 56");
             return Ok(FilesystemType::Ext2);
         }
-        // console_println!("filesystem::detect_filesystem_type: ext2 magic not found (read 0x{:04X}).", ext2_magic);
+        console_println!("[!] ext2 magic not found, read 0x{:04X} at offset 56", ext2_magic);
+        
+        // Debug: Show first few bytes of superblock area
+        console_println!("[DEBUG] Superblock bytes 0-15: {:02X?}", &sb_buffer[0..16]);
+        console_println!("[DEBUG] Superblock bytes 48-63: {:02X?}", &sb_buffer[48..64]);
+        console_println!("[DEBUG] Superblock bytes 56-57: [{:02X}, {:02X}] = 0x{:04X}", 
+            sb_buffer[56], sb_buffer[57], ext2_magic);
     } else {
-        // console_println!("filesystem::detect_filesystem_type: Superblock buffer too short for ext2 magic check.");
+        console_println!("[!] Superblock buffer too short for ext2 magic check");
     }
 
     // console_println!("filesystem::detect_filesystem_type: No known filesystem type identified.");
