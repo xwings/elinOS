@@ -464,14 +464,14 @@ impl VirtioGpu {
                 padding: 0,
             },
             resource_id: self.resource_id,
-            format: VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM, // Try BGRA format - more commonly supported
+            format: VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM, // Try B8G8R8A8 format (most common)
             width: 640,
             height: 480,
         };
 
         match self.send_command(&cmd) {
             Ok(()) => {
-                console_println!("[o] VirtIO GPU 2D resource created successfully (ID: {}, format: BGRA)", self.resource_id);
+                console_println!("[o] VirtIO GPU 2D resource created successfully (ID: {}, format: XRGB)", self.resource_id);
                 Ok(())
             }
             Err(e) => {

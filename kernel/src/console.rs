@@ -4,6 +4,7 @@
 use core::fmt::{self, Write};
 use spin::Mutex;
 use lazy_static::lazy_static;
+use heapless::String;
 
 // === CONSOLE MACROS ===
 
@@ -73,11 +74,18 @@ impl ConsoleManager {
     pub fn print(&self, args: fmt::Arguments) -> fmt::Result {
         match self.primary_device {
             OutputDevice::Framebuffer => {
-                // TODO: Implement actual framebuffer text rendering
-                // For now, output to UART so we can see it in QEMU terminal
-                // This will be replaced with actual framebuffer rendering later
+                // Output to both UART (for debugging) and graphics console (for display)
                 let mut uart = crate::UART.lock();
-                uart.write_fmt(args)
+                let uart_result = uart.write_fmt(args);
+                drop(uart);
+                
+                // Also output to graphics console if available
+                let formatted_string = format_args_to_string(args);
+                if let Err(_) = crate::graphics::print_to_console(&formatted_string) {
+                    // Graphics console failed, UART output is still available for debugging
+                }
+                
+                uart_result
             }
             OutputDevice::DebugUart => {
                 let mut uart = crate::UART.lock();
@@ -127,4 +135,11 @@ pub fn print_to_device(device: OutputDevice, s: &str) {
             let _ = uart.write_fmt(format_args!("{}", s));
         }
     }
+}
+
+// Helper to convert format_args to string
+fn format_args_to_string(args: fmt::Arguments) -> String<1024> {
+    let mut string = String::new();
+    let _ = write!(string, "{}", args);
+    string
 } 
