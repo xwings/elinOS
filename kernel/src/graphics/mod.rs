@@ -116,12 +116,30 @@ pub fn init_graphics() -> Result<(), &'static str> {
     // Create framebuffer first
     let mut framebuffer = SimpleFramebuffer::new(640, 480, 32)?;
     
-    // Get framebuffer info for VirtIO GPU
-    let (fb_addr, fb_size) = framebuffer.get_framebuffer_info();
+    // Get framebuffer virtual address and size
+    let (fb_virt_addr, fb_size) = framebuffer.get_framebuffer_info();
     
-    // Try to initialize VirtIO GPU
+    // Get the physical address for VirtIO GPU
+    let fb_phys_addr = match crate::memory::mapping::find_memory_mapping(fb_virt_addr) {
+        Some(mapping) => {
+            if let Some(phys_addr) = mapping.physical_addr {
+                console_println!("[i] Framebuffer: virt=0x{:x}, phys=0x{:x}, size={} KB", 
+                               fb_virt_addr, phys_addr, fb_size / 1024);
+                phys_addr
+            } else {
+                console_println!("[!] No physical address found for framebuffer");
+                return Err("Failed to get framebuffer physical address");
+            }
+        }
+        None => {
+            console_println!("[!] Framebuffer mapping not found");
+            return Err("Framebuffer mapping not found");
+        }
+    };
+    
+    // Try to initialize VirtIO GPU with physical address
     console_println!("[i] Attempting VirtIO GPU initialization...");
-    match crate::virtio::init_virtio_gpu(fb_addr, fb_size) {
+    match crate::virtio::init_virtio_gpu(fb_phys_addr, fb_size) {
         Ok(()) => {
             console_println!("[o] VirtIO GPU initialized successfully!");
             console_println!("[i] Graphics output should now be visible in QEMU window!");
@@ -136,28 +154,37 @@ pub fn init_graphics() -> Result<(), &'static str> {
     // Initialize display mode
     console_println!("[i] Initializing VGA display mode...");
     
-    // Clear to blue background
-    framebuffer.clear(0x0000FF); // Blue
-    console_println!("[o] VGA framebuffer cleared to blue");
+    // Clear to bright red background to make it very obvious (BGRA format: 0xBBGGRRAA)
+    framebuffer.clear(0x0000FFFF); // Bright red in BGRA format
+    console_println!("[o] VGA framebuffer cleared to bright red (BGRA)");
     
-    // Draw test pattern - white border
-    framebuffer.draw_rect(0, 0, 640, 10, 0xFFFFFF)?; // Top border
-    framebuffer.draw_rect(0, 470, 640, 10, 0xFFFFFF)?; // Bottom border  
-    framebuffer.draw_rect(0, 0, 10, 480, 0xFFFFFF)?; // Left border
-    framebuffer.draw_rect(630, 0, 10, 480, 0xFFFFFF)?; // Right border
-    console_println!("[o] VGA test pattern drawn");
+    // Draw test pattern - bright colors in BGRA format
+    framebuffer.draw_rect(50, 50, 100, 100, 0x00FF00FF)?; // Bright green square
+    framebuffer.draw_rect(200, 200, 200, 100, 0x00FFFFFF)?; // Bright yellow rectangle
+    framebuffer.draw_rect(0, 0, 640, 10, 0xFFFFFFFF)?; // White top border
+    framebuffer.draw_rect(0, 470, 640, 10, 0xFFFFFFFF)?; // White bottom border  
+    console_println!("[o] VGA test pattern drawn with bright colors (BGRA format)");
+    
+    // Store framebuffer globally BEFORE flushing
+    unsafe {
+        FRAMEBUFFER = Some(framebuffer);
+    }
     
     // Flush to display if VirtIO GPU is available
     if unsafe { VIRTIO_GPU_ENABLED } {
+        console_println!("[i] Attempting to flush framebuffer to VirtIO GPU...");
         match crate::virtio::flush_display() {
-            Ok(()) => console_println!("[i] Framebuffer flushed to VirtIO GPU display"),
-            Err(_) => console_println!("[!] Failed to flush framebuffer to display"),
+            Ok(()) => console_println!("[o] Framebuffer successfully flushed to VirtIO GPU display"),
+            Err(e) => console_println!("[!] Failed to flush framebuffer to display: {:?}", e),
         }
-    }
-    
-    // Store framebuffer globally
-    unsafe {
-        FRAMEBUFFER = Some(framebuffer);
+        
+        // Try a second flush to make sure
+        match crate::virtio::flush_display() {
+            Ok(()) => console_println!("[o] Second flush completed"),
+            Err(e) => console_println!("[!] Second flush failed: {:?}", e),
+        }
+    } else {
+        console_println!("[i] VirtIO GPU not enabled, skipping flush");
     }
     
     console_println!("[o] VGA graphics system initialized");

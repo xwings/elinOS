@@ -210,19 +210,34 @@ run-qcow2: build ## Run the kernel in QEMU (console mode)
 .PHONY: run-graphics
 run-graphics: build ## Run the kernel in QEMU with graphics
 	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with VirtIO GPU graphics...$(COLOR_RESET)"
+	@echo -e "$(COLOR_YELLOW)A graphics window should open showing the framebuffer output$(COLOR_RESET)"
 	@$(QEMU) \
 		-machine $(QEMU_MACHINE) \
-		-display gtk \
-		-serial stdio \
-		-device virtio-gpu-device \
-		-global virtio-mmio.force-legacy=false \
 		-cpu $(QEMU_CPU) \
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \
-		-bios $(OPENSBI) \
 		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
-		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
-		-device virtio-blk-device,drive=disk0
+		-device virtio-blk-device,drive=hd0 \
+		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
+		-device virtio-gpu-device \
+		-display gtk,show-cursor=on \
+		-serial stdio
+
+.PHONY: run-graphics-release
+run-graphics-release: build-release ## Run the kernel in QEMU with graphics (release build)
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with VirtIO GPU graphics (release)...$(COLOR_RESET)"
+	@echo -e "$(COLOR_YELLOW)A graphics window should open showing the framebuffer output$(COLOR_RESET)"
+	@$(QEMU) \
+		-machine $(QEMU_MACHINE) \
+		-cpu $(QEMU_CPU) \
+		-smp $(QEMU_SMP) \
+		-m $(QEMU_MEMORY) \
+		-kernel $(RELEASE_DIR)/$(KERNEL_NAME) \
+		-device virtio-blk-device,drive=hd0 \
+		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
+		-device virtio-gpu-device \
+		-display gtk,show-cursor=on \
+		-serial stdio
 
 .PHONY: run-debug
 run-debug: build ## Run the kernel with GDB debugging enabled

@@ -955,7 +955,14 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     console_println!("Test 1: Clearing screen to black...");
     total_tests += 1;
     match crate::graphics::clear_screen(0x00000000) {
-        Ok(_) => console_println!("[o] Screen cleared successfully"),
+        Ok(_) => {
+            console_println!("[o] Screen cleared successfully");
+            // Flush to display
+            match crate::graphics::flush_to_display() {
+                Ok(_) => console_println!("[o] Screen clear flushed to display"),
+                Err(e) => console_println!("[!] Failed to flush screen clear: {}", e),
+            }
+        },
         Err(e) => {
             console_println!("[x] FAILED: Clear screen failed: {}", e);
             test_failures += 1;
@@ -965,13 +972,13 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     // Test 2: Draw some colored pixels
     console_println!("Test 2: Drawing colored pixels...");
     let colors = [
-        ("Red", 0xFF0000FF),
-        ("Green", 0x00FF00FF),
-        ("Blue", 0x0000FFFF),
-        ("Yellow", 0xFFFF00FF),
-        ("Magenta", 0xFF00FFFF),
-        ("Cyan", 0x00FFFFFF),
-        ("White", 0xFFFFFFFF),
+        ("Red", 0x0000FFFF),      // BGRA format: 0xBBGGRRAA
+        ("Green", 0x00FF00FF),    // BGRA format: 0xBBGGRRAA
+        ("Blue", 0xFF0000FF),     // BGRA format: 0xBBGGRRAA
+        ("Yellow", 0x00FFFFFF),   // BGRA format: 0xBBGGRRAA
+        ("Magenta", 0xFF00FFFF),  // BGRA format: 0xBBGGRRAA
+        ("Cyan", 0xFFFF00FF),     // BGRA format: 0xBBGGRRAA
+        ("White", 0xFFFFFFFF),    // BGRA format: 0xBBGGRRAA
     ];
     
     for (i, &(color_name, color)) in colors.iter().enumerate() {
@@ -988,15 +995,22 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     // Test 3: Draw rectangles
     console_println!("Test 3: Drawing rectangles...");
     let rects = [
-        ("Red", 50, 300, 120, 50, 0xFF0000FF),
-        ("Green", 220, 300, 120, 50, 0x00FF00FF),
-        ("Blue", 390, 300, 120, 50, 0x0000FFFF),
+        ("Red", 50, 300, 120, 50, 0x0000FFFF),     // BGRA format: 0xBBGGRRAA
+        ("Green", 220, 300, 120, 50, 0x00FF00FF),  // BGRA format: 0xBBGGRRAA
+        ("Blue", 390, 300, 120, 50, 0xFF0000FF),   // BGRA format: 0xBBGGRRAA
     ];
     
     for &(color_name, x, y, w, h, color) in &rects {
         total_tests += 1;
         match crate::graphics::draw_rect(x, y, w, h, color) {
-            Ok(_) => console_println!("[o] Drew {} rectangle {}x{} at ({}, {})", color_name, w, h, x, y),
+            Ok(_) => {
+                console_println!("[o] Drew {} rectangle {}x{} at ({}, {})", color_name, w, h, x, y);
+                // Flush to display after each rectangle
+                match crate::graphics::flush_to_display() {
+                    Ok(_) => console_println!("[o] {} rectangle flushed to display", color_name),
+                    Err(e) => console_println!("[!] Failed to flush {} rectangle: {}", color_name, e),
+                }
+            },
             Err(e) => {
                 console_println!("[x] FAILED: {} rectangle at ({}, {}) - {}", color_name, x, y, e);
                 test_failures += 1;
@@ -1014,7 +1028,7 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     
     for &(test_name, x, y) in &boundary_tests {
         total_tests += 1;
-        match crate::graphics::set_pixel(x, y, 0xFFFFFFFF) {
+        match crate::graphics::set_pixel(x, y, 0xFFFFFFFF) { // BGRA format
             Ok(_) => console_println!("[o] {} at ({}, {}) - SUCCESS", test_name, x, y),
             Err(e) => {
                 if test_name.contains("Out of bounds") || test_name.contains("Just out") {
@@ -1027,6 +1041,13 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
         }
     }
     
+    // Final flush to ensure everything is visible
+    console_println!("Final: Flushing all graphics to display...");
+    match crate::graphics::flush_to_display() {
+        Ok(_) => console_println!("[o] Final flush completed - all graphics should now be visible!"),
+        Err(e) => console_println!("[!] Final flush failed: {}", e),
+    }
+    
     // Final results
     console_println!();
     console_println!("=== Test Results ===");
@@ -1036,6 +1057,7 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     
     if test_failures == 0 {
         console_println!("[o] ALL TESTS PASSED! Graphics system is working perfectly.");
+        console_println!("[i] Check QEMU graphics window - you should see colored rectangles!");
         Ok(())
     } else {
         console_println!("[x] {} TESTS FAILED! Graphics system has issues.", test_failures);
