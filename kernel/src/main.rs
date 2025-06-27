@@ -17,6 +17,7 @@ pub mod elf;
 pub mod syscall;
 pub mod virtio;
 pub mod trap;  // Add trap module
+pub mod graphics; // Simple framebuffer graphics
 
 use crate::uart::Uart;
 
@@ -146,6 +147,12 @@ pub extern "C" fn main() -> ! {
         Err(e) => {
             console_println!("[x] Filesystem initialization failed: {:?}", e);
         }
+    }
+
+    // Initialize graphics (optional)
+    match graphics::init_graphics() {
+        Ok(_) => console_println!("[o] Graphics system initialized"),
+        Err(e) => console_println!("[!] Graphics initialization failed: {}", e),
     }
     
     console_println!();

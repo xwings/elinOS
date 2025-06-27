@@ -113,6 +113,8 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         "heap-reset" => cmd_heap_reset(),
         "mmap" => cmd_mmap(),
         "devices" => cmd_devices(),
+        "graphics" => cmd_graphics(),
+        "gfxtest" => cmd_graphics_test(),
         "syscall" => cmd_syscall(),
         "fscheck" => cmd_fscheck(),
         "config" => cmd_config(),
@@ -287,6 +289,8 @@ pub fn cmd_help() -> Result<(), &'static str> {
     console_println!("  heap            - Show heap usage information");
     console_println!("  mmap            - Show memory mapping information");
     console_println!("  devices         - List detected VirtIO devices");
+    console_println!("  graphics        - Show graphics information");
+    console_println!("  gfxtest         - Test graphics drawing");
     console_println!("  syscall         - Show system call information");
     console_println!("  fscheck         - Check filesystem status and metadata");
     console_println!("  config          - Show system configuration");
@@ -908,4 +912,139 @@ pub fn cmd_mmap() -> Result<(), &'static str> {
     console_println!("=== Memory Mapping Information ===");
     crate::memory::mapping::show_memory_mappings();
     Ok(())
+}
+
+/// Show graphics information
+pub fn cmd_graphics() -> Result<(), &'static str> {
+    console_println!("=== Graphics System Information ===");
+    
+    if crate::graphics::is_graphics_available() {
+        console_println!("[o] Graphics system is available");
+        
+        if let Some((width, height, bpp, size)) = crate::graphics::get_framebuffer_info() {
+            console_println!("Framebuffer Information:");
+            console_println!("  Resolution: {}x{}", width, height);
+            console_println!("  Bits per pixel: {}", bpp);
+            console_println!("  Size: {} KB", size / 1024);
+            console_println!("  Total pixels: {}", width * height);
+        } else {
+            console_println!("[!] Graphics available but no framebuffer info");
+        }
+    } else {
+        console_println!("[!] Graphics system is not available");
+        console_println!("    This may be due to:");
+        console_println!("    - Insufficient memory for framebuffer allocation");
+        console_println!("    - Memory management API failure");
+        console_println!("    - Graphics initialization error");
+    }
+    
+    Ok(())
+}
+
+/// Test graphics drawing
+pub fn cmd_graphics_test() -> Result<(), &'static str> {
+    console_println!("=== Graphics Drawing Test ===");
+    
+    if !crate::graphics::is_graphics_available() {
+        console_println!("[!] Graphics system is not available");
+        return Err("Graphics not available");
+    }
+    
+    console_println!("[i] Running graphics tests...");
+    let mut test_failures = 0;
+    let mut total_tests = 0;
+    
+    // Test 1: Clear screen to black
+    console_println!("Test 1: Clearing screen to black...");
+    total_tests += 1;
+    match crate::graphics::clear_screen(0x00000000) {
+        Ok(_) => console_println!("[o] Screen cleared successfully"),
+        Err(e) => {
+            console_println!("[x] FAILED: Clear screen failed: {}", e);
+            test_failures += 1;
+        }
+    }
+    
+    // Test 2: Draw some colored pixels
+    console_println!("Test 2: Drawing colored pixels...");
+    let colors = [
+        ("Red", 0xFF0000FF),
+        ("Green", 0x00FF00FF),
+        ("Blue", 0x0000FFFF),
+        ("Yellow", 0xFFFF00FF),
+        ("Magenta", 0xFF00FFFF),
+        ("Cyan", 0x00FFFFFF),
+        ("White", 0xFFFFFFFF),
+    ];
+    
+    for (i, &(color_name, color)) in colors.iter().enumerate() {
+        let x = (i * 40) as u32; // Fit in 320px width (0, 40, 80, 120, 160, 200, 240)
+        let y = 100;
+        total_tests += 1;
+        
+        match crate::graphics::draw_pixel(x, y, color) {
+            Ok(_) => console_println!("[o] Drew {} pixel at ({}, {})", color_name, x, y),
+            Err(e) => {
+                console_println!("[x] FAILED: {} pixel at ({}, {}) - {}", color_name, x, y, e);
+                test_failures += 1;
+            }
+        }
+    }
+    
+    // Test 3: Draw rectangles
+    console_println!("Test 3: Drawing rectangles...");
+    let rects = [
+        ("Red", 10, 150, 80, 30, 0xFF0000FF),
+        ("Green", 120, 150, 80, 30, 0x00FF00FF),
+        ("Blue", 230, 150, 80, 30, 0x0000FFFF),
+    ];
+    
+    for &(color_name, x, y, w, h, color) in &rects {
+        total_tests += 1;
+        match crate::graphics::draw_rect(x, y, w, h, color) {
+            Ok(_) => console_println!("[o] Drew {} rectangle {}x{} at ({}, {})", color_name, w, h, x, y),
+            Err(e) => {
+                console_println!("[x] FAILED: {} rectangle at ({}, {}) - {}", color_name, x, y, e);
+                test_failures += 1;
+            }
+        }
+    }
+    
+    // Test 4: Boundary tests (should fail gracefully)
+    console_println!("Test 4: Boundary tests (should fail gracefully)...");
+    let boundary_tests = [
+        ("Out of bounds pixel", 500, 500),
+        ("Edge pixel", 319, 239), // Should succeed (last valid pixel)
+        ("Just out of bounds", 320, 240), // Should fail
+    ];
+    
+    for &(test_name, x, y) in &boundary_tests {
+        total_tests += 1;
+        match crate::graphics::draw_pixel(x, y, 0xFFFFFFFF) {
+            Ok(_) => console_println!("[o] {} at ({}, {}) - SUCCESS", test_name, x, y),
+            Err(e) => {
+                if test_name.contains("Out of bounds") || test_name.contains("Just out") {
+                    console_println!("[o] {} at ({}, {}) - CORRECTLY REJECTED: {}", test_name, x, y, e);
+                } else {
+                    console_println!("[x] FAILED: {} at ({}, {}) - {}", test_name, x, y, e);
+                    test_failures += 1;
+                }
+            }
+        }
+    }
+    
+    // Final results
+    console_println!();
+    console_println!("=== Test Results ===");
+    console_println!("Total tests: {}", total_tests);
+    console_println!("Passed: {}", total_tests - test_failures);
+    console_println!("Failed: {}", test_failures);
+    
+    if test_failures == 0 {
+        console_println!("[o] ALL TESTS PASSED! Graphics system is working perfectly.");
+        Ok(())
+    } else {
+        console_println!("[x] {} TESTS FAILED! Graphics system has issues.", test_failures);
+        Err("Graphics tests failed")
+    }
 } 

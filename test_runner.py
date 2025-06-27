@@ -93,6 +93,10 @@ class ElinOSTestRunner:
             ("memory", "Memory Regions"),
             ("version", "elinOS"),
             ("mmap", "Total mapped"),
+
+            # graphics
+            ("graphics", "Total pixels:"),
+            ("gfxtest", "ALL TESTS PASSED!"),
         ]
         
         passed = 0
