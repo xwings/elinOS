@@ -978,8 +978,8 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     ];
     
     for (i, &(color_name, color)) in colors.iter().enumerate() {
-        let x = (i * 40) as u32; // Fit in 320px width (0, 40, 80, 120, 160, 200, 240)
-        let y = 100;
+        let x = (i * 80) as u32; // Fit in 640px width (0, 80, 160, 240, 320, 400, 480)
+        let y = 200;
         total_tests += 1;
         
         match crate::graphics::draw_pixel(x, y, color) {
@@ -994,9 +994,9 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     // Test 3: Draw rectangles
     console_println!("Test 3: Drawing rectangles...");
     let rects = [
-        ("Red", 10, 150, 80, 30, 0xFF0000FF),
-        ("Green", 120, 150, 80, 30, 0x00FF00FF),
-        ("Blue", 230, 150, 80, 30, 0x0000FFFF),
+        ("Red", 50, 300, 120, 50, 0xFF0000FF),
+        ("Green", 220, 300, 120, 50, 0x00FF00FF),
+        ("Blue", 390, 300, 120, 50, 0x0000FFFF),
     ];
     
     for &(color_name, x, y, w, h, color) in &rects {
@@ -1013,9 +1013,9 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     // Test 4: Boundary tests (should fail gracefully)
     console_println!("Test 4: Boundary tests (should fail gracefully)...");
     let boundary_tests = [
-        ("Out of bounds pixel", 500, 500),
-        ("Edge pixel", 319, 239), // Should succeed (last valid pixel)
-        ("Just out of bounds", 320, 240), // Should fail
+        ("Out of bounds pixel", 1000, 1000),
+        ("Edge pixel", 639, 479), // Should succeed (last valid pixel)
+        ("Just out of bounds", 640, 480), // Should fail
     ];
     
     for &(test_name, x, y) in &boundary_tests {

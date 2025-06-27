@@ -18,11 +18,11 @@ macro_rules! console_print {
 #[macro_export]
 macro_rules! console_println {
     () => {
-        $crate::console_print!("\n")
+        $crate::console_print!("\r\n")
     };
     ($($arg:tt)*) => {{
         $crate::console_print!($($arg)*);
-        $crate::console_print!("\n");
+        $crate::console_print!("\r\n");
     }};
 }
 
@@ -39,7 +39,7 @@ macro_rules! debug_print {
 macro_rules! debug_println {
     ($($arg:tt)*) => {{
         $crate::debug_print!($($arg)*);
-        $crate::debug_print!("\n");
+        $crate::debug_print!("\r\n");
     }};
 }
 
@@ -112,7 +112,7 @@ pub fn print(s: &str) {
 
 pub fn println(s: &str) {
     let console = CONSOLE_MANAGER.lock();
-    let _ = console.print(format_args!("{}\n", s));
+    let _ = console.print(format_args!("{}\r\n", s));
 }
 
 pub fn print_to_device(device: OutputDevice, s: &str) {

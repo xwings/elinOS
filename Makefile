@@ -213,7 +213,8 @@ run-graphics: build ## Run the kernel in QEMU with graphics
 	@$(QEMU) \
 		-machine $(QEMU_MACHINE) \
         -display gtk \
-        -serial mon:vc \
+        -serial stdio \
+        -device VGA,vgamem_mb=16 \
 		-cpu $(QEMU_CPU) \
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \

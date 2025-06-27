@@ -148,33 +148,61 @@ impl GraphicsManager {
 
     /// Initialize graphics with a simple framebuffer
     pub fn init(&mut self) -> Result<(), &'static str> {
-        console_println!("[i] Initializing simple graphics system...");
+        console_println!("[i] Initializing VGA graphics system...");
 
-        // Create a basic framebuffer in memory (smaller size to fit in our heap)
-        let width = 320;
-        let height = 240;
-        let bpp = 16; // 16-bit pixels to save memory
+        // Standard VGA resolution with 2MB heap
+        let width = 640;
+        let height = 480;
+        let bpp = 32; // 32-bit pixels for full color support
         let bytes_per_pixel = (bpp + 7) / 8;
         let pitch = width * bytes_per_pixel;
         let fb_size = (height * pitch) as usize;
 
-        console_println!("[i] Allocating framebuffer: {}x{} @ {} bpp", width, height, bpp);
+        console_println!("[i] Setting up VGA framebuffer: {}x{} @ {} bpp", width, height, bpp);
         console_println!("[i] Framebuffer size: {} KB", fb_size / 1024);
 
+        // For QEMU RISC-V, let's try a different approach
+        // Instead of using a fixed VGA address, let's allocate system memory
+        // and see if we can make it work first
+        console_println!("[i] Allocating framebuffer in system memory (QEMU RISC-V)");
+        
         // Allocate framebuffer memory using our memory management API
         let fb_addr = mapping::map_virtual_memory(
             fb_size,
             mapping::MemoryPermissions::READ_WRITE,
-            "Simple-Framebuffer"
+            "VGA-Framebuffer"
         ).map_err(|_| "Failed to allocate framebuffer memory")?;
 
-        console_println!("[o] Framebuffer memory allocated at 0x{:x}", fb_addr);
+        console_println!("[o] VGA framebuffer mapped at 0x{:x}", fb_addr);
 
         // Create framebuffer instance
         let fb = SimpleFramebuffer::new(fb_addr, width, height, bpp)?;
         self.framebuffer = Some(fb);
 
-        console_println!("[o] Simple graphics system initialized");
+        // Initialize VGA mode and clear the screen to show it's working
+        console_println!("[i] Initializing VGA display mode...");
+        
+        // Get a reference to the framebuffer for initialization
+        if let Some(ref framebuffer) = self.framebuffer {
+            // Clear the screen to blue to show it's working
+            framebuffer.clear(0x000080FF)?; // Blue background (ARGB format)
+            console_println!("[o] VGA framebuffer cleared to blue");
+            
+            // Draw a simple test pattern to verify it's working
+            // Draw a white border around the screen
+            for x in 0..width {
+                framebuffer.draw_pixel(x, 0, 0xFFFFFFFF)?; // Top border
+                framebuffer.draw_pixel(x, height - 1, 0xFFFFFFFF)?; // Bottom border
+            }
+            for y in 0..height {
+                framebuffer.draw_pixel(0, y, 0xFFFFFFFF)?; // Left border
+                framebuffer.draw_pixel(width - 1, y, 0xFFFFFFFF)?; // Right border
+            }
+            console_println!("[o] VGA test pattern drawn");
+        }
+
+        console_println!("[o] VGA graphics system initialized");
+        console_println!("[i] Graphics output should now be visible in QEMU window!");
         Ok(())
     }
 

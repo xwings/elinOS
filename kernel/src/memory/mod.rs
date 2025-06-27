@@ -197,11 +197,13 @@ impl MemoryManager {
         let ram_mb = self.detected_ram_size / (1024 * 1024);
         
         // Calculate heap size (scale with available RAM)
+        // Increased heap size for graphics framebuffer support
         self.heap_size = match ram_mb {
             0..=8    => 32 * 1024,      // 32KB for very small systems
             9..=32   => 128 * 1024,     // 128KB for small systems  
-            33..=128 => 512 * 1024,     // 512KB for medium systems
-            129..=512 => 2 * 1024 * 1024, // 2MB for large systems
+            33..=64  => 512 * 1024,     // 512KB for small-medium systems
+            65..=128 => 2 * 1024 * 1024, // 2MB for medium systems (includes 128MB RAM)
+            129..=512 => 4 * 1024 * 1024, // 4MB for large systems
             _ => 8 * 1024 * 1024,       // 8MB for very large systems
         };
         
