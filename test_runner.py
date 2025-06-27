@@ -92,6 +92,7 @@ class ElinOSTestRunner:
             ("help", "Program Execution"),
             ("memory", "Memory Regions"),
             ("version", "elinOS"),
+            ("mmap", "Total mapped"),
         ]
         
         passed = 0

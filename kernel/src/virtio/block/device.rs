@@ -9,6 +9,43 @@ use super::super::{DiskResult, DiskError, VirtqDesc, VirtqUsedElem, VirtioQueue}
 use super::super::mmio::*;
 use super::{VIRTIO_BLK_T_IN, VIRTIO_BLK_T_OUT, VIRTIO_BLK_S_OK, VIRTIO_BLK_REQUEST_QUEUE_IDX};
 
+/// VirtIO buffer management - integrated with memory mapping system
+use crate::memory::mapping;
+
+/// VirtIO buffer structure for proper memory management
+struct VirtioBuffers {
+    base_addr: usize,
+    request_offset: usize,
+    data_offset: usize,
+    status_offset: usize,
+}
+
+impl VirtioBuffers {
+    fn new(base_addr: usize) -> Self {
+        VirtioBuffers {
+            base_addr,
+            request_offset: 0,
+            data_offset: 16,      // After 16-byte request
+            status_offset: 528,   // After 16-byte request + 512-byte data
+        }
+    }
+    
+    fn get_request_buffer(&self) -> *mut VirtioBlkReq {
+        (self.base_addr + self.request_offset) as *mut VirtioBlkReq
+    }
+    
+    fn get_data_buffer(&self) -> *mut [u8; 512] {
+        (self.base_addr + self.data_offset) as *mut [u8; 512]
+    }
+    
+    fn get_status_buffer(&self) -> *mut u8 {
+        (self.base_addr + self.status_offset) as *mut u8
+    }
+}
+
+/// VirtIO buffer addresses (will be set during initialization)
+static mut VIRTIO_BUFFERS: Option<VirtioBuffers> = None;
+
 /// VirtIO block request header
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -231,7 +268,7 @@ impl RustVmmVirtIOBlock {
                 
                 // Set up buffer area for VirtIO operations
                 unsafe {
-                    VIRTIO_BUFFER_BASE = buffer_area_addr;
+                    VIRTIO_BUFFERS = Some(VirtioBuffers::new(buffer_area_addr));
                 }
                 
                 // Step 3: Set queue alignment (power of 2, typically page size)
@@ -513,23 +550,17 @@ impl RustVmmVirtIOBlock {
     }
 }
 
-// VirtIO buffer addresses (will be set during initialization)
-static mut VIRTIO_BUFFER_BASE: usize = 0;
-const VIRTIO_REQUEST_OFFSET: usize = 0;
-const VIRTIO_DATA_OFFSET: usize = 16;  // After 16-byte request
-const VIRTIO_STATUS_OFFSET: usize = 528; // After 16-byte request + 512-byte data
-
-// Helper functions to access buffers in virtual memory
+// Helper functions that use proper buffer management
 unsafe fn get_request_buffer() -> *mut VirtioBlkReq {
-    (VIRTIO_BUFFER_BASE + VIRTIO_REQUEST_OFFSET) as *mut VirtioBlkReq
+    VIRTIO_BUFFERS.as_ref().unwrap().get_request_buffer()
 }
 
 unsafe fn get_data_buffer() -> *mut [u8; 512] {
-    (VIRTIO_BUFFER_BASE + VIRTIO_DATA_OFFSET) as *mut [u8; 512]
+    VIRTIO_BUFFERS.as_ref().unwrap().get_data_buffer()
 }
 
 unsafe fn get_status_buffer() -> *mut u8 {
-    (VIRTIO_BUFFER_BASE + VIRTIO_STATUS_OFFSET) as *mut u8
+    VIRTIO_BUFFERS.as_ref().unwrap().get_status_buffer()
 }
 
 // Global instance
