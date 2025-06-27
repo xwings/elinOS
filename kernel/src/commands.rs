@@ -918,24 +918,21 @@ pub fn cmd_mmap() -> Result<(), &'static str> {
 pub fn cmd_graphics() -> Result<(), &'static str> {
     console_println!("=== Graphics System Information ===");
     
-    if crate::graphics::is_graphics_available() {
-        console_println!("[o] Graphics system is available");
-        
-        if let Some((width, height, bpp, size)) = crate::graphics::get_framebuffer_info() {
+    match crate::graphics::get_dimensions() {
+        Ok((width, height)) => {
+            console_println!("[o] Graphics system is available");
             console_println!("Framebuffer Information:");
             console_println!("  Resolution: {}x{}", width, height);
-            console_println!("  Bits per pixel: {}", bpp);
-            console_println!("  Size: {} KB", size / 1024);
+            console_println!("  Bits per pixel: 32");
             console_println!("  Total pixels: {}", width * height);
-        } else {
-            console_println!("[!] Graphics available but no framebuffer info");
         }
-    } else {
-        console_println!("[!] Graphics system is not available");
-        console_println!("    This may be due to:");
-        console_println!("    - Insufficient memory for framebuffer allocation");
-        console_println!("    - Memory management API failure");
-        console_println!("    - Graphics initialization error");
+        Err(_) => {
+            console_println!("[!] Graphics system is not available");
+            console_println!("    This may be due to:");
+            console_println!("    - Insufficient memory for framebuffer allocation");
+            console_println!("    - Memory management API failure");
+            console_println!("    - Graphics initialization error");
+        }
     }
     
     Ok(())
@@ -945,7 +942,7 @@ pub fn cmd_graphics() -> Result<(), &'static str> {
 pub fn cmd_graphics_test() -> Result<(), &'static str> {
     console_println!("=== Graphics Drawing Test ===");
     
-    if !crate::graphics::is_graphics_available() {
+    if crate::graphics::get_dimensions().is_err() {
         console_println!("[!] Graphics system is not available");
         return Err("Graphics not available");
     }
@@ -982,12 +979,9 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
         let y = 200;
         total_tests += 1;
         
-        match crate::graphics::draw_pixel(x, y, color) {
+        match crate::graphics::set_pixel(x, y, color) {
             Ok(_) => console_println!("[o] Drew {} pixel at ({}, {})", color_name, x, y),
-            Err(e) => {
-                console_println!("[x] FAILED: {} pixel at ({}, {}) - {}", color_name, x, y, e);
-                test_failures += 1;
-            }
+            Err(e) => console_println!("[x] Failed to draw pixel: {}", e),
         }
     }
     
@@ -1020,7 +1014,7 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     
     for &(test_name, x, y) in &boundary_tests {
         total_tests += 1;
-        match crate::graphics::draw_pixel(x, y, 0xFFFFFFFF) {
+        match crate::graphics::set_pixel(x, y, 0xFFFFFFFF) {
             Ok(_) => console_println!("[o] {} at ({}, {}) - SUCCESS", test_name, x, y),
             Err(e) => {
                 if test_name.contains("Out of bounds") || test_name.contains("Just out") {

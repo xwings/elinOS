@@ -209,19 +209,20 @@ run-qcow2: build ## Run the kernel in QEMU (console mode)
 
 .PHONY: run-graphics
 run-graphics: build ## Run the kernel in QEMU with graphics
-	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with graphics...$(COLOR_RESET)"
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with VirtIO GPU graphics...$(COLOR_RESET)"
 	@$(QEMU) \
 		-machine $(QEMU_MACHINE) \
-        -display gtk \
-        -serial stdio \
-        -device VGA,vgamem_mb=16 \
+		-display gtk \
+		-serial stdio \
+		-device virtio-gpu-device \
+		-global virtio-mmio.force-legacy=false \
 		-cpu $(QEMU_CPU) \
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \
 		-bios $(OPENSBI) \
 		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
-        -device virtio-blk-device,drive=disk0 
+		-device virtio-blk-device,drive=disk0
 
 .PHONY: run-debug
 run-debug: build ## Run the kernel with GDB debugging enabled

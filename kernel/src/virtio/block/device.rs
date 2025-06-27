@@ -300,6 +300,10 @@ impl RustVmmVirtIOBlock {
                 let avail_ring_addr = desc_table_addr + desc_table_size;
                 let used_ring_addr = (avail_ring_addr + avail_ring_size + 3) & !3; // 4-byte aligned
 
+                // Allocate buffer area for VirtIO operations (same as legacy)
+                const BUFFER_AREA_SIZE: usize = 4096; // Request + Data + Status buffers
+                let buffer_area_addr = super::super::allocate_virtio_memory(BUFFER_AREA_SIZE)?;
+
                 // Zero out the queue memory region before use
                 unsafe {
                     core::ptr::write_bytes(desc_table_addr as *mut u8, 0, total_size);
@@ -307,6 +311,11 @@ impl RustVmmVirtIOBlock {
                 
                 // Initialize the queue structure
                 self.queue.init(queue_size, VIRTIO_BLK_REQUEST_QUEUE_IDX, desc_table_addr, avail_ring_addr, used_ring_addr)?;
+                
+                // Set up buffer area for VirtIO operations
+                unsafe {
+                    VIRTIO_BUFFERS = Some(VirtioBuffers::new(buffer_area_addr));
+                }
                 
                 // Modern VirtIO uses separate registers for each ring
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_DESC_LOW, desc_table_addr as u32);
