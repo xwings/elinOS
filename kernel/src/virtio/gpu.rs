@@ -677,8 +677,11 @@ impl VirtioGpu {
     /// Flush framebuffer to display
     pub fn flush_framebuffer(&mut self) -> DiskResult<()> {
         if !self.initialized {
+            console_println!("[!] VirtIO GPU not initialized, cannot flush");
             return Err(DiskError::NotInitialized);
         }
+
+        console_println!("[i] Starting VirtIO GPU framebuffer flush...");
 
         // Step 1: Transfer framebuffer data to host
         self.transfer_to_host()?;
@@ -686,11 +689,13 @@ impl VirtioGpu {
         // Step 2: Flush the resource to make it visible
         self.flush_resource()?;
         
+        console_println!("[o] VirtIO GPU framebuffer flush completed successfully");
         Ok(())
     }
 
     /// Transfer framebuffer data to host
     fn transfer_to_host(&mut self) -> DiskResult<()> {
+        console_println!("[i] Transferring framebuffer data to VirtIO GPU host...");
         let cmd = VirtioGpuTransferToHost2d {
             hdr: VirtioGpuCtrlHdr {
                 type_: VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D,
@@ -710,12 +715,21 @@ impl VirtioGpu {
             padding: 0,
         };
 
-        self.send_command(&cmd)?;
-        Ok(())
+        match self.send_command(&cmd) {
+            Ok(()) => {
+                console_println!("[o] VirtIO GPU transfer to host completed successfully");
+                Ok(())
+            }
+            Err(e) => {
+                console_println!("[x] VirtIO GPU transfer to host failed: {:?}", e);
+                Err(e)
+            }
+        }
     }
 
     /// Flush resource to display
     fn flush_resource(&mut self) -> DiskResult<()> {
+        console_println!("[i] Flushing VirtIO GPU resource to display...");
         let cmd = VirtioGpuResourceFlush {
             hdr: VirtioGpuCtrlHdr {
                 type_: VIRTIO_GPU_CMD_RESOURCE_FLUSH,
@@ -734,8 +748,16 @@ impl VirtioGpu {
             padding: 0,
         };
 
-        self.send_command(&cmd)?;
-        Ok(())
+        match self.send_command(&cmd) {
+            Ok(()) => {
+                console_println!("[o] VirtIO GPU resource flush completed successfully");
+                Ok(())
+            }
+            Err(e) => {
+                console_println!("[x] VirtIO GPU resource flush failed: {:?}", e);
+                Err(e)
+            }
+        }
     }
 
     /// Read 32-bit register

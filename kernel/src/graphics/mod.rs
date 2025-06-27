@@ -220,19 +220,8 @@ pub fn init_graphics() -> Result<(), &'static str> {
     console_println!("[i] Initializing text console for shell display...");
     match init_text_console() {
         Ok(()) => {
-            console_println!("[o] Text console initialized - shell should now be visible in QEMU window!");
-            
-            // Test the graphics console directly
-            match print_to_console("TEST: Graphics console is working!\n") {
-                Ok(()) => console_println!("[o] Graphics console test successful"),
-                Err(e) => console_println!("[!] Graphics console test failed: {}", e),
-            }
-            
-            // Test a simple shell prompt
-            match print_to_console("elinOS> ") {
-                Ok(()) => console_println!("[o] Shell prompt test successful"),
-                Err(e) => console_println!("[!] Shell prompt test failed: {}", e),
-            }
+            console_println!("[o] Text console initialized - colorful test pattern should be visible in QEMU window!");
+            console_println!("[i] Look for: bright red background, yellow rectangle, white borders");
         }
         Err(e) => {
             console_println!("[!] Failed to initialize text console: {}", e);
@@ -323,21 +312,18 @@ pub fn flush_to_display() -> Result<(), &'static str> {
 
 /// Initialize text console for shell output
 pub fn init_text_console() -> Result<(), &'static str> {
+    console_println!("[i] Initializing simple text console...");
+    
     unsafe {
         TEXT_CONSOLE = Some(TextConsole::new());
+        console_println!("[o] Text console created (keeping existing screen content)");
         
-        // Clear screen to black and display welcome message
-        if let Some(ref mut console) = TEXT_CONSOLE {
-            console.clear_screen()?;
-            console.print_str("elinOS Graphics Console\n")?;
-            console.print_str("======================\n\n")?;
-            
-            // Flush to display
-            if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
-            }
-        }
+        // Don't clear the screen - keep the existing colorful test pattern visible
+        // This way we can see if the VirtIO GPU display is working
+        console_println!("[i] Preserving existing graphics for visibility test");
     }
+    
+    console_println!("[o] Text console initialization complete");
     Ok(())
 }
 
@@ -591,8 +577,8 @@ impl TextConsole {
             cursor_y: 0,
             max_cols: 640 / FONT_WIDTH,   // 80 columns
             max_rows: 480 / FONT_HEIGHT,  // 60 rows
-            fg_color: 0xFFFFFFFF,         // White text
-            bg_color: 0x000000FF,         // Black background (BGRA)
+            fg_color: 0xFFFFFFFF,         // White text (BGRA: 0xBBGGRRAA)
+            bg_color: 0x800000FF,         // Dark blue background (BGRA: 0xBBGGRRAA) - more visible than black
         }
     }
     
@@ -729,9 +715,43 @@ impl TextConsole {
         
         unsafe {
             if let Some(ref mut fb) = FRAMEBUFFER {
-                fb.clear(self.bg_color);
+                fb.clear(self.bg_color); // Clear to black background
+                // Note: Don't flush here to avoid potential deadlock
             }
         }
         Ok(())
+    }
+}
+
+/// Simple test function to draw colored rectangles as "text"
+pub fn draw_simple_text_test() -> Result<(), &'static str> {
+    unsafe {
+        if let Some(ref mut fb) = FRAMEBUFFER {
+            // Clear to black first
+            fb.clear(0x000000FF);
+            
+            // Draw simple colored rectangles to represent text
+            // This is much simpler than font rendering
+            
+            // Draw "elinOS" as colored rectangles
+            let _ = fb.draw_rect(10, 10, 20, 30, 0xFF0000FF); // E - Red
+            let _ = fb.draw_rect(40, 10, 20, 30, 0x00FF00FF); // L - Green  
+            let _ = fb.draw_rect(70, 10, 20, 30, 0x0000FFFF); // I - Blue
+            let _ = fb.draw_rect(100, 10, 20, 30, 0xFFFF00FF); // N - Yellow
+            let _ = fb.draw_rect(130, 10, 20, 30, 0xFF00FFFF); // O - Magenta
+            let _ = fb.draw_rect(160, 10, 20, 30, 0x00FFFFFF); // S - Cyan
+            
+            // Draw ">" prompt as a white rectangle
+            let _ = fb.draw_rect(10, 60, 30, 20, 0xFFFFFFFF); // ">" - White
+            
+            // Flush to display
+            if VIRTIO_GPU_ENABLED {
+                let _ = crate::virtio::flush_display();
+            }
+            
+            Ok(())
+        } else {
+            Err("Framebuffer not initialized")
+        }
     }
 } 

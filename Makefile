@@ -216,6 +216,7 @@ run-graphics: build ## Run the kernel in QEMU with graphics
 		-cpu $(QEMU_CPU) \
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \
+		-bios $(OPENSBI) \
 		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
@@ -232,6 +233,7 @@ run-graphics-release: build-release ## Run the kernel in QEMU with graphics (rel
 		-cpu $(QEMU_CPU) \
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \
+		-bios $(OPENSBI) \
 		-kernel $(RELEASE_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
