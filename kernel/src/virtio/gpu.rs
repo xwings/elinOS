@@ -464,7 +464,7 @@ impl VirtioGpu {
                 padding: 0,
             },
             resource_id: self.resource_id,
-            format: VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM, // Try B8G8R8A8 format (most common)
+            format: VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM, // XRGB format - more compatible
             width: 640,
             height: 480,
         };
@@ -484,6 +484,9 @@ impl VirtioGpu {
     /// Attach backing store to resource
     fn attach_backing_store(&mut self) -> DiskResult<()> {
         console_println!("[i] Attaching backing store to VirtIO GPU resource...");
+        
+        // Note: Framebuffer should already be initialized by graphics system
+        // We don't zero it here to preserve the drawn content
         let cmd = VirtioGpuResourceAttachBacking {
             hdr: VirtioGpuCtrlHdr {
                 type_: VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING,
@@ -496,13 +499,20 @@ impl VirtioGpu {
             nr_entries: 1,
         };
 
+        // Ensure the length is page-aligned (VirtIO GPU requirement)
+        let aligned_size = (self.framebuffer_size + 4095) & !4095; // Round up to page boundary
         let mem_entry = VirtioGpuMemEntry {
             addr: self.framebuffer_addr as u64,
-            length: self.framebuffer_size as u32,
+            length: aligned_size as u32,
             padding: 0,
         };
+        console_println!("[i] Memory entry: addr=0x{:x}, length={} (aligned from {})", 
+                        mem_entry.addr, mem_entry.length, self.framebuffer_size);
 
         console_println!("[i] Backing store: addr=0x{:x}, size={} bytes", self.framebuffer_addr, self.framebuffer_size);
+        console_println!("[i] Memory region check: framebuffer at 0x{:x} (should be in RAM 0x80000000-0x88000000)", self.framebuffer_addr);
+        console_println!("[i] Alignment check: addr=0x{:x} % 4096 = {}", self.framebuffer_addr, self.framebuffer_addr % 4096);
+        console_println!("[i] Size check: calculated={}x{}x4={}, actual={}", 640, 480, 640*480*4, self.framebuffer_size);
         match self.send_command_with_data(&cmd, &mem_entry) {
             Ok(()) => {
                 console_println!("[o] VirtIO GPU backing store attached successfully");
@@ -650,7 +660,16 @@ impl VirtioGpu {
                        response_type == VIRTIO_GPU_RESP_OK_DISPLAY_INFO {
                         return Ok(());
                     } else {
-                        console_println!("[!] VirtIO GPU command with data failed, response: 0x{:x}", response_type);
+                        let error_msg = match response_type {
+                            VIRTIO_GPU_RESP_ERR_UNSPEC => "Unspecified error",
+                            VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY => "Out of memory",
+                            VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID => "Invalid scanout ID",
+                            VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID => "Invalid resource ID",
+                            VIRTIO_GPU_RESP_ERR_INVALID_CONTEXT_ID => "Invalid context ID",
+                            VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER => "Invalid parameter",
+                            _ => "Unknown error",
+                        };
+                        console_println!("[!] VirtIO GPU command with data failed: {} (0x{:x})", error_msg, response_type);
                         return Err(DiskError::VirtIOError);
                     }
                 }

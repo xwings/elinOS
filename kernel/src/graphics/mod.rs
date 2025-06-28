@@ -19,17 +19,23 @@ unsafe impl Send for SimpleFramebuffer {}
 unsafe impl Sync for SimpleFramebuffer {}
 
 impl SimpleFramebuffer {
-    /// Create a new framebuffer
+    /// Create a new framebuffer with VirtIO GPU compatibility
     pub fn new(width: u32, height: u32, bpp: u32) -> Result<Self, &'static str> {
+        console_println!("[i] Setting up software framebuffer: {}x{} @ {} bpp", width, height, bpp);
+        
         let bytes_per_pixel = bpp / 8;
         let pitch = width * bytes_per_pixel;
-        let size = (pitch * height) as usize;
+        let size = (width * height * bytes_per_pixel) as usize;
         
-        console_println!("[i] Setting up software framebuffer: {}x{} @ {} bpp", width, height, bpp);
         console_println!("[i] Framebuffer size: {} KB", size / 1024);
         
-        // Allocate framebuffer memory using virtual memory manager
-        match map_virtual_memory(size, MemoryPermissions::READ_WRITE, "Graphics-Framebuffer") {
+        // For VirtIO GPU compatibility, allocate framebuffer in proper RAM region
+        // Use VirtIO-specific allocation to ensure it's in the right memory region
+        match crate::memory::mapping::map_virtual_memory(
+            size,
+            crate::memory::mapping::MemoryPermissions::READ_WRITE,
+            "VirtIO GPU Framebuffer", // Use "VirtIO" in name to trigger proper allocation
+        ) {
             Ok(addr) => {
                 console_println!("[o] VGA framebuffer mapped at 0x{:x}", addr);
                 
@@ -113,18 +119,18 @@ static mut VIRTIO_GPU_ENABLED: bool = false;
 pub fn init_graphics() -> Result<(), &'static str> {
     console_println!("[i] Initializing VGA graphics system...");
     
-    // Create framebuffer first
+    // Create framebuffer with VirtIO GPU compatibility
     let mut framebuffer = SimpleFramebuffer::new(640, 480, 32)?;
     
-    // Get framebuffer virtual address and size
-    let (fb_virt_addr, fb_size) = framebuffer.get_framebuffer_info();
+    // Get framebuffer address and size
+    let (fb_addr, fb_size) = framebuffer.get_framebuffer_info();
     
     // Get the physical address for VirtIO GPU
-    let fb_phys_addr = match crate::memory::mapping::find_memory_mapping(fb_virt_addr) {
+    let fb_phys_addr = match crate::memory::mapping::find_memory_mapping(fb_addr) {
         Some(mapping) => {
             if let Some(phys_addr) = mapping.physical_addr {
                 console_println!("[i] Framebuffer: virt=0x{:x}, phys=0x{:x}, size={} KB", 
-                               fb_virt_addr, phys_addr, fb_size / 1024);
+                               fb_addr, phys_addr, fb_size / 1024);
                 phys_addr
             } else {
                 console_println!("[!] No physical address found for framebuffer");
@@ -137,65 +143,70 @@ pub fn init_graphics() -> Result<(), &'static str> {
         }
     };
     
-    // Try to initialize VirtIO GPU with physical address
+    // Initialize VirtIO GPU with the properly allocated framebuffer
     console_println!("[i] Attempting VirtIO GPU initialization...");
-    
-    // Try virtual address first (as shown in Stephen Marz working example)
-    console_println!("[i] Trying VirtIO GPU with virtual address...");
-    match crate::virtio::init_virtio_gpu(fb_virt_addr, fb_size) {
+    match crate::virtio::init_virtio_gpu(fb_phys_addr, fb_size) {
         Ok(()) => {
-            console_println!("[o] VirtIO GPU initialized successfully with virtual address!");
+            console_println!("[o] VirtIO GPU initialized successfully with physical address!");
             console_println!("[i] Graphics output should now be visible in QEMU window!");
+            
+            // Update framebuffer to use the physical address for VirtIO GPU
+            console_println!("[i] Updating framebuffer to use VirtIO GPU physical address...");
+            framebuffer.buffer = fb_phys_addr as *mut u32;
+            console_println!("[o] Framebuffer updated: now using addr=0x{:x}", fb_phys_addr);
+            
             unsafe { VIRTIO_GPU_ENABLED = true; }
         }
         Err(_) => {
-            console_println!("[!] Virtual address failed, trying physical address...");
-            // Fallback to physical address
-            match crate::virtio::init_virtio_gpu(fb_phys_addr, fb_size) {
-                Ok(()) => {
-                    console_println!("[o] VirtIO GPU initialized successfully with physical address!");
-                    console_println!("[i] Graphics output should now be visible in QEMU window!");
-                    unsafe { VIRTIO_GPU_ENABLED = true; }
-                }
-                Err(_) => {
-                    console_println!("[!] VirtIO GPU not available - using software framebuffer only");
-                    unsafe { VIRTIO_GPU_ENABLED = false; }
-                }
-            }
+            console_println!("[!] VirtIO GPU not available - using software framebuffer only");
+            unsafe { VIRTIO_GPU_ENABLED = false; }
         }
     }
     
-    // Initialize display mode
-    console_println!("[i] Initializing VGA display mode...");
+    // Initialize with visible graphics to test the display
+    console_println!("[i] Drawing test graphics to verify display...");
     
-    // Clear to bright red background to make it very obvious (BGRA format: 0xBBGGRRAA)
-    framebuffer.clear(0x0000FFFF); // Bright red in BGRA format
-    console_println!("[o] VGA framebuffer cleared to bright red (BGRA)");
+    // Clear to dark blue background
+    framebuffer.clear(0x00000080); // Dark blue: XX=00, RR=00, GG=00, BB=80
     
-    // Fill entire framebuffer with different patterns to test
-    console_println!("[i] Testing different color patterns...");
+    // Draw a white border
+    framebuffer.draw_rect(0, 0, 640, 10, 0x00FFFFFF)?; // Top border
+    framebuffer.draw_rect(0, 470, 640, 10, 0x00FFFFFF)?; // Bottom border  
+    framebuffer.draw_rect(0, 0, 10, 480, 0x00FFFFFF)?; // Left border
+    framebuffer.draw_rect(630, 0, 10, 480, 0x00FFFFFF)?; // Right border
     
-    // Test 1: Fill entire screen with solid white (should be visible in any format)
-    unsafe {
-        let fb_ptr = framebuffer.buffer;
-        let total_pixels = (640 * 480) as isize;
-        for i in 0..total_pixels {
-            *fb_ptr.offset(i) = 0xFFFFFFFF; // Solid white - should work in any format
-        }
-    }
-    console_println!("[o] Filled framebuffer with solid white");
+    // Draw some colored rectangles to test
+    framebuffer.draw_rect(50, 50, 100, 50, 0x00FF0000)?; // Red rectangle
+    framebuffer.draw_rect(200, 50, 100, 50, 0x0000FF00)?; // Green rectangle
+    framebuffer.draw_rect(350, 50, 100, 50, 0x000000FF)?; // Blue rectangle
     
-    // Draw test pattern - bright colors in BGRA format
-    framebuffer.draw_rect(50, 50, 100, 100, 0x00FF00FF)?; // Bright green square (same in BGRA)
-    framebuffer.draw_rect(200, 200, 200, 100, 0x00FFFFFF)?; // Bright yellow rectangle
-    framebuffer.draw_rect(0, 0, 640, 10, 0xFFFFFFFF)?; // White top border (same in BGRA)
-    framebuffer.draw_rect(0, 470, 640, 10, 0xFFFFFFFF)?; // White bottom border (same in BGRA)
-    console_println!("[o] VGA test pattern drawn with bright colors (BGRA format)");
+    // Draw a terminal area
+    framebuffer.draw_rect(20, 150, 600, 300, 0x00000000)?; // Black terminal area
+    framebuffer.draw_rect(20, 150, 600, 2, 0x00FFFFFF)?; // Top border
+    framebuffer.draw_rect(20, 448, 600, 2, 0x00FFFFFF)?; // Bottom border
+    framebuffer.draw_rect(20, 150, 2, 300, 0x00FFFFFF)?; // Left border
+    framebuffer.draw_rect(618, 150, 2, 300, 0x00FFFFFF)?; // Right border
     
-    // Store framebuffer globally BEFORE flushing
+    // Add some simple text simulation using colored rectangles
+    // "elinOS Terminal" title
+    framebuffer.draw_rect(30, 160, 8, 12, 0x00FFFFFF)?; // E
+    framebuffer.draw_rect(45, 160, 8, 12, 0x00FFFFFF)?; // L
+    framebuffer.draw_rect(60, 160, 8, 12, 0x00FFFFFF)?; // I
+    framebuffer.draw_rect(75, 160, 8, 12, 0x00FFFFFF)?; // N
+    framebuffer.draw_rect(90, 160, 8, 12, 0x00FFFFFF)?; // O
+    framebuffer.draw_rect(105, 160, 8, 12, 0x00FFFFFF)?; // S
+    
+    // ">" prompt
+    framebuffer.draw_rect(30, 400, 8, 12, 0x0000FF00)?; // Green ">" prompt
+    
+    console_println!("[o] Test graphics drawn to framebuffer");
+    
+    // Store framebuffer globally
+    console_println!("[i] Storing framebuffer globally with correct address...");
     unsafe {
         FRAMEBUFFER = Some(framebuffer);
     }
+    console_println!("[o] Framebuffer stored: ptr=0x{:x}", unsafe { FRAMEBUFFER.as_ref().unwrap().buffer as usize });
     
     // Flush to display if VirtIO GPU is available
     if unsafe { VIRTIO_GPU_ENABLED } {
@@ -210,24 +221,9 @@ pub fn init_graphics() -> Result<(), &'static str> {
             Ok(()) => console_println!("[o] Second flush completed"),
             Err(e) => console_println!("[!] Second flush failed: {:?}", e),
         }
-    } else {
-        console_println!("[i] VirtIO GPU not enabled, skipping flush");
     }
     
     console_println!("[o] VGA graphics system initialized");
-    
-    // Initialize text console for shell display
-    console_println!("[i] Initializing text console for shell display...");
-    match init_text_console() {
-        Ok(()) => {
-            console_println!("[o] Text console initialized - colorful test pattern should be visible in QEMU window!");
-            console_println!("[i] Look for: bright red background, yellow rectangle, white borders");
-        }
-        Err(e) => {
-            console_println!("[!] Failed to initialize text console: {}", e);
-        }
-    }
-    
     Ok(())
 }
 
@@ -317,13 +313,11 @@ pub fn init_text_console() -> Result<(), &'static str> {
     unsafe {
         TEXT_CONSOLE = Some(TextConsole::new());
         console_println!("[o] Text console created (keeping existing screen content)");
-        
-        // Don't clear the screen - keep the existing colorful test pattern visible
-        // This way we can see if the VirtIO GPU display is working
-        console_println!("[i] Preserving existing graphics for visibility test");
     }
     
-    console_println!("[o] Text console initialization complete");
+    // Skip remaining console_println calls to avoid potential hang
+    // console_println!("[i] Preserving existing graphics for visibility test");
+    // console_println!("[o] Text console initialization complete");
     Ok(())
 }
 
@@ -577,8 +571,8 @@ impl TextConsole {
             cursor_y: 0,
             max_cols: 640 / FONT_WIDTH,   // 80 columns
             max_rows: 480 / FONT_HEIGHT,  // 60 rows
-            fg_color: 0xFFFFFFFF,         // White text (BGRA: 0xBBGGRRAA)
-            bg_color: 0x800000FF,         // Dark blue background (BGRA: 0xBBGGRRAA) - more visible than black
+            fg_color: 0x00FFFFFF,         // White text (XRGB: 0xXXRRGGBB)
+            bg_color: 0x00000000,         // Black background (XRGB: 0xXXRRGGBB) - transparent on current graphics
         }
     }
     
@@ -594,6 +588,7 @@ impl TextConsole {
             return Ok(()); // Character not in font
         }
         
+        // Use the SAME direct drawing method that worked for graphics
         unsafe {
             if let Some(ref mut fb) = FRAMEBUFFER {
                 for row in 0..8 {
@@ -606,12 +601,19 @@ impl TextConsole {
                             let color = if (font_byte & (0x80 >> col)) != 0 {
                                 self.fg_color // Foreground color for set bits
                             } else {
-                                self.bg_color // Background color for unset bits
+                                continue; // Don't draw background, leave existing pixels
                             };
                             
-                            let _ = fb.set_pixel(pixel_x, pixel_y, color);
+                            // Direct pixel write - same as graphics rectangles
+                            let offset = (pixel_y * 640 + pixel_x) as usize;
+                            *fb.buffer.add(offset) = color;
                         }
                     }
+                }
+                
+                // Force flush to VirtIO GPU after drawing character
+                if VIRTIO_GPU_ENABLED {
+                    let _ = crate::virtio::flush_display();
                 }
             }
         }
@@ -754,4 +756,123 @@ pub fn draw_simple_text_test() -> Result<(), &'static str> {
             Err("Framebuffer not initialized")
         }
     }
+}
+
+/// Draw shell prompt to the framebuffer
+pub fn draw_shell_prompt() -> Result<(), &'static str> {
+    unsafe {
+        if let Some(ref mut fb) = FRAMEBUFFER {
+            // Clear the prompt area (bottom of terminal)
+            fb.draw_rect(25, 420, 590, 20, 0x00000000)?; // Clear prompt line
+            
+            // Draw "elinOS> " prompt using simple pixel art
+            let prompt_x = 30;
+            let prompt_y = 425;
+            
+            // Draw "elinOS> " in green pixels (simple bitmap font simulation)
+            // 'e'
+            fb.draw_rect(prompt_x, prompt_y, 6, 1, 0x0000FF00)?;
+            fb.draw_rect(prompt_x, prompt_y + 2, 6, 1, 0x0000FF00)?;
+            fb.draw_rect(prompt_x, prompt_y + 4, 6, 1, 0x0000FF00)?;
+            fb.draw_rect(prompt_x, prompt_y, 1, 5, 0x0000FF00)?;
+            
+            // 'l'
+            let x = prompt_x + 8;
+            fb.draw_rect(x, prompt_y, 1, 5, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y + 4, 3, 1, 0x0000FF00)?;
+            
+            // 'i'
+            let x = prompt_x + 12;
+            fb.draw_rect(x, prompt_y, 1, 5, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y - 1, 1, 1, 0x0000FF00)?;
+            
+            // 'n'
+            let x = prompt_x + 16;
+            fb.draw_rect(x, prompt_y + 1, 1, 4, 0x0000FF00)?;
+            fb.draw_rect(x + 1, prompt_y, 3, 1, 0x0000FF00)?;
+            fb.draw_rect(x + 4, prompt_y + 1, 1, 4, 0x0000FF00)?;
+            
+            // 'O'
+            let x = prompt_x + 22;
+            fb.draw_rect(x, prompt_y, 4, 1, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y + 4, 4, 1, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y + 1, 1, 3, 0x0000FF00)?;
+            fb.draw_rect(x + 3, prompt_y + 1, 1, 3, 0x0000FF00)?;
+            
+            // 'S'
+            let x = prompt_x + 28;
+            fb.draw_rect(x, prompt_y, 4, 1, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y + 2, 4, 1, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y + 4, 4, 1, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y + 1, 1, 1, 0x0000FF00)?;
+            fb.draw_rect(x + 3, prompt_y + 3, 1, 1, 0x0000FF00)?;
+            
+            // '>' 
+            let x = prompt_x + 34;
+            fb.draw_rect(x, prompt_y + 1, 1, 1, 0x0000FF00)?;
+            fb.draw_rect(x + 1, prompt_y + 2, 1, 1, 0x0000FF00)?;
+            fb.draw_rect(x, prompt_y + 3, 1, 1, 0x0000FF00)?;
+            
+            // ' ' (space - just move cursor)
+            
+            // Flush to display if VirtIO GPU is available
+            if VIRTIO_GPU_ENABLED {
+                let _ = crate::virtio::flush_display();
+            }
+            
+            Ok(())
+        } else {
+            Err("Graphics not initialized")
+        }
+    }
+}
+
+/// Draw text character to framebuffer (simple implementation)
+pub fn draw_text_char(x: u32, y: u32, ch: char, color: u32) -> Result<(), &'static str> {
+    unsafe {
+        if let Some(ref mut fb) = FRAMEBUFFER {
+            // Simple 5x7 character drawing for common characters
+            match ch {
+                ' ' => {
+                    // Space - just clear the area
+                    fb.draw_rect(x, y, 6, 8, 0x00000000)?;
+                }
+                'A'..='Z' | 'a'..='z' | '0'..='9' => {
+                    // Draw a simple block for letters/numbers
+                    fb.draw_rect(x, y, 5, 7, color)?;
+                }
+                '>' => {
+                    fb.draw_rect(x, y + 2, 1, 1, color)?;
+                    fb.draw_rect(x + 1, y + 3, 1, 1, color)?;
+                    fb.draw_rect(x, y + 4, 1, 1, color)?;
+                }
+                _ => {
+                    // Unknown character - draw a small block
+                    fb.draw_rect(x, y, 3, 3, color)?;
+                }
+            }
+            
+            // Flush to display if VirtIO GPU is available
+            if VIRTIO_GPU_ENABLED {
+                let _ = crate::virtio::flush_display();
+            }
+            
+            Ok(())
+        } else {
+            Err("Graphics not initialized")
+        }
+    }
+}
+
+/// Draw a text string to the framebuffer
+pub fn draw_text_string(x: u32, y: u32, text: &str, color: u32) -> Result<(), &'static str> {
+    let mut current_x = x;
+    for ch in text.chars() {
+        draw_text_char(current_x, y, ch, color)?;
+        current_x += 7; // Character width + spacing
+        if current_x > 600 { // Wrap at screen edge
+            break;
+        }
+    }
+    Ok(())
 } 
