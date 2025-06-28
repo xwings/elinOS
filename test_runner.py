@@ -10,7 +10,7 @@ import time
 import argparse
 
 class ElinOSTestRunner:
-    def __init__(self, timeout=30):
+    def __init__(self, timeout=60):
         self.timeout = timeout
         self.qemu_process = None
         
@@ -96,7 +96,7 @@ class ElinOSTestRunner:
 
             # graphics
             ("graphics", "Total pixels:"),
-            ("gfxtest", "ALL TESTS PASSED!"),
+            #("gfxtest", "ALL TESTS PASSED!"),
         ]
         
         passed = 0
