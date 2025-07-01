@@ -179,8 +179,8 @@ c-programs-clean: ## Clean compiled C programs
 # Run Commands
 # =============================================================================
 
-.PHONY: run
-run: build ## Run the kernel in QEMU (console mode)
+.PHONY: run-console
+run-console: build ## Run the kernel in QEMU (console mode)
 	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) in QEMU...$(COLOR_RESET)"
 	@$(QEMU) \
 		-machine $(QEMU_MACHINE) \
@@ -191,20 +191,6 @@ run: build ## Run the kernel in QEMU (console mode)
 		-bios $(OPENSBI) \
 		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
-        -device virtio-blk-device,drive=disk0
-
-.PHONY: run-qcow2
-run-qcow2: build ## Run the kernel in QEMU (console mode)
-	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) in QEMU...$(COLOR_RESET)"
-	@$(QEMU) \
-		-machine $(QEMU_MACHINE) \
-		-cpu $(QEMU_CPU) \
-		-smp $(QEMU_SMP) \
-		-m $(QEMU_MEMORY) \
-		-nographic \
-		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
-		-drive file=disk.qcow2,format=qcow2,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0
 
 .PHONY: run-graphics
@@ -218,23 +204,6 @@ run-graphics: build ## Run the kernel in QEMU with graphics
 		-m $(QEMU_MEMORY) \
 		-bios $(OPENSBI) \
 		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
-		-device virtio-blk-device,drive=hd0 \
-		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
-		-device virtio-gpu-device \
-		-display gtk,show-cursor=on \
-		-serial stdio
-
-.PHONY: run-graphics-release
-run-graphics-release: build-release ## Run the kernel in QEMU with graphics (release build)
-	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with VirtIO GPU graphics (release)...$(COLOR_RESET)"
-	@echo -e "$(COLOR_YELLOW)A graphics window should open showing the framebuffer output$(COLOR_RESET)"
-	@$(QEMU) \
-		-machine $(QEMU_MACHINE) \
-		-cpu $(QEMU_CPU) \
-		-smp $(QEMU_SMP) \
-		-m $(QEMU_MEMORY) \
-		-bios $(OPENSBI) \
-		-kernel $(RELEASE_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
 		-device virtio-gpu-device \
@@ -256,15 +225,20 @@ run-debug: build ## Run the kernel with GDB debugging enabled
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0 \
         -d guest_errors,int,unimp \
-        -D qemu.log \
-		-s -S
+        -D qemu.log
 
 # =============================================================================
 # Development Commands
 # =============================================================================
 
 .PHONY: test
-test: ## Run unit tests
+test: clean all ## Run automated kernel tests using Python test runner
+	@echo -e "$(COLOR_BLUE)Running automated kernel tests...$(COLOR_RESET)"
+	@python3 test_runner.py --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
+	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
+
+.PHONY: unittest
+unittest: ## Run unit tests
 	@echo -e "$(COLOR_BLUE)Running unit tests...$(COLOR_RESET)"
 	@cd kernel && cargo test $(CARGO_FLAGS)
 
@@ -277,12 +251,6 @@ test-release: ## Run unit tests (release mode)
 integration: build ## Run integration tests
 	@echo -e "$(COLOR_BLUE)Running integration tests...$(COLOR_RESET)"
 	@echo -e "$(COLOR_YELLOW)Integration tests not yet implemented$(COLOR_RESET)"
-
-.PHONY: citest
-citest: clean all ## Run automated kernel tests using Python test runner
-	@echo -e "$(COLOR_BLUE)Running automated kernel tests...$(COLOR_RESET)"
-	@python3 test_runner.py --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
-	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
 
 .PHONY: bench
 bench: ## Run benchmarks

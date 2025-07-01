@@ -71,44 +71,11 @@ cd elinOS
 # Build the kernel
 make build
 
-# Run with QEMU
-make run
-```
+# Automated kernel functional test 
+make citest
 
-### Creating Test Filesystems
-
-```bash
-# Create a FAT32 test disk with files
-make fat32-disk
-
-# Create an ext2 test disk with files  
-make ext2-disk
-
-# Populate disk with files  
-make populate-disk
-
-# The kernel will automatically detect and mount the filesystem
-make run
-```
-
-## Testing
-
-elinOS includes comprehensive automated testing for kernel functionality:
-
-### Automated Test Suite
-
-```bash
-# Run full automated test suite
-make autotest
-
-# Run quick tests only  
-make autotest-quick
-
-# Run built-in kernel tests
-make autotest-builtin
-
-# Interactive testing (manual)
-make test-interactive
+# Run the kernel in QEMU
+make run-qemu
 ```
 
 ## System Requirements

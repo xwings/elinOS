@@ -44,11 +44,8 @@ jobs:
         sudo apt-get install -y \
           gcc-riscv64-unknown-elf \
           qemu-system-misc \
-          python3-pip
-
-    - name: Install Python dependencies
-      run: |
-        pip3 install pexpect
+          python3-pip \
+          python3-pexpect
 
     # Build everything needed for testing
     - name: Build kernel
