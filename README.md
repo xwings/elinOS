@@ -55,10 +55,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 rustup target add riscv64gc-unknown-none-elf
 
 # Install QEMU (example for Ubuntu/Debian)
-sudo apt install qemu-system-riscv64
+sudo apt install qemu-system-riscv64 
 
 # Install build tools
-sudo apt install build-essential git gcc-riscv64-unknown-elf
+sudo apt install build-essential git gcc-riscv64-unknown-elf python3-pexpect
 ```
 
 ### Building & Running
