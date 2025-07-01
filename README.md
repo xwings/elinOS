@@ -58,7 +58,7 @@ rustup target add riscv64gc-unknown-none-elf
 sudo apt install qemu-system-riscv64
 
 # Install build tools
-sudo apt install build-essential git
+sudo apt install build-essential git gcc-riscv64-unknown-elf
 ```
 
 ### Building & Running
