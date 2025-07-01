@@ -16,13 +16,10 @@
     - make run-console
     - make run-graphics
 
-### Stage 1 Goal: Boot from QEMU and Real Hardware
+### Current Goal: Boot from QEMU and Real Hardware
 1. Currently elinOS only generate kernel binary. 
 2. Kernel binary comes with bootloader and kernel. 
 3. Seperate kernel and bootloader into two different binary.
 4. Some library shared between bootloader and kernel. 
 5. Need to move to a comon place (folder can named libaray/)
 
-### Stage 2 Goal: Frame Buffer
-1. Currently elinOS comes with somehow a framebuffer
-2. It can display some shapes 
