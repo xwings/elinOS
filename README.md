@@ -72,7 +72,7 @@ cd elinOS
 make build
 
 # Automated kernel functional test 
-make citest
+make test
 
 # Run the kernel in QEMU
 make run-qemu
@@ -107,7 +107,7 @@ make run-qemu
 │  ┌─────────────────┐ ┌─────────────────┐ ┌───────────────┐  │
 │  │ Memory Manager  │ │ Filesystem      │ │ Device Mgmt   │  │
 │  │                 │ │                 │ │               │  │
-│  │ • Buddy Alloc   │ │ • FAT32 + ext2  │ │ • VirtIO 1.1  │  │
+│  │ • Buddy Alloc   │ │ • ext2          │ │ • VirtIO 1.1  │  │
 │  │ • Slab Alloc    │ │ • Auto-detect   │ │ • Auto-detect │  │
 │  │ • Fallible Ops  │ │ • File CRUD     │ │ • SBI Runtime │  │
 │  │ • Auto-scaling  │ │ • Path resolve  │ │ • Trap Handle │  │
