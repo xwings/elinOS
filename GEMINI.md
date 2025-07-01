@@ -16,10 +16,12 @@
     - make run-console
     - make run-graphics
 
-### Current Goal: Boot from QEMU and Real Hardware
+### Stage 1: Move library to comon area
+1. Some library shared between bootloader (stage 2) and kernel. 
+2. Need to move to a comon place (folder can named libaray/)
+3. Move and test properly before we move to stage 2
+
+### Stage 2: Boot from QEMU and Real Hardware
 1. Currently elinOS only generate kernel binary. 
 2. Kernel binary comes with bootloader and kernel. 
 3. Seperate kernel and bootloader into two different binary.
-4. Some library shared between bootloader and kernel. 
-5. Need to move to a comon place (folder can named libaray/)
-
