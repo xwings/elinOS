@@ -279,7 +279,7 @@ integration: build ## Run integration tests
 	@echo -e "$(COLOR_YELLOW)Integration tests not yet implemented$(COLOR_RESET)"
 
 .PHONY: citest
-citest: all ## Run automated kernel tests using Python test runner
+citest: clean all ## Run automated kernel tests using Python test runner
 	@echo -e "$(COLOR_BLUE)Running automated kernel tests...$(COLOR_RESET)"
 	@python3 test_runner.py --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
 	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
