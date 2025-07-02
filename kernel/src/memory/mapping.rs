@@ -5,7 +5,7 @@
 use heapless::{FnvIndexMap, Vec, String};
 use spin::Mutex;
 use lazy_static::lazy_static;
-use crate::console_println;
+use elinos_common::console_println;
 
 /// Memory mapping permissions
 #[derive(Debug, Clone, Copy, PartialEq)]

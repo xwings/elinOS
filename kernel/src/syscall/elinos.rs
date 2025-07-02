@@ -1,7 +1,7 @@
 // elinOS-Specific System Calls (900-999)
 // Handles elinOS-specific operations like debug, version, stats, etc.
 
-use crate::{sbi, console_println, console_print};
+use elinos_common::{sbi, console_println, console_print};
 use super::{SysCallResult, SyscallArgs};
 use core::arch::asm;
 

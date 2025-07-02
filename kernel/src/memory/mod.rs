@@ -10,28 +10,13 @@ pub mod mmu;
 pub mod mapping;
 
 use spin::Mutex;
-use crate::{sbi, console_println};
+use elinos_common::{sbi, console_println};
+use elinos_common::memory::regions::{MemoryRegion, MemoryZone};
 use linked_list_allocator::LockedHeap;
 use fallible::{FallibleAllocator, AllocResult, AllocError};
 
 // === DYNAMIC MEMORY MANAGER ===
-
-// Enhanced memory region structure
-#[derive(Debug, Clone, Copy)]
-pub struct MemoryRegion {
-    pub start: usize,
-    pub size: usize,
-    pub is_ram: bool,
-    pub zone_type: MemoryZone,
-}
-
-// Memory zones similar to Linux
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum MemoryZone {
-    DMA,        // Direct Memory Access zone (first 16MB)
-    Normal,     // Normal memory zone
-    High,       // High memory zone (if applicable)
-}
+// Note: MemoryRegion and MemoryZone are now imported from shared library
 
 // Simple heap allocator for kernel (fallback)
 #[global_allocator]

@@ -3,7 +3,7 @@
 //! This module provides error handling for ELF parsing, loading, and execution.
 
 use core::fmt;
-use crate::console_println;
+use elinos_common::console_println;
 
 /// ELF Loading and Execution Errors
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,7 +2,7 @@
 //!
 //! This module provides ELF64 binary parsing and validation functionality.
 
-use crate::console_println;
+use elinos_common::console_println;
 use super::constants::*;
 use super::error::{ElfError, ElfResult};
 use super::structures::{Elf64Header, Elf64ProgramHeader};

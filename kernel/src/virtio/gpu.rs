@@ -1,7 +1,7 @@
 //! VirtIO GPU Device implementation for elinOS
 //! Provides hardware-accelerated graphics output through VirtIO GPU
 
-use crate::console_println;
+use elinos_common::console_println;
 use spin::Mutex;
 use core::ptr::{read_volatile, write_volatile};
 

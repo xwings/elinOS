@@ -5,8 +5,8 @@
 
 use core::arch::asm;
 use spin::Mutex;
-use crate::console_println;
-use crate::console_print;
+use elinos_common::console_println;
+use elinos_common::console_print;
 
 /// RISC-V trap causes
 #[derive(Debug, Clone, Copy)]

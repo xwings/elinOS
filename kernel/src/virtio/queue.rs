@@ -1,7 +1,7 @@
 //! VirtIO queue structures and implementation
 //! Based on rust-vmm virtio-queue implementation
 
-use crate::console_println;
+use elinos_common::console_println;
 use core::ptr::read_volatile;
 use super::{DiskResult, DiskError};
 use super::mmio::{VIRTQ_DESC_F_NEXT, VIRTQ_DESC_F_WRITE};

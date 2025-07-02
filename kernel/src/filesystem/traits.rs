@@ -2,7 +2,7 @@
 
 use heapless::Vec;
 use crate::virtio::DiskError;
-use crate::console_println;
+use elinos_common::console_println;
 
 /// Unified filesystem error types
 #[derive(Debug, Clone, PartialEq, Eq)]

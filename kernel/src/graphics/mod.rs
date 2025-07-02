@@ -1,7 +1,7 @@
 //! Simple Graphics System for elinOS
 //! Provides basic framebuffer operations for drawing pixels and rectangles
 
-use crate::console_println;
+use elinos_common::console_println;
 use crate::memory::mapping::{map_virtual_memory, MemoryPermissions};
 
 /// Simple framebuffer for basic graphics operations

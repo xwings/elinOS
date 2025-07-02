@@ -1,7 +1,7 @@
 //! VirtIO Block Device implementation
 
 use spin::Mutex;
-use crate::console_println;
+use elinos_common::console_println;
 use core::{convert::TryInto, result::Result::{Ok, Err}};
 use core::ptr::read_volatile;
 

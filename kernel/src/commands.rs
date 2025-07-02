@@ -3,7 +3,7 @@ use crate::filesystem::traits::{FileSystem, FilesystemError, FileEntry};
 use crate::memory::{self, BufferUsage};
 use heapless::String;
 use core::fmt::Write;
-use crate::{UART, console_println, console_print};
+use elinos_common::{uart::UART, console_println, console_print};
 
 // Shell commands that use system calls
 

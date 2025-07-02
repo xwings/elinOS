@@ -2,6 +2,7 @@
 // Simple implementation for early boot and debugging only
 
 use core::fmt::{self, Write};
+use spin::Mutex;
 
 // UART memory-mapped register addresses for QEMU virt machine
 pub const UART_BASE: usize = 0x10000000;
@@ -66,4 +67,7 @@ impl Write for Uart {
         }
         Ok(())
     }
-} 
+}
+
+// Global UART instance
+pub static UART: Mutex<Uart> = Mutex::new(Uart::new()); 

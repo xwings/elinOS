@@ -31,7 +31,7 @@ macro_rules! console_println {
 macro_rules! debug_print {
     ($($arg:tt)*) => {{
         // Always goes to UART for debugging
-        let mut uart = $crate::UART.lock();
+        let mut uart = $crate::uart::UART.lock();
         let _ = uart.write_fmt(format_args!($($arg)*));
     }};
 }
@@ -74,21 +74,12 @@ impl ConsoleManager {
     pub fn print(&self, args: fmt::Arguments) -> fmt::Result {
         match self.primary_device {
             OutputDevice::Framebuffer => {
-                // Output to both UART (for debugging) and graphics console (for display)
-                let mut uart = crate::UART.lock();
-                let uart_result = uart.write_fmt(args);
-                drop(uart);
-                
-                // Also output to graphics console if available
-                let formatted_string = format_args_to_string(args);
-                if let Err(_) = crate::graphics::print_to_console(&formatted_string) {
-                    // Graphics console failed, UART output is still available for debugging
-                }
-                
-                uart_result
+                // Output to UART (for debugging)
+                let mut uart = crate::uart::UART.lock();
+                uart.write_fmt(args)
             }
             OutputDevice::DebugUart => {
-                let mut uart = crate::UART.lock();
+                let mut uart = crate::uart::UART.lock();
                 uart.write_fmt(args)
             }
         }
@@ -131,7 +122,7 @@ pub fn print_to_device(device: OutputDevice, s: &str) {
             let _ = console.print(format_args!("{}", s));
         }
         OutputDevice::DebugUart => {
-            let mut uart = crate::UART.lock();
+            let mut uart = crate::uart::UART.lock();
             let _ = uart.write_fmt(format_args!("{}", s));
         }
     }

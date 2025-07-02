@@ -1,0 +1,15 @@
+[package]
+name = "elinos-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+riscv = { workspace = true }
+spin = { workspace = true }
+embedded-hal = { workspace = true }
+heapless = { workspace = true }
+lazy_static = { workspace = true }
+
+[features]
+default = []
+no_std = []

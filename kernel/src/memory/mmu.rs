@@ -8,7 +8,7 @@
 
 use core::arch::asm;
 use spin::Mutex;
-use crate::console_println;
+use elinos_common::console_println;
 
 /// Page size (4KB)
 pub const PAGE_SIZE: usize = 4096;

@@ -6,11 +6,14 @@ use core::arch::asm;
 use spin::Mutex;
 use heapless::{String, Vec};
 
+// Import shared library components
+use elinos_common as common;
+
+// Re-export commonly used macros and functions from shared library
+pub use common::{console_print, console_println, debug_print, debug_println};
+
 // Module declarations
-pub mod console;
-pub mod uart;
 pub mod commands;
-pub mod sbi;
 pub mod memory;
 pub mod filesystem;  // Now points to filesystem/mod.rs
 pub mod elf;
@@ -19,10 +22,8 @@ pub mod virtio;
 pub mod trap;  // Add trap module
 pub mod graphics; // Simple framebuffer graphics
 
-use crate::uart::Uart;
-
-// Global UART instance
-pub static UART: Mutex<Uart> = Mutex::new(Uart::new());
+// Global UART instance is now in the shared library
+pub use common::uart::UART;
 
 /// Escape sequences for terminal input
 #[derive(Debug, Clone, Copy)]
@@ -108,7 +109,7 @@ pub extern "C" fn main() -> ! {
     console_println!("[o] Trap handling ready");
 
     // Initialize console system
-    if let Err(e) = console::init_console() {
+    if let Err(e) = common::console::init_console() {
         panic!("Failed to initialize console: {}", e);
     }
     

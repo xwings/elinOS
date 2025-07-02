@@ -1,10 +1,10 @@
 // Dynamic Memory Layout Manager for elinOS
 // Replaces hardcoded memory allocations with intelligent detection
 
-use elinos_common::{console_println};
-use elinos_common::memory::regions::{MemoryRegion, MemoryZone};
-use elinos_common::memory::hardware::{get_kernel_boundaries, get_stack_boundaries, detect_main_ram, get_fallback_ram, get_standard_mmio_regions, calculate_heap_start, validate_memory_layout};
+use crate::console_println;
 use heapless::Vec;
+use super::regions::{MemoryRegion, MemoryZone};
+use super::hardware::{get_kernel_boundaries, get_stack_boundaries, detect_main_ram, get_fallback_ram, get_standard_mmio_regions, calculate_heap_start, validate_memory_layout};
 
 /// Memory layout information calculated from linker symbols
 #[derive(Debug, Clone)]

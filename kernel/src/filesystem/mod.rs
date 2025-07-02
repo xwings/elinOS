@@ -5,7 +5,7 @@ pub mod ext2;
 pub mod traits;
 
 use spin::Mutex;
-use crate::console_println;
+use elinos_common::console_println;
 use heapless::Vec;
 
 pub use traits::{FileSystem, FileEntry, FilesystemError, FilesystemResult};
