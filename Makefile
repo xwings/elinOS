@@ -8,6 +8,7 @@
 # Project metadata
 PROJECT_NAME := elinOS
 BOOTLOADER_NAME := bootloader
+BOOTLOADER_BIN := BOOT.bin
 KERNEL_NAME := kernel
 VERSION := 0.1.0
 
@@ -119,7 +120,8 @@ build: build-bootloader build-kernel ## Build the complete system (debug mode)
 build-bootloader: ## Build the bootloader (debug mode)
 	@echo -e "$(COLOR_BLUE)Building $(BOOTLOADER_NAME) (debug)...$(COLOR_RESET)"
 	@cd bootloader && cargo build $(CARGO_FLAGS) $(DEBUG_FLAGS)
-	@echo -e "$(COLOR_GREEN)✓ Bootloader debug build completed: $(DEBUG_DIR)/$(BOOTLOADER_NAME)$(COLOR_RESET)"
+	@cp $(DEBUG_DIR)/$(BOOTLOADER_NAME) $(DEBUG_DIR)/$(BOOTLOADER_BIN)
+	@echo -e "$(COLOR_GREEN)✓ Bootloader debug build completed: $(DEBUG_DIR)/$(BOOTLOADER_BIN)$(COLOR_RESET)"
 
 .PHONY: build-kernel
 build-kernel: ## Build the kernel (debug mode)
@@ -135,7 +137,9 @@ build-release: build-bootloader-release build-kernel-release ## Build both bootl
 build-bootloader-release: ## Build the bootloader (release mode)
 	@echo -e "$(COLOR_BLUE)Building $(BOOTLOADER_NAME) (release)...$(COLOR_RESET)"
 	@cd bootloader && cargo build $(CARGO_FLAGS) $(RELEASE_FLAGS)
-	@echo -e "$(COLOR_GREEN)✓ Bootloader release build completed: $(RELEASE_DIR)/$(BOOTLOADER_NAME)$(COLOR_RESET)"
+	@cp $(DEBUG_DIR)/$(BOOTLOADER_NAME) $(DEBUG_DIR)/$(BOOTLOADER_BIN)
+	@echo -e "$(COLOR_GREEN)✓ Bootloader debug build completed: $(DEBUG_DIR)/$(BOOTLOADER_BIN)$(COLOR_RESET)"
+
 
 .PHONY: build-kernel-release
 build-kernel-release: ## Build the kernel (release mode)
@@ -160,6 +164,7 @@ clean: ## Clean build artifacts
 	@rm -f $(DISK_IMAGE)
 	@rm -f $(QEMU_LOG)
 	@rm -rf $(C_BUILD_DIR)
+	@rm -rf $(DEBUG_DIR)/$(BOOTLOADER_BIN)
 	@echo -e "$(COLOR_GREEN)✓ Clean completed$(COLOR_RESET)"
 
 .PHONY: check
@@ -216,7 +221,7 @@ run-console: build ## Run the kernel in QEMU (console mode)
 		-m $(QEMU_MEMORY) \
 		-nographic \
 		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(BOOTLOADER_NAME) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
 		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0
@@ -232,7 +237,7 @@ run-console-debug: build ## Run the elinOS with log output
 		-m $(QEMU_MEMORY) \
 		-nographic \
 		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(BOOTLOADER_NAME) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
 		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0 \
@@ -249,7 +254,7 @@ run-graphics: build ## Run the kernel in QEMU with graphics
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \
 		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(BOOTLOADER_NAME) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
 		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
