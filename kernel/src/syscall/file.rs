@@ -1,14 +1,12 @@
 // File I/O System Calls - Linux Compatible Numbers
 // Following Linux ARM64/RISC-V syscall numbers for compatibility
 
-use crate::UART;
 use crate::filesystem;
 use crate::{console_print, console_println};
 use super::{SysCallResult, SyscallArgs, STDOUT_FD, STDERR_FD};
 use spin::Mutex;
 use heapless::{FnvIndexMap, Vec};
 use crate::filesystem::traits::FileSystem;
-use core::fmt::Write;
 
 // Simple file descriptor table
 static FILE_TABLE: Mutex<FnvIndexMap<i32, heapless::String<64>, 16>> = Mutex::new(FnvIndexMap::new());

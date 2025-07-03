@@ -82,24 +82,57 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
-#[link_section = ".text.boot"]
+// Bootloader info structure (must match bootloader definition)
+#[repr(C)]
+struct BootloaderInfo {
+    magic: u64,
+    memory_base: usize,
+    memory_size: usize,
+    kernel_base: usize,
+    available_ram_start: usize,
+    available_ram_size: usize,
+}
+
+const BOOTLOADER_MAGIC: u64 = 0xEA15_0000_B007_AB1E;
+
+#[link_section = ".text.kernel"]
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
+pub fn kernel_main(bootloader_info_ptr: usize) -> ! {
+    // Setup initial stack in safe kernel space
     unsafe {
         asm!(
-            "la sp, {stack_top}",
-            "li t0, 0x80200000",
-            "mv sp, t0",
-            "j {main}",
-            stack_top = sym _STACK_TOP,
-            main = sym main,
-            options(noreturn)
+            "li sp, 0x805F0000",  // Set kernel stack near end of kernel region
         );
+    }
+    
+    // Validate bootloader info - handle both bootloader and direct boot scenarios
+    if bootloader_info_ptr == 0 || bootloader_info_ptr > 0x90000000 {
+        // Direct boot scenario - create default bootloader info
+        // Create a default bootloader info structure on the stack
+        let default_info = BootloaderInfo {
+            magic: BOOTLOADER_MAGIC,
+            memory_base: 0x80000000,        // Standard QEMU RISC-V base
+            memory_size: 128 * 1024 * 1024,  // 128MB default
+            kernel_base: 0x80400000,         // Standard kernel base
+            available_ram_start: 0x80600000, // Start after kernel space
+            available_ram_size: 126 * 1024 * 1024, // Most of 128MB available
+        };
+        
+        kernel_core_main(&default_info)
+    } else {
+        // Bootloader handoff scenario
+        let bootloader_info = unsafe { &*(bootloader_info_ptr as *const BootloaderInfo) };
+        if bootloader_info.magic != BOOTLOADER_MAGIC {
+            panic!("Invalid bootloader magic: 0x{:x}", bootloader_info.magic);
+        }
+        
+        
+        kernel_core_main(bootloader_info)
     }
 }
 
 #[no_mangle]
-pub extern "C" fn main() -> ! {
+pub extern "C" fn kernel_core_main(bootloader_info: &BootloaderInfo) -> ! {
     console_println!();
     console_println!();
     console_println!("elinOS Starting...");
@@ -113,12 +146,15 @@ pub extern "C" fn main() -> ! {
         panic!("Failed to initialize console: {}", e);
     }
     
-    // Initialize memory management
-    {
-        let mut memory_mgr = memory::MEMORY_MANAGER.lock();
-        memory_mgr.init();
+    // Initialize unified memory management from shared library
+    if let Err(e) = common::memory::init_unified_memory_manager() {
+        console_println!("[x] Failed to initialize memory manager: {:?}", e);
+        panic!("Memory initialization failed");
     }
-    console_println!("[o] Memory management ready");
+    console_println!("[o] Unified memory management ready");
+    
+    // Initialize compatibility layer for existing code
+    memory::init_allocator_compatibility();
 
     // Initialize Virtual Memory Management (Software MMU)
     if let Err(e) = memory::mmu::init_mmu() {
@@ -129,7 +165,6 @@ pub extern "C" fn main() -> ! {
     }
 
     // Initialize VirtIO block device  
-    console_println!("[i] Initializing VirtIO block device...");
     if let Err(_) = virtio::init_virtio_memory() {
         console_println!("[x] Failed to initialize VirtIO memory manager");
     }

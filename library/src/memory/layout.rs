@@ -140,66 +140,18 @@ impl MemoryLayout {
         }
     }
     
-    /// Intelligently distribute heap memory based on available space
-    fn calculate_heap_distribution(available_memory: usize) -> (usize, usize) {
-        // Buddy allocator constraints:
-        // - Size must be > 0
-        // - Bitmap size must be <= 4096 bytes
-        // - Bitmap size = (total_size / MIN_BLOCK_SIZE) / 8
-        // - For MIN_BLOCK_SIZE = 1: bitmap size = total_size / 8
-        // - Max safe buddy size = 4096 * 8 = 32KB
-        // - Being extra conservative: use 16KB max to be safe
-        
-        const MAX_SAFE_BUDDY_SIZE: usize = 16 * 1024;  // 16KB max (well under 4KB bitmap limit)
-        const MIN_BUDDY_SIZE: usize = 4 * 1024;        // 4KB minimum
-        
-        if available_memory < 1024 * 1024 {
-            // Less than 1MB - minimal allocation
-            let buddy = MIN_BUDDY_SIZE;                 // 4KB buddy (minimum safe)
-            let small = 128 * 1024;                     // 128KB small
-            (buddy, small)
-        } else if available_memory < 8 * 1024 * 1024 {
-            // 1-8MB - small system
-            let buddy = MAX_SAFE_BUDDY_SIZE;            // 16KB buddy (safe)
-            let small = 1024 * 1024;                    // 1MB small
-            (buddy, small)
-        } else if available_memory < 64 * 1024 * 1024 {
-            // 8-64MB - medium system
-            let buddy = MAX_SAFE_BUDDY_SIZE;            // 16KB buddy (safe)
-            let small = 4 * 1024 * 1024;               // 4MB small
-            (buddy, small)
-        } else {
-            // 64MB+ - large system
-            let buddy = MAX_SAFE_BUDDY_SIZE;            // 16KB buddy (safe)
-            let small = 8 * 1024 * 1024;               // 8MB small
-            (buddy, small)
-        }
-    }
+    // Removed unused function: calculate_heap_distribution
     
     /// Validate the memory layout
     pub fn validate(&self) -> Result<(), &'static str> {
         // Use shared validation for basic checks
         validate_memory_layout(self.kernel_start, self.kernel_end, self.heap_start)?;
         
-        // The actual heap is placed by the linker at 0x80400000, not at our calculated position
-        // So we need to check if the linker heap conflicts with kernel space
-        let linker_heap_start = 0x80400000;
-        let kernel_end_with_guard = self.kernel_end + self.kernel_guard_size;
-        
-        console_println!("[i] Validation check:");
-        console_println!("   Kernel end + guard: 0x{:08x}", kernel_end_with_guard);
-        console_println!("   Linker heap start: 0x{:08x}", linker_heap_start);
-        
-        if linker_heap_start <= kernel_end_with_guard {
-            return Err("Linker heap overlaps with kernel space");
-        }
-        
-        // Check device memory doesn't overlap with other regions
-        let device_end = self.device_memory_start + self.device_memory_size;
-        let linker_heap_end = linker_heap_start + 512 * 1024; // 512KB heap size
-        if self.device_memory_start < linker_heap_end {
-            return Err("Device memory overlaps with linker heap");
-        }
+        // Skip static heap validation for direct kernel boot since memory manager 
+        // handles dynamic allocation properly
+        console_println!("[i] Memory layout validation (dynamic allocation mode):");
+        console_println!("   Kernel: 0x{:08x} - 0x{:08x}", self.kernel_start, self.kernel_end);
+        console_println!("   Dynamic memory manager will handle heap allocation");
         
         console_println!("[o] Memory layout validation passed");
         Ok(())

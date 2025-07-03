@@ -23,4 +23,6 @@ legacy = []
 
 [[bin]]
 name = "kernel"
-path = "src/main.rs" 
+path = "src/main.rs"
+
+# Kernel is now a separate binary loaded by bootloader 

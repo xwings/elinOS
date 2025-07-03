@@ -84,9 +84,10 @@ fn sys_mmap(addr: usize, length: usize, prot: usize, flags: usize, _fd: usize, _
     
     // For anonymous mappings, use our buddy allocator
     if flags & MAP_ANONYMOUS != 0 {
-        if let Some(allocated_addr) = memory::allocate_memory(length) {
-            console_println!("mmap allocated: 0x{:x}", allocated_addr);
-            return SysCallResult::Success(allocated_addr as isize);
+        if let Ok(allocated_addr) = memory::allocate_memory(length, 8) {
+            let addr = allocated_addr.as_ptr() as usize;
+            console_println!("mmap allocated: 0x{:x}", addr);
+            return SysCallResult::Success(addr as isize);
         } else {
             return SysCallResult::Error(crate::syscall::ENOMEM);
         }
@@ -99,7 +100,9 @@ fn sys_munmap(addr: usize, length: usize) -> SysCallResult {
     console_println!("munmap called: addr=0x{:x}, len={}", addr, length);
     
     // Use our deallocator
-    memory::deallocate_memory(addr, length);
+    if let Some(ptr) = core::ptr::NonNull::new(addr as *mut u8) {
+        memory::deallocate_memory(ptr, length);
+    }
     
     SysCallResult::Success(0)
 }
@@ -142,8 +145,8 @@ fn sys_brk(addr: usize) -> SysCallResult {
             // Query current break
             if PROGRAM_BREAK == 0 {
                 // Initialize program break - allocate initial heap
-                if let Some(initial_heap) = memory::allocate_memory(64 * 1024) { // 64KB initial heap
-                    PROGRAM_BREAK = initial_heap;
+                if let Ok(initial_heap) = memory::allocate_memory(64 * 1024, 8) { // 64KB initial heap
+                    PROGRAM_BREAK = initial_heap.as_ptr() as usize;
                 }
             }
             SysCallResult::Success(PROGRAM_BREAK as isize)
@@ -152,7 +155,7 @@ fn sys_brk(addr: usize) -> SysCallResult {
             // For simplicity, we'll just allocate more memory if needed
             if addr > PROGRAM_BREAK {
                 let needed = addr - PROGRAM_BREAK;
-                if memory::allocate_memory(needed).is_some() {
+                if memory::allocate_memory(needed, 8).is_ok() {
                     PROGRAM_BREAK = addr;
                     SysCallResult::Success(addr as isize)
                 } else {
@@ -194,20 +197,7 @@ fn sys_getmeminfo() -> SysCallResult {
     console_println!("  Using heap-only allocation");
     
     // Show memory regions
-    {
-        let mem_mgr = memory::MEMORY_MANAGER.lock();
-        console_println!("Memory Regions:");
-        for (i, region) in mem_mgr.get_memory_info().iter().enumerate() {
-            console_println!("  Region {}: 0x{:x} - 0x{:x} ({} MB) {} {:?}",
-                i,
-                region.start,
-                region.start + region.size,
-                region.size / (1024 * 1024),
-                if region.is_ram { "RAM" } else { "MMIO" },
-                region.zone_type
-            );
-        }
-    }
+    memory::display_memory_layout();
     
     unsafe {
         console_println!("Program Break: 0x{:x}", PROGRAM_BREAK);
@@ -222,7 +212,8 @@ fn sys_alloc_test(size: usize) -> SysCallResult {
     // Test allocation
     let start_time = 0; // TODO: Add timing
     
-    if let Some(addr) = memory::allocate_memory(size) {
+    if let Ok(addr) = memory::allocate_memory(size, 8) {
+        let addr = addr.as_ptr() as usize;
         console_println!("[o] Allocated {} bytes at 0x{:x}", size, addr);
         
         // Test writing to the memory

@@ -1,9 +1,9 @@
 use crate::syscall;
-use crate::filesystem::traits::{FileSystem, FilesystemError, FileEntry};
-use crate::memory::{self, BufferUsage};
+use crate::filesystem::traits::{FileSystem, FilesystemError};
+use crate::memory::{self, BufferUsage, AllocationMode};
 use heapless::String;
 use core::fmt::Write;
-use elinos_common::{uart::UART, console_println, console_print};
+use elinos_common::{console_println, console_print};
 
 // Shell commands that use system calls
 
@@ -341,9 +341,9 @@ pub fn cmd_config() -> Result<(), &'static str> {
     
     console_print!("  Allocator Mode: ");
     match mem_stats.allocator_mode {
-        memory::AllocatorMode::SimpleHeap => console_println!("Simple Heap (low memory)"),
-        memory::AllocatorMode::TwoTier => console_println!("Two-Tier (Buddy + Slab)"),
-        memory::AllocatorMode::Hybrid => console_println!("Hybrid (adaptive)"),
+        AllocationMode::Minimal => console_println!("Minimal (low memory)"),
+        AllocationMode::Standard => console_println!("Standard (buddy + simple)"),
+        AllocationMode::Advanced => console_println!("Advanced (full featured)"),
     }
     
     console_println!();
@@ -697,35 +697,7 @@ fn cmd_cd(path_arg: &str) -> Result<(), &'static str> {
 
 // === ELF OPERATIONS ===
 
-fn cmd_elf_info(filename: &str) -> Result<(), &'static str> {
-    console_println!("[i] ELF Binary Analysis: {}", filename);
-    
-    // Read file from filesystem
-    match crate::filesystem::read_file(filename) {
-        Ok(file_data) => {
-            // Call ELF info syscall
-            let result = syscall::syscall_handler(
-                crate::syscall::elinos::SYS_ELF_INFO,
-                file_data.as_ptr() as usize,
-                file_data.len(),
-                0,
-                0,
-            );
-            
-            match result {
-                syscall::SysCallResult::Success(_) => Ok(()),
-                syscall::SysCallResult::Error(_) => {
-                    console_println!("[x] ELF analysis failed");
-                    Err("ELF analysis failed")
-                }
-            }
-        }
-        Err(_) => {
-            console_println!("[x] File not found: {}", filename);
-            Err("File not found")
-        }
-    }
-}
+// Removed unused function: cmd_elf_info
 
 fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
     console_println!("[i] Loading ELF Binary: {}", filename);

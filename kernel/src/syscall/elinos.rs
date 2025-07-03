@@ -1,9 +1,8 @@
 // elinOS-Specific System Calls (900-999)
 // Handles elinOS-specific operations like debug, version, stats, etc.
 
-use elinos_common::{sbi, console_println, console_print};
+use elinos_common::{sbi, console_println};
 use super::{SysCallResult, SyscallArgs};
-use core::arch::asm;
 
 // === ELINOS-SPECIFIC SYSTEM CALL CONSTANTS (900-999) ===
 pub const SYS_ELINOS_DEBUG: usize = 900;

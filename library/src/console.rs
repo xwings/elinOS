@@ -128,9 +128,4 @@ pub fn print_to_device(device: OutputDevice, s: &str) {
     }
 }
 
-// Helper to convert format_args to string
-fn format_args_to_string(args: fmt::Arguments) -> String<1024> {
-    let mut string = String::new();
-    let _ = write!(string, "{}", args);
-    string
-} 
+// Removed unused function: format_args_to_string 

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "bootloader",
     "kernel",
     "library",
 ]

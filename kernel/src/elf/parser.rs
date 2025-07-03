@@ -5,7 +5,7 @@
 use elinos_common::console_println;
 use super::constants::*;
 use super::error::{ElfError, ElfResult};
-use super::structures::{Elf64Header, Elf64ProgramHeader};
+use super::structures::Elf64Header;
 
 /// ELF Parser for ELF64 binaries
 pub struct ElfParser;

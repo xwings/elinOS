@@ -13,14 +13,13 @@ const SBI_SHUTDOWN: usize = 0x8;
 const SBI_EXT_BASE: usize = 0x10;
 const SBI_EXT_TIMER: usize = 0x54494D45;
 const SBI_EXT_IPI: usize = 0x735049;
-const SBI_EXT_RFENCE: usize = 0x52464E43;
-const SBI_EXT_HSM: usize = 0x48534D;
+// Removed unused SBI extensions: RFENCE, HSM
 const SBI_EXT_SRST: usize = 0x53525354;
 
 // SBI reset types
 const SBI_SRST_RESET_TYPE_SHUTDOWN: u32 = 0;
 const SBI_SRST_RESET_TYPE_COLD_REBOOT: u32 = 1;
-const SBI_SRST_RESET_TYPE_WARM_REBOOT: u32 = 2;
+// Removed unused reset type: WARM_REBOOT
 
 // SBI reset reasons
 const SBI_SRST_RESET_REASON_NONE: u32 = 0;

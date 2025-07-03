@@ -4,7 +4,6 @@ use super::structures::*;
 use super::superblock::SuperblockManager;
 use super::super::traits::{FilesystemError, FilesystemResult};
 use elinos_common::console_println;
-use heapless::Vec;
 
 /// Manages ext2 inode operations
 pub struct InodeManager {

@@ -1,10 +1,10 @@
-/* Memory layout for RISC-V 64-bit */
+/* Kernel memory layout for RISC-V 64-bit */
+/* Bootloader loads kernel at 0x80400000 */
 MEMORY {
     /* 2MB for kernel code and data */
-    KERNEL (rwx) : ORIGIN = 0x80200000, LENGTH = 2M
-    /* Flexible RAM region - will be detected at runtime */
-    /* This is a safe default, actual RAM detection happens in software */
-    RAM (rwx) : ORIGIN = 0x80400000, LENGTH = 60M
+    KERNEL (rwx) : ORIGIN = 0x80400000, LENGTH = 2M
+    /* Flexible RAM region - provided by bootloader */
+    RAM (rwx) : ORIGIN = 0x80600000, LENGTH = 58M
 }
 
 /* Define output sections */
@@ -16,25 +16,27 @@ PHDRS {
     ram PT_LOAD FLAGS(6);  /* RW- */
 }
 
-/* Stack configuration - these can be overridden by memory detection */
-PROVIDE(_stack_size = 2M);  /* 2MB per hart stack */
-PROVIDE(_max_hart_id = 4);  /* Support up to 4 harts */
-PROVIDE(_hart_stack_size = _stack_size);
+/* Dynamic configuration - these are calculated at runtime based on available memory */
+PROVIDE(_runtime_stack_size = 0);  /* Calculated dynamically per hart */
+PROVIDE(_max_hart_id = 4);         /* Support up to 4 harts - can be detected */
+PROVIDE(_runtime_hart_stack_size = 0);
 
-/* Heap configuration - will be dynamically determined */
-PROVIDE(_heap_size = 32M);  /* Default 32MB for heap, can be adjusted */
+/* Dynamic heap configuration - determined by memory manager */
+PROVIDE(_runtime_heap_size = 0);   /* Calculated based on total available RAM */
+PROVIDE(_min_heap_size = 64K);     /* Minimum heap size for safety */
+PROVIDE(_min_stack_size = 16K);    /* Minimum stack size per hart */
 
 OUTPUT_ARCH(riscv)
 OUTPUT_FORMAT("elf64-littleriscv")
-ENTRY(_start)
+ENTRY(kernel_main)
 
 SECTIONS {
-    /* Kernel code and data at 0x80200000 */
-    . = 0x80200000;
+    /* Kernel code and data at 0x80400000 */
+    . = 0x80400000;
 
     .text : {
         __text_start = .;
-        KEEP(*(.text.boot))
+        KEEP(*(.text.kernel))
         *(.text .text.*)
         __text_end = .;
     } :text
@@ -58,20 +60,23 @@ SECTIONS {
     } :bss
 
     /* Move to RAM region for heap and stack */
-    . = 0x80400000;
+    . = 0x80600000;
 
-    /* Heap starts at beginning of RAM - size determined at runtime */
+    /* Dynamic memory regions - managed by unified memory manager */
+    /* Note: Actual allocation is done at runtime, these are just placeholders */
+    
+    /* Reserve minimal space for linker symbols */
     _heap_start = .;
     .heap : {
-        . = . + _heap_size;
+        . = . + _min_heap_size;  /* Just reserve minimum space */
     } >RAM AT>RAM :ram
-
-    /* Stack space for each hart */
+    
+    /* Minimal stack reservation */
     . = ALIGN(4096);
     _stack_start = .;
     __stack_bottom = .;
     .stack : {
-        . = . + (_hart_stack_size * (_max_hart_id + 1));
+        . = . + (_min_stack_size * (_max_hart_id + 1));  /* Minimal reservation */
     } >RAM AT>RAM :ram
     _stack_end = .;
     __stack_top = .;
@@ -87,12 +92,17 @@ SECTIONS {
     end = .;
 }
 
-/* Define symbols for memory management */
+/* Define symbols for memory management - static placeholders */
 PROVIDE(_kernel_end = end);
-PROVIDE(_heap_end = _heap_start + _heap_size);
-PROVIDE(_stack_top = _stack_end);
+PROVIDE(_static_heap_end = _heap_start + _min_heap_size);
+PROVIDE(_static_stack_top = _stack_end);
 
-/* Runtime memory detection will override these defaults */
+/* Runtime memory detection symbols - filled by unified memory manager */
 PROVIDE(_runtime_heap_start = 0);
 PROVIDE(_runtime_heap_end = 0);
-PROVIDE(_runtime_total_memory = 0); 
+PROVIDE(_runtime_heap_size = 0);
+PROVIDE(_runtime_stack_start = 0);
+PROVIDE(_runtime_stack_end = 0);
+PROVIDE(_runtime_stack_size = 0);
+PROVIDE(_runtime_total_memory = 0);
+PROVIDE(_runtime_available_memory = 0); 

@@ -123,7 +123,7 @@ impl RustVmmVirtIOBlock {
                 // Register the device MMIO region using our memory mapping API
                 const VIRTIO_MMIO_SIZE: usize = 0x1000; // 4KB MMIO region
                 match super::super::register_virtio_device(addr, VIRTIO_MMIO_SIZE, "VirtIO-Block") {
-                    Ok(_) => console_println!("[i] VirtIO block device MMIO region registered"),
+                    Ok(_) => {},
                     Err(_) => console_println!("[!] Failed to register VirtIO MMIO region"),
                 }
                 
@@ -149,9 +149,8 @@ impl RustVmmVirtIOBlock {
             }
             
             if version >= 2 {
-                console_println!("[i] Modern VirtIO block device found");
+                // Modern VirtIO block device
             } else if version == 1 {
-                console_println!("[i] Legacy VirtIO block device found");
                 self.is_legacy = true;
             } else {
                 return Ok(false);
@@ -197,7 +196,6 @@ impl RustVmmVirtIOBlock {
             let capacity_high = self.read_reg_u32(VIRTIO_MMIO_CONFIG + 4);
             self.capacity_sectors = ((capacity_high as u64) << 32) | (capacity_low as u64);
             
-            console_println!("[i] Device capacity: {} sectors", self.capacity_sectors);
         }
         
         Ok(())
@@ -208,7 +206,6 @@ impl RustVmmVirtIOBlock {
             self.write_reg_u32(VIRTIO_MMIO_QUEUE_SEL, 0);
             
             let max_queue_size = self.read_reg_u32(VIRTIO_MMIO_QUEUE_NUM_MAX);
-            console_println!("[i] Max queue size: {}", max_queue_size);
             
             let queue_size = 64.min(max_queue_size as u16);
             if !queue_size.is_power_of_two() {
@@ -220,7 +217,6 @@ impl RustVmmVirtIOBlock {
             if self.is_legacy {
                 // Step 1: Set guest page size (REQUIRED for legacy VirtIO)
                 self.write_reg_u32(VIRTIO_MMIO_GUEST_PAGE_SIZE, PAGE_SIZE as u32);
-                console_println!("[i] Set guest page size: {} bytes", PAGE_SIZE);
                 
                 // Step 2: Calculate memory layout following VirtIO spec
                 // Legacy VirtIO requires ALL rings to be contiguous and page-aligned
@@ -235,11 +231,6 @@ impl RustVmmVirtIOBlock {
                 let buffer_area_size = 1024; // Space for request + data + status buffers
                 let total_size = align_up(buffer_area_offset + buffer_area_size);
                 
-                console_println!("[i] Legacy memory layout calculation:");
-                console_println!("  Descriptor table: {} bytes", desc_table_size);
-                console_println!("  Driver area offset: {} bytes", driver_area_offset);  
-                console_println!("  Device area offset: {} bytes", device_area_offset);
-                console_println!("  Total queue size: {} bytes", total_size);
                 
                 // Allocate page-aligned memory using VirtIO memory manager
                 let desc_table_addr = super::super::allocate_virtio_memory(total_size)?;
@@ -252,11 +243,6 @@ impl RustVmmVirtIOBlock {
                     return Err(DiskError::VirtIOError);
                 }
                 
-                console_println!("[i] Legacy queue memory layout:");
-                console_println!("  Descriptors: 0x{:x}", desc_table_addr);
-                console_println!("  Available:   0x{:x}", avail_ring_addr);
-                console_println!("  Used:        0x{:x}", used_ring_addr);
-                console_println!("  Buffers:     0x{:x}", buffer_area_addr);
                 
                 // Zero out the queue memory region before use
                 unsafe {
@@ -274,16 +260,13 @@ impl RustVmmVirtIOBlock {
                 // Step 3: Set queue alignment (power of 2, typically page size)
                 let queue_align = PAGE_SIZE as u32;
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_ALIGN, queue_align);
-                console_println!("[i] Set queue alignment: {} bytes", queue_align);
                 
                 // Step 4: Set queue PFN (Page Frame Number)
                 let pfn = (desc_table_addr / PAGE_SIZE) as u32;
-                console_println!("[i] Setting queue PFN: {} (addr=0x{:x})", pfn, desc_table_addr);
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_PFN, pfn);
                 
                 // Verify the PFN was accepted
                 let read_pfn = self.read_reg_u32(VIRTIO_MMIO_QUEUE_PFN);
-                console_println!("[i] Queue PFN read back: {} (expected: {})", read_pfn, pfn);
                 
             } else {
                 // Modern VirtIO: Uses separate registers for each ring
@@ -331,7 +314,6 @@ impl RustVmmVirtIOBlock {
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_READY, 1);
             }
             
-            console_println!("[o] VirtIO queue ready");
         }
         
         // CRITICAL: Set queue ready AFTER all hardware setup is complete
@@ -346,7 +328,6 @@ impl RustVmmVirtIOBlock {
             self.write_reg_u32(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE as u32 | VIRTIO_STATUS_DRIVER as u32 | VIRTIO_STATUS_FEATURES_OK as u32 | VIRTIO_STATUS_DRIVER_OK as u32);
         }
         
-        console_println!("[o] VirtIO device ready");
         Ok(())
     }
 
@@ -577,15 +558,12 @@ pub static VIRTIO_BLK: Mutex<RustVmmVirtIOBlock> = Mutex::new(RustVmmVirtIOBlock
 
 /// Initialize the VirtIO block device
 pub fn init_virtio_blk() -> DiskResult<()> {
-    console_println!("[i] Initializing rust-vmm style VirtIO Block Device...");
-    
     let mut device = VIRTIO_BLK.lock();
     device.init()
 }
 
 /// Initialize VirtIO block device with specific address
 pub fn init_with_address(base_addr: usize) -> bool {
-    console_println!("[i] Trying VirtIO device at 0x{:08x}", base_addr);
     
     unsafe {
         let magic = core::ptr::read_volatile(base_addr as *const u32);

@@ -1,7 +1,7 @@
 // Modular ext2 Filesystem Implementation
 
 use super::traits::{FileSystem, FileEntry, FilesystemError, FilesystemResult};
-use crate::{console_println, virtio};
+use crate::console_println;
 use heapless::Vec;
 
 // Re-export modules
@@ -47,8 +47,6 @@ impl Ext2FileSystem {
     
     /// Initialize the ext2 filesystem
     pub fn init(&mut self) -> FilesystemResult<()> {
-        console_println!("[i] Initializing ext2 filesystem...");
-
         // Initialize all managers in sequence
         self.superblock_mgr.init()?;
         self.inode_mgr.init(&self.superblock_mgr)?;
@@ -61,7 +59,6 @@ impl Ext2FileSystem {
         
         self.initialized = true;
         self.mounted = true;
-        // console_println!("[o] ext2 filesystem mounted successfully");
         Ok(())
     }
     

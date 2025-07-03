@@ -7,6 +7,7 @@
 
 # Project metadata
 PROJECT_NAME := elinOS
+BOOTLOADER_NAME := bootloader
 KERNEL_NAME := kernel
 VERSION := 0.1.0
 
@@ -56,6 +57,9 @@ C_BINARIES := $(patsubst $(C_PROGRAMS_DIR)/%.c,$(C_BUILD_DIR)/%,$(C_SOURCES))
 
 # RISC-V compiler flags (defined after C_PROGRAMS_DIR)
 RISCV_CFLAGS := -march=rv64gc -mabi=lp64d -static -nostdlib -nostartfiles -ffreestanding -fno-stack-protector -T$(C_PROGRAMS_DIR)/program.ld -fPIC -fno-plt
+
+# Logs
+QEMU_LOG := qemu.log
 
 # Disk image configuration
 DISK_SIZE := 32M
@@ -109,16 +113,36 @@ help: ## Show this help message
 # =============================================================================
 
 .PHONY: build
-build: ## Build the kernel (debug mode)
-	@echo -e "$(COLOR_BLUE)Building $(PROJECT_NAME) (debug)...$(COLOR_RESET)"
+build: build-bootloader build-kernel ## Build the complete system (debug mode)
+
+.PHONY: build-bootloader  
+build-bootloader: ## Build the bootloader (debug mode)
+	@echo -e "$(COLOR_BLUE)Building $(BOOTLOADER_NAME) (debug)...$(COLOR_RESET)"
+	@cd bootloader && cargo build $(CARGO_FLAGS) $(DEBUG_FLAGS)
+	@echo -e "$(COLOR_GREEN)✓ Bootloader debug build completed: $(DEBUG_DIR)/$(BOOTLOADER_NAME)$(COLOR_RESET)"
+
+.PHONY: build-kernel
+build-kernel: ## Build the kernel (debug mode)
+	@echo -e "$(COLOR_BLUE)Building $(KERNEL_NAME) (debug)...$(COLOR_RESET)"
 	@cd kernel && cargo build $(CARGO_FLAGS) $(DEBUG_FLAGS)
-	@echo -e "$(COLOR_GREEN)✓ Build completed: $(DEBUG_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
+	@echo -e "$(COLOR_GREEN)✓ Kernel debug build completed: $(DEBUG_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
+
 
 .PHONY: build-release
-build-release: ## Build the kernel (release mode)
-	@echo -e "$(COLOR_BLUE)Building $(PROJECT_NAME) (release)...$(COLOR_RESET)"
+build-release: build-bootloader-release build-kernel-release ## Build both bootloader and kernel (release mode)
+
+.PHONY: build-bootloader-release
+build-bootloader-release: ## Build the bootloader (release mode)
+	@echo -e "$(COLOR_BLUE)Building $(BOOTLOADER_NAME) (release)...$(COLOR_RESET)"
+	@cd bootloader && cargo build $(CARGO_FLAGS) $(RELEASE_FLAGS)
+	@echo -e "$(COLOR_GREEN)✓ Bootloader release build completed: $(RELEASE_DIR)/$(BOOTLOADER_NAME)$(COLOR_RESET)"
+
+.PHONY: build-kernel-release
+build-kernel-release: ## Build the kernel (release mode)
+	@echo -e "$(COLOR_BLUE)Building $(KERNEL_NAME) (release)...$(COLOR_RESET)"
 	@cd kernel && cargo build $(CARGO_FLAGS) $(RELEASE_FLAGS)
-	@echo -e "$(COLOR_GREEN)✓ Release build completed: $(RELEASE_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
+	@echo -e "$(COLOR_GREEN)✓ Kernel release build completed: $(RELEASE_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
+
 
 .PHONY: rebuild
 rebuild: clean build ## Clean and rebuild the kernel
@@ -134,12 +158,15 @@ clean: ## Clean build artifacts
 	@echo -e "$(COLOR_YELLOW)Cleaning build artifacts...$(COLOR_RESET)"
 	@cargo clean
 	@rm -f $(DISK_IMAGE)
+	@rm -f $(QEMU_LOG)
 	@rm -rf $(C_BUILD_DIR)
 	@echo -e "$(COLOR_GREEN)✓ Clean completed$(COLOR_RESET)"
 
 .PHONY: check
 check: ## Check code without building
-	@echo -e "$(COLOR_BLUE)Checking code...$(COLOR_RESET)"
+	@echo -e "$(COLOR_BLUE)Checking bootloader...$(COLOR_RESET)"
+	@cd bootloader && cargo check $(CARGO_FLAGS)
+	@echo -e "$(COLOR_BLUE)Checking kernel...$(COLOR_RESET)"
 	@cd kernel && cargo check $(CARGO_FLAGS)
 
 # =============================================================================
@@ -189,10 +216,29 @@ run-console: build ## Run the kernel in QEMU (console mode)
 		-m $(QEMU_MEMORY) \
 		-nographic \
 		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_NAME) \
+		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0
 
+.PHONY: run-console-debug
+run-console-debug: build ## Run the elinOS with log output
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with log output...$(COLOR_RESET)"
+	@echo -e "$(COLOR_YELLOW)Connect with: gdb $(DEBUG_DIR)/$(KERNEL_NAME) -ex 'target remote :1234'$(COLOR_RESET)"
+	@$(QEMU) \
+		-machine $(QEMU_MACHINE) \
+		-cpu $(QEMU_CPU) \
+		-smp $(QEMU_SMP) \
+		-m $(QEMU_MEMORY) \
+		-nographic \
+		-bios $(OPENSBI) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_NAME) \
+		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
+        -device virtio-blk-device,drive=disk0 \
+        -d guest_errors,int,unimp,exec,in_asm \
+        -D qemu.log
+		
 .PHONY: run-graphics
 run-graphics: build ## Run the kernel in QEMU with graphics
 	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with VirtIO GPU graphics...$(COLOR_RESET)"
@@ -203,29 +249,13 @@ run-graphics: build ## Run the kernel in QEMU with graphics
 		-smp $(QEMU_SMP) \
 		-m $(QEMU_MEMORY) \
 		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_NAME) \
+		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
 		-device virtio-gpu-device \
 		-display gtk,show-cursor=on \
 		-serial stdio
-
-.PHONY: run-debug
-run-debug: build ## Run the kernel with GDB debugging enabled
-	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with GDB debugging...$(COLOR_RESET)"
-	@echo -e "$(COLOR_YELLOW)Connect with: gdb $(DEBUG_DIR)/$(KERNEL_NAME) -ex 'target remote :1234'$(COLOR_RESET)"
-	@$(QEMU) \
-		-machine $(QEMU_MACHINE) \
-		-cpu $(QEMU_CPU) \
-		-smp $(QEMU_SMP) \
-		-m $(QEMU_MEMORY) \
-		-nographic \
-		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
-		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
-        -device virtio-blk-device,drive=disk0 \
-        -d guest_errors,int,unimp \
-        -D qemu.log
 
 # =============================================================================
 # Development Commands
@@ -403,12 +433,16 @@ clean-release: ## Clean release artifacts
 
 .PHONY: size
 size: build ## Show binary size information
-	@echo -e "$(COLOR_BLUE)Binary size information:$(COLOR_RESET)"
+	@echo -e "$(COLOR_BLUE)Bootloader size information:$(COLOR_RESET)"
+	@size $(DEBUG_DIR)/$(BOOTLOADER_NAME)
+	@echo -e "$(COLOR_BLUE)Kernel size information:$(COLOR_RESET)"
 	@size $(DEBUG_DIR)/$(KERNEL_NAME)
 
 .PHONY: size-release
 size-release: build-release ## Show release binary size information
-	@echo -e "$(COLOR_BLUE)Release binary size information:$(COLOR_RESET)"
+	@echo -e "$(COLOR_BLUE)Bootloader release size information:$(COLOR_RESET)"
+	@size $(RELEASE_DIR)/$(BOOTLOADER_NAME)
+	@echo -e "$(COLOR_BLUE)Kernel release size information:$(COLOR_RESET)"
 	@size $(RELEASE_DIR)/$(KERNEL_NAME)
 
 .PHONY: objdump

@@ -1,9 +1,6 @@
 // Device and I/O Management System Calls - Linux Compatible Numbers  
 // Following Linux ARM64/RISC-V syscall numbers for compatibility
 
-use core::fmt::Write;
-use spin::Mutex;
-use crate::UART;
 use super::{SysCallResult, SyscallArgs};
 
 // === LINUX COMPATIBLE DEVICE AND I/O MANAGEMENT SYSTEM CALL CONSTANTS ===

@@ -28,10 +28,7 @@ pub mod loader;
 // For now, include the remaining functions from the original elf.rs
 // These will be moved to their respective modules later
 
-use crate::{console_println, UART};
-use crate::memory::mmu::{self, PTE_R, PTE_W, PTE_X, PTE_U};
-use crate::memory;
-use core::fmt::Write;
+use crate::console_println;
 
 /// Main ELF execution function - coordinates loading and execution
 pub fn execute_elf(loaded_elf: &LoadedElf) -> ElfResult<()> {
@@ -58,9 +55,9 @@ unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
     use core::arch::asm;
     
     // Allocate user stack
-    let user_stack = match crate::memory::allocate_memory(8192) {
-        Some(addr) => addr,
-        None => {
+    let user_stack = match crate::memory::allocate_memory(8192, 8) {
+        Ok(addr) => addr.as_ptr() as usize,
+        Err(_) => {
             console_println!("[x] Failed to allocate user stack");
             return 0;
         }
@@ -70,11 +67,11 @@ unsafe fn execute_with_syscall_support(entry_point: usize) -> usize {
     console_println!("[i] User stack allocated: 0x{:x} - 0x{:x}", user_stack, user_stack_top);
     
     // Create a small exit stub that will be called when the user program returns
-    let exit_stub = match crate::memory::allocate_memory(32) {
-        Some(addr) => addr,
-        None => {
+    let exit_stub = match crate::memory::allocate_memory(32, 8) {
+        Ok(addr) => addr.as_ptr() as usize,
+        Err(_) => {
             console_println!("[x] Failed to allocate exit stub");
-            crate::memory::deallocate_memory(user_stack, 8192);
+            // Note: deallocate_memory signature needs to be fixed too
             return 0;
         }
     };
@@ -227,7 +224,6 @@ unsafe fn execute_user_program_with_software_mmu(entry_point: usize, loaded_elf:
 
 /// Execute user program at the given physical address
 unsafe fn execute_user_program(entry_point: usize) {
-    use core::arch::asm;
     
     console_println!("[i] Setting up execution environment...");
     
@@ -252,7 +248,8 @@ unsafe fn execute_user_program(entry_point: usize) {
     }
     
     // Allocate a simple stack for the user program (4KB)
-    if let Some(stack_addr) = crate::memory::allocate_memory(4096) {
+    if let Ok(stack_addr) = crate::memory::allocate_memory(4096, 8) {
+        let stack_addr = stack_addr.as_ptr() as usize;
         let stack_top = stack_addr + 4096;
         console_println!("[i] Allocated stack at 0x{:x}-0x{:x}", stack_addr, stack_top);
         
@@ -267,7 +264,9 @@ unsafe fn execute_user_program(entry_point: usize) {
         console_println!("[o] User program completed with result: {}", result);
         
         // Deallocate the stack
-        crate::memory::deallocate_memory(stack_addr, 4096);
+        if let Some(ptr) = core::ptr::NonNull::new(stack_addr as *mut u8) {
+            crate::memory::deallocate_memory(ptr, 4096);
+        }
     } else {
         console_println!("[x] Failed to allocate stack for user program");
     }

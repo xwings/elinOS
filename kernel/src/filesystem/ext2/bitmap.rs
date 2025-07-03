@@ -1,10 +1,8 @@
 // Bitmap management for ext2
 
-use super::structures::*;
 use super::superblock::SuperblockManager;
-use super::super::traits::{FilesystemError, FilesystemResult};
+use super::super::traits::FilesystemResult;
 use elinos_common::console_println;
-use heapless::Vec;
 
 /// Manages ext2 bitmap operations
 pub struct BitmapManager {

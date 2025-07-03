@@ -1,7 +1,5 @@
 // elinOS System Call Module
 
-use crate::UART;
-use core::fmt::Write;
 
 // Common error codes (Linux-compatible)
 pub const EPERM: isize = 1;      // Operation not permitted

@@ -1,0 +1,20 @@
+[package]
+name = "bootloader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+riscv = { workspace = true }
+spin = { workspace = true }
+embedded-hal = { workspace = true }
+heapless = { workspace = true }
+lazy_static = { workspace = true }
+linked_list_allocator = { workspace = true }
+elinos-common = { path = "../library" }
+
+[features]
+default = []
+
+[[bin]]
+name = "bootloader"
+path = "src/main.rs"

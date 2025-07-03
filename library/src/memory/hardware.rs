@@ -45,9 +45,29 @@ pub fn detect_main_ram() -> Option<MemoryRegion> {
     }
 }
 
-/// Get fallback memory layout for QEMU
+/// Get fallback memory layout for QEMU - use smallest safe default
 pub fn get_fallback_ram() -> MemoryRegion {
-    MemoryRegion::new(0x80000000, 128 * 1024 * 1024, true, MemoryZone::Normal)
+    // Use smallest reasonable default - can be expanded if more memory is available
+    let min_ram = 32 * 1024 * 1024; // 32MB minimum for basic operation
+    MemoryRegion::new(0x80000000, min_ram, true, MemoryZone::Normal)
+}
+
+/// Get fallback memory for specific system types
+pub fn get_fallback_ram_for_system(system_type: SystemType) -> MemoryRegion {
+    let ram_size = match system_type {
+        SystemType::Minimal => 16 * 1024 * 1024,   // 16MB for very minimal systems
+        SystemType::QEMU => 128 * 1024 * 1024,     // 128MB for QEMU default
+        SystemType::Hardware => 64 * 1024 * 1024,  // 64MB conservative for real hardware
+    };
+    MemoryRegion::new(0x80000000, ram_size, true, MemoryZone::Normal)
+}
+
+/// System type for dynamic memory configuration
+#[derive(Debug, Clone, Copy)]
+pub enum SystemType {
+    Minimal,    // Very constrained environment
+    QEMU,       // QEMU virtual machine
+    Hardware,   // Real hardware
 }
 
 /// Get standard MMIO regions for RISC-V QEMU

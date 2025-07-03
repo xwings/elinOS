@@ -1,8 +1,7 @@
 // Process Management System Calls - Linux Compatible Numbers
 // Following Linux ARM64/RISC-V syscall numbers for compatibility
 
-use crate::{UART, elf::{ElfLoader, ElfError}, console_println};
-use core::fmt::Write;
+use crate::{elf::{ElfLoader, ElfError}, console_println};
 use super::{SysCallResult, SyscallArgs};
 use crate::trap::USER_PROGRAM_EXITED;
 use super::{ENOSYS, EINVAL, ENOEXEC};

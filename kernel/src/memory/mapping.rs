@@ -139,7 +139,7 @@ impl MemoryMappingManager {
         let virtual_addr = self.find_free_virtual_address(aligned_size)?;
 
         // Try to allocate physical memory
-        let physical_addr = match crate::memory::allocate_aligned_memory(aligned_size, 4096) {
+        let physical_addr = match crate::memory::allocate_kernel_memory(aligned_size, 4096) {
             Some(addr) => addr,
             None => return Err("Failed to allocate physical memory"),
         };
@@ -181,7 +181,9 @@ impl MemoryMappingManager {
         if let Some(mapping) = self.mappings.remove(&addr) {
             // If it was a virtual mapping, free the physical memory
             if let Some(physical_addr) = mapping.physical_addr {
-                crate::memory::deallocate_memory(physical_addr, mapping.size);
+                if let Some(ptr) = core::ptr::NonNull::new(physical_addr as *mut u8) {
+                    crate::memory::deallocate_memory(ptr, mapping.size);
+                }
             }
             self.total_mapped -= mapping.size;
             Ok(())
@@ -293,7 +295,9 @@ impl MemoryMappingManager {
     pub fn clear_all_mappings(&mut self) {
         for (_, mapping) in &self.mappings {
             if let Some(physical_addr) = mapping.physical_addr {
-                crate::memory::deallocate_memory(physical_addr, mapping.size);
+                if let Some(ptr) = core::ptr::NonNull::new(physical_addr as *mut u8) {
+                    crate::memory::deallocate_memory(ptr, mapping.size);
+                }
             }
         }
         self.mappings.clear();
