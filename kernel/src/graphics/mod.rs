@@ -2,7 +2,6 @@
 //! Provides basic framebuffer operations for drawing pixels and rectangles
 
 use elinos_common::console_println;
-use crate::memory::mapping::{map_virtual_memory, MemoryPermissions};
 
 /// Simple framebuffer for basic graphics operations
 pub struct SimpleFramebuffer {

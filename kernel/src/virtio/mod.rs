@@ -20,7 +20,6 @@ pub mod block;
 pub mod gpu;
 
 use spin::Mutex;
-use crate::memory::layout::get_memory_layout;
 
 /// VirtIO Device Memory Manager
 /// Provides DMA-safe memory allocation for VirtIO devices

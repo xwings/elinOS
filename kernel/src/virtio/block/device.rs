@@ -3,14 +3,11 @@
 use spin::Mutex;
 use elinos_common::console_println;
 use core::{convert::TryInto, result::Result::{Ok, Err}};
-use core::ptr::read_volatile;
 
-use super::super::{DiskResult, DiskError, VirtqDesc, VirtqUsedElem, VirtioQueue};
+use super::super::{DiskResult, DiskError, VirtqDesc, VirtioQueue};
 use super::super::mmio::*;
 use super::{VIRTIO_BLK_T_IN, VIRTIO_BLK_T_OUT, VIRTIO_BLK_S_OK, VIRTIO_BLK_REQUEST_QUEUE_IDX};
 
-/// VirtIO buffer management - integrated with memory mapping system
-use crate::memory::mapping;
 
 /// VirtIO buffer structure for proper memory management
 struct VirtioBuffers {

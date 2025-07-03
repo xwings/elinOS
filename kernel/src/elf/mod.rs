@@ -153,7 +153,7 @@ extern "C" fn syscall_trap_handler() {
             let message_len = a3;
             
             if message_len > 0 && message_len < 1024 {
-                let mut uart = crate::UART.lock();
+                let uart = crate::UART.lock();
                 for i in 0..message_len {
                     let byte = unsafe { core::ptr::read_volatile(message_ptr.add(i)) };
                     uart.putchar(byte);

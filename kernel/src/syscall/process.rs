@@ -239,7 +239,7 @@ pub fn handle_process_syscall(syscall_num: usize, args: &SyscallArgs) -> SysCall
         SYS_SETSID => sys_setsid(),
         SYS_GETPGID => sys_getpgid(args.arg0 as i32),
         SYS_SETPGID => sys_setpgid(args.arg0 as i32, args.arg1 as i32),
-        SYS_GETPGRP => sys_getpgrp(),
+        SYS_GETPGID => sys_getpgrp(),
         SYS_SCHED_YIELD => sys_sched_yield(),
         SYS_NANOSLEEP => sys_nanosleep(args.arg0 as *const u8, args.arg1 as *mut u8),
         SYS_ALARM => sys_alarm(args.arg0 as u32),

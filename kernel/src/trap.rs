@@ -299,7 +299,7 @@ pub extern "C" fn trap_handler(ctx: &mut TrapContext) {
     
     if is_interrupt {
         // Handle interrupts
-        let mut uart = crate::UART.lock();
+        let uart = crate::UART.lock();
         match cause {
             TrapCause::SupervisorTimerInterrupt => {
                 console_println!("[i] Timer interrupt");

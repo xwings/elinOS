@@ -312,7 +312,7 @@ impl SuperblockManager {
         
         static ALLOCATED_BLOCKS: Mutex<FnvIndexSet<u32, 1024>> = Mutex::new(FnvIndexSet::new());
         
-        let mut allocated = ALLOCATED_BLOCKS.lock();
+        let allocated = ALLOCATED_BLOCKS.lock();
         // if allocated.remove(&block_num) {
         //     console_println!("[i] Freed block {}", block_num);
         // } else {
