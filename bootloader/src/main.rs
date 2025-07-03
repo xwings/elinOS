@@ -231,16 +231,6 @@ fn search_elf_binary(memory_regions: &[(usize, usize)]) -> Option<usize> {
     None
 }
 
-/// Get the entry point of an ELF binary by reading its header
-fn get_elf_entry_point(elf_addr: usize) -> usize {
-    unsafe {
-        // For 64-bit ELF, entry point is at offset 24 (8 bytes, little endian)
-        let entry_point_ptr = (elf_addr + 24) as *const u64;
-        let entry_point = core::ptr::read_volatile(entry_point_ptr) as usize;
-        console_println!("[i] ELF entry point from header: 0x{:x}", entry_point);
-        entry_point
-    }
-}
 
 /// Load ELF segments to their virtual addresses
 fn load_elf_segments(elf_addr: usize) -> bool {
@@ -309,69 +299,6 @@ fn load_elf_segments(elf_addr: usize) -> bool {
     }
 }
 
-/// Get the size of an ELF binary by reading its header
-fn get_elf_size(elf_addr: usize) -> usize {
-    unsafe {
-        // Read ELF header
-        let elf_header = elf_addr as *const u8;
-        
-        // Check if it's 64-bit ELF (ei_class at offset 4)
-        let ei_class = core::ptr::read_volatile(elf_header.add(4));
-        if ei_class != 2 { // ELFCLASS64
-            console_println!("[!] Warning: Not 64-bit ELF, using fallback size");
-            return 1024 * 1024; // 1MB fallback
-        }
-        
-        // For 64-bit ELF, program header table offset is at offset 32 (8 bytes)
-        let phoff = core::ptr::read_volatile(elf_header.add(32) as *const u64) as usize;
-        
-        // Program header entry size at offset 54 (2 bytes)
-        let phentsize = core::ptr::read_volatile(elf_header.add(54) as *const u16) as usize;
-        
-        // Number of program header entries at offset 56 (2 bytes)
-        let phnum = core::ptr::read_volatile(elf_header.add(56) as *const u16) as usize;
-        
-        console_println!("[i] ELF info: phoff=0x{:x}, phentsize={}, phnum={}", phoff, phentsize, phnum);
-        
-        let mut max_end = 0usize;
-        
-        // Iterate through program headers to find the highest address
-        for i in 0..phnum {
-            let ph_addr = elf_header.add(phoff + i * phentsize);
-            
-            // Read p_type (4 bytes at offset 0)
-            let p_type = core::ptr::read_volatile(ph_addr as *const u32);
-            
-            // Only consider LOAD segments (type 1)
-            if p_type == 1 {
-                // Read p_offset (8 bytes at offset 8)
-                let p_offset = core::ptr::read_volatile(ph_addr.add(8) as *const u64) as usize;
-                
-                // Read p_filesz (8 bytes at offset 32)
-                let p_filesz = core::ptr::read_volatile(ph_addr.add(32) as *const u64) as usize;
-                
-                let segment_end = p_offset + p_filesz;
-                if segment_end > max_end {
-                    max_end = segment_end;
-                }
-                
-                console_println!("[i] LOAD segment: offset=0x{:x}, size=0x{:x}, end=0x{:x}", 
-                               p_offset, p_filesz, segment_end);
-            }
-        }
-        
-        if max_end == 0 {
-            console_println!("[!] Warning: No LOAD segments found, using fallback size");
-            return 1024 * 1024; // 1MB fallback
-        }
-        
-        // Add some padding for safety (4KB)
-        let total_size = max_end + 4096;
-        console_println!("[i] Calculated kernel size: {} KB (0x{:x} bytes)", total_size / 1024, total_size);
-        
-        total_size
-    }
-}
 
 /// Locate the kernel binary from initrd using comprehensive memory search
 /// QEMU loads the initrd to a specific location in memory

@@ -1,7 +1,6 @@
 // Modular ext2 Filesystem Implementation
 
 use super::traits::{FileSystem, FileEntry, FilesystemError, FilesystemResult};
-use crate::console_println;
 use heapless::Vec;
 
 // Re-export modules

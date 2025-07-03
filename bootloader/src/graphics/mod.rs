@@ -725,38 +725,6 @@ impl TextConsole {
     }
 }
 
-/// Simple test function to draw colored rectangles as "text"
-pub fn draw_simple_text_test() -> Result<(), &'static str> {
-    unsafe {
-        if let Some(ref mut fb) = FRAMEBUFFER {
-            // Clear to black first
-            fb.clear(0x000000FF);
-            
-            // Draw simple colored rectangles to represent text
-            // This is much simpler than font rendering
-            
-            // Draw "elinOS" as colored rectangles
-            let _ = fb.draw_rect(10, 10, 20, 30, 0xFF0000FF); // E - Red
-            let _ = fb.draw_rect(40, 10, 20, 30, 0x00FF00FF); // L - Green  
-            let _ = fb.draw_rect(70, 10, 20, 30, 0x0000FFFF); // I - Blue
-            let _ = fb.draw_rect(100, 10, 20, 30, 0xFFFF00FF); // N - Yellow
-            let _ = fb.draw_rect(130, 10, 20, 30, 0xFF00FFFF); // O - Magenta
-            let _ = fb.draw_rect(160, 10, 20, 30, 0x00FFFFFF); // S - Cyan
-            
-            // Draw ">" prompt as a white rectangle
-            let _ = fb.draw_rect(10, 60, 30, 20, 0xFFFFFFFF); // ">" - White
-            
-            // Flush to display
-            if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
-            }
-            
-            Ok(())
-        } else {
-            Err("Framebuffer not initialized")
-        }
-    }
-}
 
 /// Draw shell prompt to the framebuffer
 pub fn draw_shell_prompt() -> Result<(), &'static str> {
@@ -827,52 +795,4 @@ pub fn draw_shell_prompt() -> Result<(), &'static str> {
     }
 }
 
-/// Draw text character to framebuffer (simple implementation)
-pub fn draw_text_char(x: u32, y: u32, ch: char, color: u32) -> Result<(), &'static str> {
-    unsafe {
-        if let Some(ref mut fb) = FRAMEBUFFER {
-            // Simple 5x7 character drawing for common characters
-            match ch {
-                ' ' => {
-                    // Space - just clear the area
-                    fb.draw_rect(x, y, 6, 8, 0x00000000)?;
-                }
-                'A'..='Z' | 'a'..='z' | '0'..='9' => {
-                    // Draw a simple block for letters/numbers
-                    fb.draw_rect(x, y, 5, 7, color)?;
-                }
-                '>' => {
-                    fb.draw_rect(x, y + 2, 1, 1, color)?;
-                    fb.draw_rect(x + 1, y + 3, 1, 1, color)?;
-                    fb.draw_rect(x, y + 4, 1, 1, color)?;
-                }
-                _ => {
-                    // Unknown character - draw a small block
-                    fb.draw_rect(x, y, 3, 3, color)?;
-                }
-            }
-            
-            // Flush to display if VirtIO GPU is available
-            if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
-            }
-            
-            Ok(())
-        } else {
-            Err("Graphics not initialized")
-        }
-    }
-}
-
-/// Draw a text string to the framebuffer
-pub fn draw_text_string(x: u32, y: u32, text: &str, color: u32) -> Result<(), &'static str> {
-    let mut current_x = x;
-    for ch in text.chars() {
-        draw_text_char(current_x, y, ch, color)?;
-        current_x += 7; // Character width + spacing
-        if current_x > 600 { // Wrap at screen edge
-            break;
-        }
-    }
-    Ok(())
-} 
+ 

@@ -3,7 +3,7 @@
 //! This module provides ELF64 binary loading functionality, including memory allocation
 //! and segment loading into physical memory.
 
-use crate::{console_println, memory};
+use crate::memory;
 use super::constants::*;
 use super::error::{ElfError, ElfResult};
 use super::structures::{Elf64Header, LoadedElf, ElfSegment};
