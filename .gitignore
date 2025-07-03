@@ -22,8 +22,10 @@ fs/
 .idea/
 *.swp
 *~
+*.log
 GEMENI.md
 CLAUDE.md
+.claude/
 
 # OS specific
 .DS_Store
