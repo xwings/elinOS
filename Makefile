@@ -229,7 +229,6 @@ run-console: build ## Run the kernel in QEMU (console mode)
 .PHONY: run-console-debug
 run-console-debug: build ## Run the elinOS with log output
 	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with log output...$(COLOR_RESET)"
-	@echo -e "$(COLOR_YELLOW)Connect with: gdb $(DEBUG_DIR)/$(KERNEL_NAME) -ex 'target remote :1234'$(COLOR_RESET)"
 	@$(QEMU) \
 		-machine $(QEMU_MACHINE) \
 		-cpu $(QEMU_CPU) \

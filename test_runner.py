@@ -19,7 +19,7 @@ class ElinOSTestRunner:
         print("[i] Starting elinOS in QEMU...")
         try:
             # Start QEMU with the kernel
-            self.qemu_process = pexpect.spawn('make run-console', timeout=self.timeout)
+            self.qemu_process = pexpect.spawn('make run-console-debug', timeout=self.timeout)
             
             # Wait for the kernel to boot and show the prompt
             self.qemu_process.expect('elinOS>', timeout=60)  # Longer timeout for boot
