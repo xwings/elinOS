@@ -7,7 +7,7 @@ build-std-features = ["compiler-builtins-mem"]
 
 [target.riscv64gc-unknown-none-elf]
 rustflags = [
-    "-C", "link-arg=-T/home/xwings/projects/elinOS/bootloader/src/linker.ld",
+    "-C", "link-arg=-Tbootloader/src/linker.ld",
     "-C", "target-cpu=generic-rv64",
     "-C", "target-feature=+m,+a,+c",
     "-C", "panic=abort",

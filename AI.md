@@ -29,3 +29,4 @@
 3. Bootloader (boot.bin) runs kernel
 4. After kernel boot, it will show interactive shell "elinOS>" 
 6. MUST run "make test", it will test the command make sure everything runs well.
+7. Must support both qemu and real hardware.
