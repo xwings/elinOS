@@ -506,7 +506,6 @@ impl UnifiedMemoryManager {
 
     /// Reset heap for testing (dangerous - only for debugging)
     pub fn reset_heap_for_testing(&mut self) {
-        console_println!("[!] DANGER: Resetting heap allocation tracking for testing");
         self.total_allocated = 0;
         self.allocation_count = 0;
         self.bump_position = self.heap_start;

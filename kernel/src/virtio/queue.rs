@@ -167,10 +167,6 @@ impl VirtioQueue {
             let avail_ring_ptr = self.avail_ring as *mut VirtqAvail;
             let used_ring_ptr = self.used_ring as *mut VirtqUsed;
             
-            // Debug: Check what's in memory before initialization
-            let pre_avail_idx = read_volatile(&(*avail_ring_ptr).idx);
-            let pre_used_idx = read_volatile(&(*used_ring_ptr).idx);
-            console_println!("[DEBUG] Pre-init: avail_idx={}, used_idx={}", pre_avail_idx, pre_used_idx);
             
             // Initialize available ring
             core::ptr::write_volatile(&mut (*avail_ring_ptr).flags, 0);
@@ -181,9 +177,7 @@ impl VirtioQueue {
             core::ptr::write_volatile(&mut (*used_ring_ptr).idx, 0);
             
             // Verify initialization worked
-            let post_avail_idx = read_volatile(&(*avail_ring_ptr).idx);
             let post_used_idx = read_volatile(&(*used_ring_ptr).idx);
-            console_println!("[DEBUG] Post-init: avail_idx={}, used_idx={}", post_avail_idx, post_used_idx);
             
             self.last_used_idx = post_used_idx;
         }

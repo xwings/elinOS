@@ -264,12 +264,6 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
             return Ok(FilesystemType::Ext2);
         }
         console_println!("[!] ext2 magic not found, read 0x{:04X} at offset 56", ext2_magic);
-        
-        // Debug: Show first few bytes of superblock area
-        console_println!("[DEBUG] Superblock bytes 0-15: {:02X?}", &sb_buffer[0..16]);
-        console_println!("[DEBUG] Superblock bytes 48-63: {:02X?}", &sb_buffer[48..64]);
-        console_println!("[DEBUG] Superblock bytes 56-57: [{:02X}, {:02X}] = 0x{:04X}", 
-            sb_buffer[56], sb_buffer[57], ext2_magic);
     } else {
         console_println!("[!] Superblock buffer too short for ext2 magic check");
     }

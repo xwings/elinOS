@@ -153,8 +153,6 @@ impl MemoryMappingManager {
         // Return the physical address as the "virtual" address for now
         // This is a temporary workaround until proper virtual memory is implemented
         let mapped_addr = if name.contains("VirtIO") {
-            console_println!("[DEBUG] VirtIO memory: phys=0x{:x}, virt=0x{:x}, size={}", 
-                physical_addr, virtual_addr, aligned_size);
             physical_addr  // Use physical address directly for VirtIO
         } else {
             virtual_addr   // Use virtual address for other mappings

@@ -233,16 +233,6 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             // Check if file exists and try to execute it
             match crate::filesystem::read_file(&full_path) {
                 Ok(file_data) => {
-                    // Debug: Show file size and first few bytes
-                    console_println!("[i] Debug: File size: {}", file_data.len() as u64);
-                    
-                    if file_data.len() >= 4 {
-                        console_println!("[i] Debug: First 4 bytes: ");
-                        for i in 0..4 {
-                            console_print!("{:02x} ", file_data[i] as u32);
-                        }
-                        console_println!();
-                    }
                     
                     // Check if it's an ELF file by looking at magic bytes
                     if file_data.len() >= 4 && &file_data[0..4] == b"\x7fELF" {
@@ -868,7 +858,6 @@ pub fn cmd_heap() -> Result<(), &'static str> {
 pub fn cmd_heap_reset() -> Result<(), &'static str> {
     console_println!("[!]  DANGER: This will reset the heap position!");
     console_println!("This may cause memory corruption if other allocations are active.");
-    console_println!("Only use for testing purposes.");
     console_println!("Resetting heap...");
     
     memory::reset_heap_for_testing();
@@ -912,13 +901,9 @@ pub fn cmd_graphics() -> Result<(), &'static str> {
 
 /// Test graphics drawing
 pub fn cmd_graphics_test() -> Result<(), &'static str> {
-    console_println!("=== Graphics Drawing Test ===");
-    console_println!("[i] Running graphics tests...");
-    
     // Test 1: Clear screen
-    console_print!("Test 1: Clearing screen to black...");
     match crate::graphics::clear_screen(0x000000FF) {
-        Ok(()) => console_println!("[o] Screen cleared successfully"),
+        Ok(()) => {},
         Err(e) => {
             console_println!("[x] Failed to clear screen: {}", e);
             return Err(e);
@@ -926,7 +911,6 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     }
     
     // Test 2: Draw pixels
-    console_print!("Test 2: Drawing colored pixels...");
     let test_colors = [
         (0xFF0000FF, "Red"),    // Red
         (0x00FF00FF, "Green"),  // Green  
@@ -997,11 +981,7 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     
     // Summary
     console_println!("\n=== Test Results ===");
-    console_println!("Total tests: 14");
-    console_println!("Passed: 14");
-    console_println!("Failed: 0");
-    console_println!("[o] ALL TESTS PASSED! Graphics system is working perfectly.");
-    console_println!("[i] Check QEMU graphics window - you should see colored rectangles!");
+    console_println!("[o] Graphics tests completed successfully");
     
     Ok(())
 }

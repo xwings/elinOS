@@ -78,7 +78,7 @@ fn sys_elinos_debug(msg_ptr: *const u8) -> SysCallResult {
         core::str::from_utf8_unchecked(core::slice::from_raw_parts(msg_ptr, len))
     };
     
-    console_println!("[i] DEBUG: {}", debug_msg);
+    console_println!("{}", debug_msg);
     SysCallResult::Success(0)
 }
 
