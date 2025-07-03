@@ -108,3 +108,36 @@ pub fn validate_memory_layout(
     
     Ok(())
 }
+
+/// Search for a byte pattern in a memory range
+/// Returns the address where the pattern was found, or None if not found
+/// 
+/// # Safety
+/// This function performs raw memory access and should only be used with valid memory ranges
+pub unsafe fn search_memory_pattern(start_addr: usize, end_addr: usize, pattern: &[u8], alignment: usize) -> Option<usize> {
+    let mut current_addr = start_addr;
+    
+    // Align the start address
+    current_addr = (current_addr + alignment - 1) & !(alignment - 1);
+    
+    while current_addr + pattern.len() <= end_addr {
+        let mut found = true;
+        
+        // Check if pattern matches at current address
+        for (i, &expected_byte) in pattern.iter().enumerate() {
+            let actual_byte = core::ptr::read_volatile((current_addr + i) as *const u8);
+            if actual_byte != expected_byte {
+                found = false;
+                break;
+            }
+        }
+        
+        if found {
+            return Some(current_addr);
+        }
+        
+        current_addr += alignment;
+    }
+    
+    None
+}

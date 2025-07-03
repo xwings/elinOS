@@ -10,6 +10,7 @@ use elinos_common as common;
 
 // Re-export commonly used macros and functions from shared library
 pub use common::{console_print, console_println, debug_print, debug_println};
+use common::memory::search_memory_pattern;
 
 // Import modules from the bootloader library (only what bootloader needs)
 // Note: Most functionality moved to kernel
@@ -154,41 +155,9 @@ fn load_and_start_kernel() -> ! {
     }
 }
 
-/// Search for a byte pattern in a memory range
-/// Returns the address where the pattern was found, or None if not found
-fn search_memory_pattern(start_addr: usize, end_addr: usize, pattern: &[u8], alignment: usize) -> Option<usize> {
-    let mut current_addr = start_addr;
-    
-    // Align the start address
-    current_addr = (current_addr + alignment - 1) & !(alignment - 1);
-    
-    while current_addr + pattern.len() <= end_addr {
-        let mut found = true;
-        
-        // Check if pattern matches at current address
-        for (i, &expected_byte) in pattern.iter().enumerate() {
-            unsafe {
-                let actual_byte = core::ptr::read_volatile((current_addr + i) as *const u8);
-                if actual_byte != expected_byte {
-                    found = false;
-                    break;
-                }
-            }
-        }
-        
-        if found {
-            return Some(current_addr);
-        }
-        
-        current_addr += alignment;
-    }
-    
-    None
-}
-
 /// Search for ELF magic signature in memory ranges
 /// Returns the address where ELF binary was found, or None if not found
-fn search_elf_binary(memory_regions: &[(usize, usize)]) -> Option<usize> {
+fn search_kernel_elf(memory_regions: &[(usize, usize)]) -> Option<usize> {
     // ELF magic: 0x7f, 'E', 'L', 'F'
     let elf_magic = [0x7f, b'E', b'L', b'F'];
     
@@ -203,7 +172,7 @@ fn search_elf_binary(memory_regions: &[(usize, usize)]) -> Option<usize> {
         let alignments = [1, 4, 64, 4096];
         
         for &alignment in &alignments {
-            if let Some(addr) = search_memory_pattern(start, end, &elf_magic, alignment) {
+            if let Some(addr) = unsafe { search_memory_pattern(start, end, &elf_magic, alignment) } {
                 console_println!("[o] Found ELF magic at 0x{:x} (alignment {})", addr, alignment);
                 
                 // Verify it's a valid 64-bit RISC-V ELF
@@ -307,40 +276,17 @@ fn locate_kernel_from_initrd() -> usize {
     
     console_println!("[i] Starting comprehensive kernel search...");
     
-    // First, check if kernel is already loaded at the destination address
-    unsafe {
-        let dest_magic = core::ptr::read_volatile(kernel_dest as *const u32);
-        console_println!("[i] Checking destination 0x{:x}: magic = 0x{:x}", kernel_dest, dest_magic);
-        if dest_magic == 0x464c457f {
-            console_println!("[o] Found kernel already at destination!");
-            return kernel_dest;
-        }
-    }
-    
-    // Define memory regions to search comprehensively
-    // Cover the entire available RAM systematically
+    // Define memory regions to search
     let memory_region = common::memory::hardware::detect_main_ram()
         .unwrap_or_else(|| common::memory::hardware::get_fallback_ram());
     
     let search_regions = [
         // High priority: Known QEMU/OpenSBI locations
-        (0x87000000, 8 * 1024 * 1024),   // 8MB around typical initrd location
-        (0x84000000, 4 * 1024 * 1024),   // 4MB around common QEMU location
-        (0x80200000, 2 * 1024 * 1024),   // 2MB after OpenSBI
-        (0x82000000, 4 * 1024 * 1024),   // 4MB mid-memory
-        
-        // Medium priority: Other reasonable locations
-        (0x80800000, 4 * 1024 * 1024),   // 4MB higher in memory
-        (0x81000000, 4 * 1024 * 1024),   // 4MB even higher
-        (0x86000000, 4 * 1024 * 1024),   // 4MB before high region
-        
-        // Low priority: Full memory scan (smaller chunks for performance)
-        (memory_region.start, 1 * 1024 * 1024),  // First 1MB of RAM
-        (memory_region.start + memory_region.size - 4 * 1024 * 1024, 4 * 1024 * 1024), // Last 4MB of RAM
+        (0x84000000, 4 * 1024 * 1024),   // 4MB around common QEMU location        
     ];
     
     // Use the comprehensive search API
-    if let Some(kernel_addr) = search_elf_binary(&search_regions) {
+    if let Some(kernel_addr) = search_kernel_elf(&search_regions) {
         console_println!("[o] Kernel ELF found at 0x{:x}!", kernel_addr);
         
         // Load ELF segments properly instead of raw copy
@@ -349,26 +295,6 @@ fn locate_kernel_from_initrd() -> usize {
             return kernel_dest;
         } else {
             console_println!("[x] Failed to load ELF segments");
-        }
-    }
-    
-    // If comprehensive search fails, try a final desperate search of the entire RAM
-    console_println!("[!] Comprehensive search failed, trying full RAM scan...");
-    console_println!("[!] This will take longer but covers all memory...");
-    
-    let full_ram_regions = [
-        (memory_region.start, memory_region.size),
-    ];
-    
-    if let Some(kernel_addr) = search_elf_binary(&full_ram_regions) {
-        console_println!("[o] Kernel ELF found in full RAM scan at 0x{:x}!", kernel_addr);
-        
-        // Load ELF segments properly instead of raw copy
-        if load_elf_segments(kernel_addr) {
-            console_println!("[o] Kernel ELF loaded successfully from full RAM scan");
-            return kernel_dest;
-        } else {
-            console_println!("[x] Failed to load ELF segments from full RAM scan");
         }
     }
     
