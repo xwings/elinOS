@@ -7,6 +7,7 @@ use heapless::Vec;
 
 // Import shared library components
 use elinos_common as common;
+use common::elf::{ElfUtils, ElfLoader, Elf64Header, Elf64Phdr, PT_LOAD};
 
 // Re-export commonly used macros and functions from shared library
 pub use common::{console_print, console_println, debug_print, debug_println};
@@ -17,6 +18,43 @@ use common::memory::search_memory_pattern;
 
 // Global UART instance is now in the shared library
 pub use common::uart::UART;
+
+// Bootloader-specific ELF loader implementation
+struct BootloaderElfLoader;
+
+impl ElfLoader for BootloaderElfLoader {
+    type Error = ();
+
+    fn load_segment(&self, phdr: &Elf64Phdr, data: &[u8]) -> Result<(), Self::Error> {
+        unsafe {
+            // Source: ELF file + offset
+            let src_addr = data.as_ptr().add(phdr.p_offset as usize);
+            
+            // Destination: Use virtual address (kernel is linked to run at its virtual addresses)
+            let dest_addr = phdr.p_vaddr as *mut u8;
+            
+            console_println!("[i] LOAD segment: vaddr=0x{:x}, paddr=0x{:x}, filesz=0x{:x}, memsz=0x{:x}, offset=0x{:x}", 
+                           phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz, phdr.p_memsz, phdr.p_offset);
+            
+            // Copy file content to memory
+            if phdr.p_filesz > 0 {
+                console_println!("[i] Copying 0x{:x} bytes from 0x{:x} to 0x{:x}", 
+                               phdr.p_filesz, src_addr as usize, dest_addr as usize);
+                core::ptr::copy_nonoverlapping(src_addr, dest_addr, phdr.p_filesz as usize);
+            }
+            
+            // Zero out BSS section if memsz > filesz
+            if phdr.p_memsz > phdr.p_filesz {
+                let bss_start = dest_addr.add(phdr.p_filesz as usize);
+                let bss_size = phdr.p_memsz - phdr.p_filesz;
+                console_println!("[i] Zeroing BSS: 0x{:x} bytes at 0x{:x}", 
+                               bss_size, bss_start as usize);
+                core::ptr::write_bytes(bss_start, 0, bss_size as usize);
+            }
+        }
+        Ok(())
+    }
+}
 
 // Bootloader-specific constants
 
@@ -201,64 +239,41 @@ fn search_kernel_elf(memory_regions: &[(usize, usize)]) -> Option<usize> {
 }
 
 
-/// Load ELF segments to their virtual addresses
+/// Load ELF segments using shared library
 fn load_elf_segments(elf_addr: usize) -> bool {
     unsafe {
-        let elf_header = elf_addr as *const u8;
+        // Convert address to slice
+        let elf_data = core::slice::from_raw_parts(elf_addr as *const u8, 64 * 1024 * 1024); // Assume max 64MB
         
-        // Verify it's a valid 64-bit ELF
-        let ei_class = core::ptr::read_volatile(elf_header.add(4));
-        if ei_class != 2 { // ELFCLASS64
-            console_println!("[x] Not a 64-bit ELF file");
+        // Validate ELF header
+        if !ElfUtils::validate_elf_header(elf_data) {
+            console_println!("[x] Invalid ELF header");
             return false;
         }
         
-        // Get program header info
-        let phoff = core::ptr::read_volatile(elf_header.add(32) as *const u64) as usize;
-        let phentsize = core::ptr::read_volatile(elf_header.add(54) as *const u16) as usize;
-        let phnum = core::ptr::read_volatile(elf_header.add(56) as *const u16) as usize;
+        // Get ELF header
+        let header = match ElfUtils::get_header(elf_data) {
+            Some(h) => h,
+            None => {
+                console_println!("[x] Failed to get ELF header");
+                return false;
+            }
+        };
         
         console_println!("[i] Loading ELF segments: phoff=0x{:x}, phentsize={}, phnum={}", 
-                         phoff, phentsize, phnum);
+                         header.e_phoff, header.e_phentsize, header.e_phnum);
+        
+        let loader = BootloaderElfLoader;
         
         // Process each program header
-        for i in 0..phnum {
-            let ph_addr = elf_header.add(phoff + i * phentsize);
-            
-            // Read program header fields
-            let p_type = core::ptr::read_volatile(ph_addr as *const u32);
-            let _p_flags = core::ptr::read_volatile(ph_addr.add(4) as *const u32);
-            let p_offset = core::ptr::read_volatile(ph_addr.add(8) as *const u64) as usize;
-            let p_vaddr = core::ptr::read_volatile(ph_addr.add(16) as *const u64) as usize;
-            let p_paddr = core::ptr::read_volatile(ph_addr.add(24) as *const u64) as usize;
-            let p_filesz = core::ptr::read_volatile(ph_addr.add(32) as *const u64) as usize;
-            let p_memsz = core::ptr::read_volatile(ph_addr.add(40) as *const u64) as usize;
-            
-            // Only process LOAD segments (type 1)
-            if p_type == 1 {
-                console_println!("[i] LOAD segment {}: vaddr=0x{:x}, paddr=0x{:x}, filesz=0x{:x}, memsz=0x{:x}, offset=0x{:x}", 
-                               i, p_vaddr, p_paddr, p_filesz, p_memsz, p_offset);
-                
-                // Source: ELF file + offset
-                let src_addr = elf_header.add(p_offset);
-                
-                // Destination: Use virtual address (kernel is linked to run at its virtual addresses)
-                let dest_addr = p_vaddr as *mut u8;
-                
-                // Copy file content to memory
-                if p_filesz > 0 {
-                    console_println!("[i] Copying 0x{:x} bytes from 0x{:x} to 0x{:x}", 
-                                   p_filesz, src_addr as usize, dest_addr as usize);
-                    core::ptr::copy_nonoverlapping(src_addr, dest_addr, p_filesz);
-                }
-                
-                // Zero out BSS section if memsz > filesz
-                if p_memsz > p_filesz {
-                    let bss_start = dest_addr.add(p_filesz);
-                    let bss_size = p_memsz - p_filesz;
-                    console_println!("[i] Zeroing BSS: 0x{:x} bytes at 0x{:x}", 
-                                   bss_size, bss_start as usize);
-                    core::ptr::write_bytes(bss_start, 0, bss_size);
+        for i in 0..header.e_phnum {
+            if let Some(phdr) = ElfUtils::get_program_header(elf_data, header, i as usize) {
+                // Only process LOAD segments
+                if ElfUtils::is_loadable_segment(&phdr) {
+                    if loader.load_segment(&phdr, elf_data).is_err() {
+                        console_println!("[x] Failed to load segment {}", i);
+                        return false;
+                    }
                 }
             }
         }
@@ -282,7 +297,15 @@ fn locate_kernel_from_initrd() -> usize {
     
     let search_regions = [
         // High priority: Known QEMU/OpenSBI locations
-        (0x84000000, 4 * 1024 * 1024),   // 4MB around common QEMU location        
+        (0x87000000, 8 * 1024 * 1024),   // 8MB around typical initrd location
+        (0x84000000, 4 * 1024 * 1024),   // 4MB around common QEMU location
+        (0x80200000, 2 * 1024 * 1024),   // 2MB after OpenSBI
+        (0x82000000, 4 * 1024 * 1024),   // 4MB mid-memory
+        
+        // Medium priority: Other reasonable locations
+        (0x80800000, 4 * 1024 * 1024),   // 4MB higher in memory
+        (0x81000000, 4 * 1024 * 1024),   // 4MB even higher
+        (0x86000000, 4 * 1024 * 1024),   // 4MB before high region 
     ];
     
     // Use the comprehensive search API
