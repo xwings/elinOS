@@ -103,7 +103,7 @@ class ElinOSTestRunner:
         if self.runtype == 'fb':
             tests.extend([
                 ("graphics", "Total pixels:"),
-                ("gfxtest", "ALL TESTS PASSED!"),
+                ("gfxtest", "[o] Graphics tests completed successfully"),
             ])
         
         passed = 0

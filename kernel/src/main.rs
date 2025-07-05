@@ -255,8 +255,8 @@ pub fn enhanced_shell_loop() -> ! {
         // Show prompt
         console_print!("elinOS> ");
         
-        // Also draw prompt to framebuffer if graphics are available
-        let _ = graphics::draw_shell_prompt();
+        // Also print prompt to framebuffer TTY if graphics are available
+        let _ = graphics::print_shell_prompt();
         
         // Read command with enhanced features
         if let Ok(command) = read_enhanced_command() {
@@ -478,8 +478,8 @@ fn clear_current_line(command_buffer: &[u8]) -> Result<(), &'static str> {
     console_print!("\r");
     console_print!("elinOS> ");
     
-    // Also redraw prompt to framebuffer if graphics are available
-    let _ = graphics::draw_shell_prompt();
+    // Also redraw prompt to framebuffer TTY if graphics are available
+    let _ = graphics::print_shell_prompt();
     
     // Clear rest of line by printing spaces
     for _ in 0..command_buffer.len() {
@@ -490,8 +490,8 @@ fn clear_current_line(command_buffer: &[u8]) -> Result<(), &'static str> {
     console_print!("\r");
     console_print!("elinOS> ");
     
-    // Redraw prompt to framebuffer again
-    let _ = graphics::draw_shell_prompt();
+    // Redraw prompt to framebuffer TTY again
+    let _ = graphics::print_shell_prompt();
     
     Ok(())
 }

@@ -162,43 +162,13 @@ pub fn init_graphics() -> Result<(), &'static str> {
         }
     }
     
-    // Initialize with visible graphics to test the display
-    console_println!("[i] Drawing test graphics to verify display...");
+    // Initialize with simple black background for text console
+    console_println!("[i] Initializing simple TTY framebuffer console...");
     
-    // Clear to dark blue background
-    framebuffer.clear(0x00000080); // Dark blue: XX=00, RR=00, GG=00, BB=80
+    // Clear to black background for text console
+    framebuffer.clear(0x00000000); // Black background
     
-    // Draw a white border
-    framebuffer.draw_rect(0, 0, 640, 10, 0x00FFFFFF)?; // Top border
-    framebuffer.draw_rect(0, 470, 640, 10, 0x00FFFFFF)?; // Bottom border  
-    framebuffer.draw_rect(0, 0, 10, 480, 0x00FFFFFF)?; // Left border
-    framebuffer.draw_rect(630, 0, 10, 480, 0x00FFFFFF)?; // Right border
-    
-    // Draw some colored rectangles to test
-    framebuffer.draw_rect(50, 50, 100, 50, 0x00FF0000)?; // Red rectangle
-    framebuffer.draw_rect(200, 50, 100, 50, 0x0000FF00)?; // Green rectangle
-    framebuffer.draw_rect(350, 50, 100, 50, 0x000000FF)?; // Blue rectangle
-    
-    // Draw a terminal area
-    framebuffer.draw_rect(20, 150, 600, 300, 0x00000000)?; // Black terminal area
-    framebuffer.draw_rect(20, 150, 600, 2, 0x00FFFFFF)?; // Top border
-    framebuffer.draw_rect(20, 448, 600, 2, 0x00FFFFFF)?; // Bottom border
-    framebuffer.draw_rect(20, 150, 2, 300, 0x00FFFFFF)?; // Left border
-    framebuffer.draw_rect(618, 150, 2, 300, 0x00FFFFFF)?; // Right border
-    
-    // Add some simple text simulation using colored rectangles
-    // "elinOS Terminal" title
-    framebuffer.draw_rect(30, 160, 8, 12, 0x00FFFFFF)?; // E
-    framebuffer.draw_rect(45, 160, 8, 12, 0x00FFFFFF)?; // L
-    framebuffer.draw_rect(60, 160, 8, 12, 0x00FFFFFF)?; // I
-    framebuffer.draw_rect(75, 160, 8, 12, 0x00FFFFFF)?; // N
-    framebuffer.draw_rect(90, 160, 8, 12, 0x00FFFFFF)?; // O
-    framebuffer.draw_rect(105, 160, 8, 12, 0x00FFFFFF)?; // S
-    
-    // ">" prompt
-    framebuffer.draw_rect(30, 400, 8, 12, 0x0000FF00)?; // Green ">" prompt
-    
-    console_println!("[o] Test graphics drawn to framebuffer");
+    console_println!("[o] Simple TTY framebuffer console ready");
     
     // Store framebuffer globally
     console_println!("[i] Storing framebuffer globally with correct address...");
@@ -207,22 +177,19 @@ pub fn init_graphics() -> Result<(), &'static str> {
     }
     console_println!("[o] Framebuffer stored: ptr=0x{:x}", unsafe { FRAMEBUFFER.as_ref().unwrap().buffer as usize });
     
+    // Initialize text console for TTY output
+    init_text_console()?;
+    
     // Flush to display if VirtIO GPU is available
     if unsafe { VIRTIO_GPU_ENABLED } {
-        console_println!("[i] Attempting to flush framebuffer to VirtIO GPU...");
+        console_println!("[i] Flushing TTY console to VirtIO GPU display...");
         match crate::virtio::flush_display() {
-            Ok(()) => console_println!("[o] Framebuffer successfully flushed to VirtIO GPU display"),
-            Err(e) => console_println!("[!] Failed to flush framebuffer to display: {:?}", e),
-        }
-        
-        // Try a second flush to make sure
-        match crate::virtio::flush_display() {
-            Ok(()) => console_println!("[o] Second flush completed"),
-            Err(e) => console_println!("[!] Second flush failed: {:?}", e),
+            Ok(()) => console_println!("[o] TTY console flushed to VirtIO GPU display"),
+            Err(e) => console_println!("[!] Failed to flush TTY console to display: {:?}", e),
         }
     }
     
-    console_println!("[o] VGA graphics system initialized");
+    console_println!("[o] TTY framebuffer system initialized");
     Ok(())
 }
 
@@ -307,16 +274,21 @@ pub fn flush_to_display() -> Result<(), &'static str> {
 
 /// Initialize text console for shell output
 pub fn init_text_console() -> Result<(), &'static str> {
-    console_println!("[i] Initializing simple text console...");
+    console_println!("[i] Initializing TTY text console...");
     
     unsafe {
         TEXT_CONSOLE = Some(TextConsole::new());
-        console_println!("[o] Text console created (keeping existing screen content)");
+        
+        // Clear screen and position cursor at top
+        if let Some(ref mut console) = TEXT_CONSOLE {
+            console.clear_screen()?;
+            console.cursor_x = 0;
+            console.cursor_y = 0;
+        }
+        
+        console_println!("[o] TTY text console ready");
     }
     
-    // Skip remaining console_println calls to avoid potential hang
-    // console_println!("[i] Preserving existing graphics for visibility test");
-    // console_println!("[o] Text console initialization complete");
     Ok(())
 }
 
@@ -571,7 +543,7 @@ impl TextConsole {
             max_cols: 640 / FONT_WIDTH,   // 80 columns
             max_rows: 480 / FONT_HEIGHT,  // 60 rows
             fg_color: 0x00FFFFFF,         // White text (XRGB: 0xXXRRGGBB)
-            bg_color: 0x00000000,         // Black background (XRGB: 0xXXRRGGBB) - transparent on current graphics
+            bg_color: 0x00000000,         // Black background
         }
     }
     
@@ -725,62 +697,12 @@ impl TextConsole {
 }
 
 
-/// Draw shell prompt to the framebuffer
-pub fn draw_shell_prompt() -> Result<(), &'static str> {
+/// Print text prompt to TTY framebuffer (simple text rendering)
+pub fn print_shell_prompt() -> Result<(), &'static str> {
     unsafe {
-        if let Some(ref mut fb) = FRAMEBUFFER {
-            // Clear the prompt area (bottom of terminal)
-            fb.draw_rect(25, 420, 590, 20, 0x00000000)?; // Clear prompt line
-            
-            // Draw "elinOS> " prompt using simple pixel art
-            let prompt_x = 30;
-            let prompt_y = 425;
-            
-            // Draw "elinOS> " in green pixels (simple bitmap font simulation)
-            // 'e'
-            fb.draw_rect(prompt_x, prompt_y, 6, 1, 0x0000FF00)?;
-            fb.draw_rect(prompt_x, prompt_y + 2, 6, 1, 0x0000FF00)?;
-            fb.draw_rect(prompt_x, prompt_y + 4, 6, 1, 0x0000FF00)?;
-            fb.draw_rect(prompt_x, prompt_y, 1, 5, 0x0000FF00)?;
-            
-            // 'l'
-            let x = prompt_x + 8;
-            fb.draw_rect(x, prompt_y, 1, 5, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y + 4, 3, 1, 0x0000FF00)?;
-            
-            // 'i'
-            let x = prompt_x + 12;
-            fb.draw_rect(x, prompt_y, 1, 5, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y - 1, 1, 1, 0x0000FF00)?;
-            
-            // 'n'
-            let x = prompt_x + 16;
-            fb.draw_rect(x, prompt_y + 1, 1, 4, 0x0000FF00)?;
-            fb.draw_rect(x + 1, prompt_y, 3, 1, 0x0000FF00)?;
-            fb.draw_rect(x + 4, prompt_y + 1, 1, 4, 0x0000FF00)?;
-            
-            // 'O'
-            let x = prompt_x + 22;
-            fb.draw_rect(x, prompt_y, 4, 1, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y + 4, 4, 1, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y + 1, 1, 3, 0x0000FF00)?;
-            fb.draw_rect(x + 3, prompt_y + 1, 1, 3, 0x0000FF00)?;
-            
-            // 'S'
-            let x = prompt_x + 28;
-            fb.draw_rect(x, prompt_y, 4, 1, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y + 2, 4, 1, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y + 4, 4, 1, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y + 1, 1, 1, 0x0000FF00)?;
-            fb.draw_rect(x + 3, prompt_y + 3, 1, 1, 0x0000FF00)?;
-            
-            // '>' 
-            let x = prompt_x + 34;
-            fb.draw_rect(x, prompt_y + 1, 1, 1, 0x0000FF00)?;
-            fb.draw_rect(x + 1, prompt_y + 2, 1, 1, 0x0000FF00)?;
-            fb.draw_rect(x, prompt_y + 3, 1, 1, 0x0000FF00)?;
-            
-            // ' ' (space - just move cursor)
+        if let Some(ref mut console) = TEXT_CONSOLE {
+            // Just print the prompt as text using the text console
+            console.print_str("elinOS> ")?;
             
             // Flush to display if VirtIO GPU is available
             if VIRTIO_GPU_ENABLED {
@@ -789,7 +711,8 @@ pub fn draw_shell_prompt() -> Result<(), &'static str> {
             
             Ok(())
         } else {
-            Err("Graphics not initialized")
+            // No text console available, return success silently
+            Ok(())
         }
     }
 }

@@ -258,7 +258,7 @@ run-fb: build ## Run the kernel in QEMU with software framebuffer graphics
 		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
-		-device virtio-gpu-pci \
+		-device virtio-gpu-device \
 		-display gtk,show-cursor=on \
 		-serial stdio
 
@@ -276,7 +276,7 @@ run-fb-debug: build ## Run the kernel in QEMU with software framebuffer testing
 		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
-		-device virtio-gpu-pci \
+		-device virtio-gpu-device \
 		-display gtk,show-cursor=on \
 		-serial stdio \
 		-d guest_errors,unimp,exec,in_asm \
