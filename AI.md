@@ -21,7 +21,7 @@
 ### Successful test
 1. Run "make build" without errors
 2. Run "timeout 60 make run-console-debug" and be able to see elinOS>
-3. Pass all test in "make test"
+3. Pass all test in "make test" or "make test-fb"
 
 ### Boot stage
 1. QEMU load OpenSBI
@@ -30,3 +30,13 @@
 4. After kernel boot, it will show interactive shell "elinOS>" 
 6. MUST run "make test", it will test the command make sure everything runs well.
 7. Must support both qemu and real hardware.
+
+### How to run
+1. make run-fb : interactive shell in both console (uart) and framebuffer tty
+2. make run-fb-debug : interactive shell in both console (uart) and framebuffer tty, with qemu.log
+3. make run-console : interactive shell with console (uart) tty 
+4. make run-console-debug : interactive shell with console (uart) tty, with qemu.log
+
+### How unit test
+1. make test-console : test only console, make sure 100% passing rate
+2. make test-fb : test console with frame buffer, make sure 100% passing rate

@@ -126,6 +126,7 @@ build-bootloader: ## Build the bootloader (debug mode)
 .PHONY: build-kernel
 build-kernel: ## Build the kernel (debug mode)
 	@echo -e "$(COLOR_BLUE)Building $(KERNEL_NAME) (debug)...$(COLOR_RESET)"
+	@rm -f $(QEMU_LOG)
 	@cd kernel && cargo build $(CARGO_FLAGS) $(DEBUG_FLAGS)
 	@echo -e "$(COLOR_GREEN)✓ Kernel debug build completed: $(DEBUG_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
 
@@ -243,10 +244,10 @@ run-console-debug: build ## Run the elinOS with log output
         -d guest_errors,int,unimp,exec,in_asm \
         -D qemu.log
 		
-.PHONY: run-graphics
-run-graphics: build ## Run the kernel in QEMU with graphics
-	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with VirtIO GPU graphics...$(COLOR_RESET)"
-	@echo -e "$(COLOR_YELLOW)A graphics window should open showing the framebuffer output$(COLOR_RESET)"
+.PHONY: run-fb
+run-fb: build ## Run the kernel in QEMU with software framebuffer graphics
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with software framebuffer graphics...$(COLOR_RESET)"
+	@echo -e "$(COLOR_YELLOW)A graphics window should open showing framebuffer output$(COLOR_RESET)"
 	@$(QEMU) \
 		-machine $(QEMU_MACHINE) \
 		-cpu $(QEMU_CPU) \
@@ -257,18 +258,44 @@ run-graphics: build ## Run the kernel in QEMU with graphics
 		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=hd0 \
 		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
-		-device virtio-gpu-device \
+		-device virtio-gpu-pci \
 		-display gtk,show-cursor=on \
 		-serial stdio
+
+.PHONY: run-fb-debug
+run-fb-debug: build ## Run the kernel in QEMU with software framebuffer testing
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with software framebuffer testing...$(COLOR_RESET)"
+	@echo -e "$(COLOR_YELLOW)Testing framebuffer functionality without VirtIO GPU$(COLOR_RESET)"
+	@$(QEMU) \
+		-machine $(QEMU_MACHINE) \
+		-cpu $(QEMU_CPU) \
+		-smp $(QEMU_SMP) \
+		-m $(QEMU_MEMORY) \
+		-bios $(OPENSBI) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
+		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-device virtio-blk-device,drive=hd0 \
+		-drive file=$(DISK_IMAGE),format=raw,id=hd0 \
+		-device virtio-gpu-pci \
+		-display gtk,show-cursor=on \
+		-serial stdio \
+		-d guest_errors,unimp,exec,in_asm \
+		-D qemu.log
 
 # =============================================================================
 # Development Commands
 # =============================================================================
 
-.PHONY: test
-test: clean all ## Run automated kernel tests using Python test runner
+.PHONY: test-console
+test-console: clean all ## Run automated kernel tests using Python test runner
 	@echo -e "$(COLOR_BLUE)Running automated kernel tests...$(COLOR_RESET)"
 	@python3 test_runner.py --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
+	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
+
+.PHONY: test-fb
+test-fb:: clean all ## Run automated kernel tests with VGA graphics using Python test runner
+	@echo -e "$(COLOR_BLUE)Running automated kernel with VGA graphics tests...$(COLOR_RESET)"
+	@python3 test_runner.py --runtype=fb --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
 	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
 
 .PHONY: unittest

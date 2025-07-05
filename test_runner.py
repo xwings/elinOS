@@ -10,8 +10,9 @@ import time
 import argparse
 
 class ElinOSTestRunner:
-    def __init__(self, timeout=60):
+    def __init__(self, timeout=60, runtype=None):
         self.timeout = timeout
+        self.runtype = runtype
         self.qemu_process = None
         
     def start_qemu(self):
@@ -19,7 +20,10 @@ class ElinOSTestRunner:
         print("[i] Starting elinOS in QEMU...")
         try:
             # Start QEMU with the kernel
-            self.qemu_process = pexpect.spawn('make run-console-debug', timeout=self.timeout)
+            if self.runtype == 'fb':
+                self.qemu_process = pexpect.spawn('make run-fb-debug', timeout=self.timeout)
+            else:
+                self.qemu_process = pexpect.spawn('make run-console-debug', timeout=self.timeout)
             
             # Wait for the kernel to boot and show the prompt
             self.qemu_process.expect('elinOS>', timeout=60)  # Longer timeout for boot
@@ -93,11 +97,14 @@ class ElinOSTestRunner:
             ("memory", "Memory Regions"),
             ("version", "elinOS"),
             ("mmap", "Total mapped"),
-
-            # graphics
-            ("graphics", "Total pixels:"),
-            #("gfxtest", "ALL TESTS PASSED!"),
         ]
+
+        # Add graphics tests if running in framebuffer mode
+        if self.runtype == 'fb':
+            tests.extend([
+                ("graphics", "Total pixels:"),
+                ("gfxtest", "ALL TESTS PASSED!"),
+            ])
         
         passed = 0
         failed = 0
@@ -138,11 +145,13 @@ class ElinOSTestRunner:
 def main():
     parser = argparse.ArgumentParser(description='elinOS Automated Test Runner')
     parser.add_argument('--timeout', type=int, default=30,
-                       help='Command timeout in seconds (default: 30)')
+                        help='Command timeout in seconds (default: 30)')
+    parser.add_argument('--runtype', type=str, default=None,
+                       help='Command runtype for vga (default: None)')
     
     args = parser.parse_args()
     
-    runner = ElinOSTestRunner(timeout=args.timeout)
+    runner = ElinOSTestRunner(timeout=args.timeout, runtype=args.runtype)
     
     try:
         # Start QEMU
