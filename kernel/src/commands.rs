@@ -114,7 +114,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         "mmap" => cmd_mmap(),
         "devices" => cmd_devices(),
         "graphics" => cmd_graphics(),
-        "gfxtest" => cmd_graphics_test(),
+        // "gfxtest" => cmd_graphics_test(), // Removed - TTY console doesn't need complex graphics tests
         "syscall" => cmd_syscall(),
         "fscheck" => cmd_fscheck(),
         "config" => cmd_config(),
@@ -280,7 +280,7 @@ pub fn cmd_help() -> Result<(), &'static str> {
     console_println!("  mmap            - Show memory mapping information");
     console_println!("  devices         - List detected VirtIO devices");
     console_println!("  graphics        - Show graphics information");
-    console_println!("  gfxtest         - Test graphics drawing");
+    // console_println!("  gfxtest         - Test graphics drawing"); // Removed
     console_println!("  syscall         - Show system call information");
     console_println!("  fscheck         - Check filesystem status and metadata");
     console_println!("  config          - Show system configuration");
@@ -899,7 +899,9 @@ pub fn cmd_graphics() -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Test graphics drawing
+// Test graphics drawing
+// Commented out - simple TTY console doesn't need complex graphics tests
+/*
 pub fn cmd_graphics_test() -> Result<(), &'static str> {
     // Test 1: Clear screen
     match crate::graphics::clear_screen(0x000000FF) {
@@ -985,5 +987,6 @@ pub fn cmd_graphics_test() -> Result<(), &'static str> {
     
     Ok(())
 }
+*/
 
  

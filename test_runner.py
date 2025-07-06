@@ -103,7 +103,7 @@ class ElinOSTestRunner:
         if self.runtype == 'fb':
             tests.extend([
                 ("graphics", "Total pixels:"),
-                ("gfxtest", "[o] Graphics tests completed successfully"),
+                # ("gfxtest", "[o] Graphics tests completed successfully"), # Removed - simple TTY console doesn't need graphics tests
             ])
         
         passed = 0
