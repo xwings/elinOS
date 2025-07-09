@@ -76,14 +76,35 @@ pub fn handle_file_syscall(args: &SyscallArgs) -> SysCallResult {
 fn sys_write(fd: i32, buf: *const u8, count: usize) -> SysCallResult {
     
     if fd == STDOUT_FD || fd == STDERR_FD {
-        // Write to console
-        unsafe {
-            let slice = core::slice::from_raw_parts(buf, count);
-            for &byte in slice {
+        // Write to console via TTY
+        crate::syscall::device::init_tty_devices();
+        
+        let mut devices = crate::syscall::device::TTY_DEVICES.lock();
+        if let Some(tty) = devices.get_mut(0) {
+            if buf.is_null() || count == 0 {
+                return SysCallResult::Error(crate::syscall::EINVAL);
+            }
+            
+            let slice = unsafe { core::slice::from_raw_parts(buf, count) };
+            let bytes_written = tty.write_output(slice);
+            
+            // Flush output to console
+            let output = tty.flush_output();
+            for &byte in output.iter() {
                 console_print!("{}", byte as char);
             }
+            
+            SysCallResult::Success(bytes_written as isize)
+        } else {
+            // Fallback to direct console output
+            unsafe {
+                let slice = core::slice::from_raw_parts(buf, count);
+                for &byte in slice {
+                    console_print!("{}", byte as char);
+                }
+            }
+            SysCallResult::Success(count as isize)
         }
-        SysCallResult::Success(count as isize)
     } else {
         // TODO: File write support with proper file descriptor management
                     SysCallResult::Error(crate::syscall::ENOSYS)
@@ -94,8 +115,24 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
     console_println!("[+] SYSCALL: sys_read(fd={}, buf={:p}, count={})", fd, buf, count);
     
     if fd == 0 { // stdin
-        // TODO: Implement stdin reading
-        SysCallResult::Error(crate::syscall::ENOSYS)
+        // Read from TTY device
+        crate::syscall::device::init_tty_devices();
+        
+        let mut devices = crate::syscall::device::TTY_DEVICES.lock();
+        if let Some(tty) = devices.get_mut(0) {
+            if buf.is_null() || count == 0 {
+                return SysCallResult::Error(crate::syscall::EINVAL);
+            }
+            
+            let slice = unsafe { core::slice::from_raw_parts_mut(buf, count) };
+            let bytes_read = tty.read_input(slice);
+            
+            console_println!("[i] Read {} bytes from TTY", bytes_read);
+            SysCallResult::Success(bytes_read as isize)
+        } else {
+            console_println!("[x] TTY device not available");
+            SysCallResult::Error(crate::syscall::ENODEV)
+        }
     } else if fd >= 10 { // File descriptors start at 10
         console_println!("[i] SYSCALL: Looking up file descriptor {}", fd);
         
