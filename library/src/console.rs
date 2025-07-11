@@ -74,9 +74,22 @@ impl ConsoleManager {
     pub fn print(&self, args: fmt::Arguments) -> fmt::Result {
         match self.primary_device {
             OutputDevice::Framebuffer => {
-                // Output to UART (for debugging)
+                // Output to both UART and framebuffer for full visibility
                 let mut uart = crate::uart::UART.lock();
-                uart.write_fmt(args)
+                let uart_result = uart.write_fmt(args);
+                
+                // Framebuffer bridge temporarily disabled to fix hanging issue
+                // TODO: Re-enable once recursion protection is working
+                // #[cfg(feature = "framebuffer-bridge")]
+                // {
+                //     let mut buffer = String::<1024>::new();
+                //     if buffer.write_fmt(args).is_ok() {
+                //         // Forward to kernel graphics system via bridge function
+                //         forward_to_framebuffer(&buffer);
+                //     }
+                // }
+                
+                uart_result
             }
             OutputDevice::DebugUart => {
                 let mut uart = crate::uart::UART.lock();
@@ -128,4 +141,17 @@ pub fn print_to_device(device: OutputDevice, s: &str) {
     }
 }
 
-// Removed unused function: format_args_to_string 
+// === KERNEL BRIDGE FUNCTIONS ===
+
+#[cfg(feature = "framebuffer-bridge")]
+extern "C" {
+    fn kernel_console_to_framebuffer(text: *const u8, len: usize);
+}
+
+/// Forward text to kernel framebuffer (safe wrapper)
+#[cfg(feature = "framebuffer-bridge")]
+fn forward_to_framebuffer(text: &str) {
+    unsafe {
+        kernel_console_to_framebuffer(text.as_ptr(), text.len());
+    }
+} 

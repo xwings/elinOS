@@ -1,7 +1,7 @@
 //! Simple Graphics System for elinOS
 //! Provides basic framebuffer operations for drawing pixels and rectangles
 
-use elinos_common::console_println;
+use elinos_common::{console_println, debug_println};
 
 /// Simple framebuffer for basic graphics operations
 pub struct SimpleFramebuffer {
@@ -298,8 +298,8 @@ pub fn print_to_console(text: &str) -> Result<(), &'static str> {
         if let Some(ref mut console) = TEXT_CONSOLE {
             console.print_str(text)?;
             
-            // Flush to display after printing
-            if VIRTIO_GPU_ENABLED {
+            // Flush to display after printing (skip during recursive console calls)
+            if VIRTIO_GPU_ENABLED && !crate::is_console_bridge_active() {
                 let _ = crate::virtio::flush_display();
             }
             
@@ -583,6 +583,7 @@ impl TextConsole {
                 }
                 
                 // Force flush to VirtIO GPU after drawing character
+                // Skip flushing during initialization to prevent infinite loops
                 if VIRTIO_GPU_ENABLED {
                     let _ = crate::virtio::flush_display();
                 }

@@ -12,6 +12,39 @@ use elinos_common as common;
 // Re-export commonly used macros and functions from shared library
 pub use common::{console_print, console_println, debug_print, debug_println};
 
+// Flag to prevent recursive console bridge calls
+static mut CONSOLE_BRIDGE_ACTIVE: bool = false;
+
+/// Bridge function to forward console output to framebuffer
+#[no_mangle]
+pub extern "C" fn kernel_console_to_framebuffer(text: *const u8, len: usize) {
+    if text.is_null() || len == 0 {
+        return;
+    }
+    
+    unsafe {
+        // Prevent recursive calls that can cause infinite loops
+        if CONSOLE_BRIDGE_ACTIVE {
+            return;
+        }
+        
+        CONSOLE_BRIDGE_ACTIVE = true;
+        
+        let slice = core::slice::from_raw_parts(text, len);
+        if let Ok(text_str) = core::str::from_utf8(slice) {
+            // Forward to graphics framebuffer
+            let _ = graphics::print_to_console(text_str);
+        }
+        
+        CONSOLE_BRIDGE_ACTIVE = false;
+    }
+}
+
+/// Helper function to check if console bridge is active (prevent recursion)
+pub fn is_console_bridge_active() -> bool {
+    unsafe { CONSOLE_BRIDGE_ACTIVE }
+}
+
 // Module declarations
 pub mod commands;
 pub mod memory;
