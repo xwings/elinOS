@@ -212,21 +212,19 @@ impl FileSystem for UnifiedFileSystem {
 /// Detect filesystem type by reading specific disk locations
 pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
     // console_println!("filesystem::detect_filesystem_type: Starting detection...");
-            let mut disk_device = crate::virtio::VIRTIO_BLK.lock();
-
-    if !disk_device.is_initialized() {
-        // console_println!("filesystem::detect_filesystem_type: VirtIO disk not initialized.");
+    if !crate::virtio::storage_is_available() {
+        // console_println!("filesystem::detect_filesystem_type: Storage not available.");
         return Err(FilesystemError::DeviceError);
     }
 
-    // IMPORTANT: Warm up VirtIO driver with a simple read to ensure clean buffer state
-    // This prevents VirtIO buffer corruption issues that occur when ext2 detection
+    // IMPORTANT: Warm up storage driver with a simple read to ensure clean buffer state
+    // This prevents buffer corruption issues that occur when ext2 detection
     let mut warmup_buf = [0u8; 512];
-    match disk_device.read_blocks(0, &mut warmup_buf) {
+    match crate::virtio::storage_read_blocks(0, &mut warmup_buf) {
         Ok(_) => {
         }
         Err(e) => {
-            console_println!("[!] VirtIO warmup failed: {:?}, continuing anyway", e);
+            console_println!("[!] Storage warmup failed: {:?}, continuing anyway", e);
             // Continue anyway - the warmup attempt may have still helped
         }
     }
@@ -242,7 +240,7 @@ pub fn detect_filesystem_type() -> FilesystemResult<FilesystemType> {
         let current_sector_to_read = (start_sector + i) as u64;
         // console_println!("filesystem::detect_filesystem_type: Reading ext2 SB sector {}", current_sector_to_read);
         let mut sector_buf = [0u8; SECTOR_SIZE];
-        match disk_device.read_blocks(current_sector_to_read, &mut sector_buf) {
+        match crate::virtio::storage_read_blocks(current_sector_to_read as u32, &mut sector_buf) {
             Ok(_) => {
                 // console_println!("filesystem::detect_filesystem_type: Successfully read ext2 SB sector {}", current_sector_to_read);
                 sb_buffer[i * SECTOR_SIZE..(i + 1) * SECTOR_SIZE].copy_from_slice(&sector_buf);

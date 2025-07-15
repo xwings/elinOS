@@ -2,6 +2,7 @@
 // Shared between bootloader and kernel
 
 use crate::sbi;
+use crate::devicetree::*;
 use super::regions::{MemoryRegion, MemoryZone};
 
 // Linker-provided symbols (defined in linker script)
@@ -34,8 +35,14 @@ pub fn get_stack_boundaries() -> (usize, usize, usize) {
     (stack_start, stack_end, stack_size)
 }
 
-/// Detect main RAM using OpenSBI
+/// Detect main RAM using device tree or OpenSBI fallback
 pub fn detect_main_ram() -> Option<MemoryRegion> {
+    // Try device tree first if available
+    if let Some(region) = detect_main_ram_from_dt() {
+        return Some(region);
+    }
+    
+    // Fallback to SBI
     let (base, size) = sbi::get_memory_info();
     
     if size > 0 {
@@ -43,6 +50,14 @@ pub fn detect_main_ram() -> Option<MemoryRegion> {
     } else {
         None
     }
+}
+
+/// Try to detect main RAM from device tree
+fn detect_main_ram_from_dt() -> Option<MemoryRegion> {
+    // This would need the DTB address passed from boot protocol
+    // For now, return None to use SBI fallback
+    // TODO: Get DTB address from boot protocol and parse memory regions
+    None
 }
 
 /// Get fallback memory layout for QEMU - use smallest safe default
@@ -70,13 +85,27 @@ pub enum SystemType {
     Hardware,   // Real hardware
 }
 
-/// Get standard MMIO regions for RISC-V QEMU
+/// Get standard MMIO regions for RISC-V (device tree aware)
 pub fn get_standard_mmio_regions() -> [MemoryRegion; 3] {
+    // Try to get MMIO regions from device tree
+    if let Some(regions) = get_mmio_regions_from_dt() {
+        return regions;
+    }
+    
+    // Fallback to standard QEMU MMIO layout
     [
         MemoryRegion::new(0x10000000, 0x1000, false, MemoryZone::DMA),    // UART
         MemoryRegion::new(0x02000000, 0x10000, false, MemoryZone::DMA),   // CLINT  
         MemoryRegion::new(0x0c000000, 0x400000, false, MemoryZone::DMA),  // PLIC
     ]
+}
+
+/// Try to get MMIO regions from device tree
+fn get_mmio_regions_from_dt() -> Option<[MemoryRegion; 3]> {
+    // This would parse device tree to find UART, CLINT, PLIC addresses
+    // For now, return None to use standard layout
+    // TODO: Parse device tree for MMIO region discovery
+    None
 }
 
 /// Calculate safe heap start address after kernel with guard

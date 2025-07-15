@@ -54,6 +54,7 @@ pub mod syscall;
 pub mod virtio;
 pub mod trap;  // Add trap module
 pub mod graphics; // Simple framebuffer graphics
+pub mod drivers; // Hardware drivers
 
 // Global UART instance is now in the shared library
 pub use common::uart::UART;
@@ -206,6 +207,16 @@ pub extern "C" fn kernel_core_main(bootloader_info: &BootloaderInfo) -> ! {
         console_println!("[x] VirtIO disk initialization failed: {}", e);
     } else {
         console_println!("[o] VirtIO disk ready");
+    }
+
+    // Initialize storage manager
+    match virtio::init_storage() {
+        Ok(()) => {
+            console_println!("[o] Storage manager initialized");
+        }
+        Err(e) => {
+            console_println!("[x] Storage manager initialization failed: {:?}", e);
+        }
     }
 
     // Initialize filesystem

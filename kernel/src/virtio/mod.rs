@@ -11,6 +11,7 @@ pub use queue::{VirtqDesc, VirtqAvail, VirtqUsed, VirtqUsedElem, VirtioQueue};
 pub use block::{RustVmmVirtIOBlock, VirtioBlkReq, VIRTIO_BLK};
 pub use block::{init_virtio_blk, init_with_address};
 pub use gpu::{VIRTIO_GPU, init_virtio_gpu, flush_display};
+pub use storage::{StorageType, init_storage, storage_read_blocks, storage_write_blocks, storage_get_capacity, storage_is_available};
 
 // Modules
 pub mod error;
@@ -18,6 +19,7 @@ pub mod mmio;
 pub mod queue;
 pub mod block;
 pub mod gpu;
+pub mod storage;
 
 use spin::Mutex;
 

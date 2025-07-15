@@ -115,10 +115,12 @@ pub fn system_reset() -> ! {
 
 // Get memory information
 pub fn get_memory_info() -> (usize, usize) {
-    // For QEMU virt machine, we know the standard memory layout
-    // In a real implementation, this would query the SBI or device tree
+    // Try to get memory info from device tree first
+    if let Some((base, size)) = get_memory_from_device_tree() {
+        return (base, size);
+    }
     
-    // Standard QEMU virt memory layout:
+    // Fallback to QEMU virt machine standard memory layout
     // RAM: 0x80000000 - varies (usually 128MB)
     let base = 0x80000000;
     let size = 128 * 1024 * 1024; // 128MB default
@@ -126,8 +128,25 @@ pub fn get_memory_info() -> (usize, usize) {
     (base, size)
 }
 
+// Try to get memory information from device tree
+fn get_memory_from_device_tree() -> Option<(usize, usize)> {
+    // OpenSBI typically passes device tree blob address in register a1
+    // This is a placeholder - in real implementation, we'd need to get the DTB address
+    // from the boot protocol (usually passed by OpenSBI)
+    
+    // For now, return None to use fallback
+    // TODO: Get actual DTB address from boot protocol
+    None
+}
+
 // Get memory regions (for compatibility with memory detection)
 pub fn get_memory_regions() -> SbiMemoryInfo {
+    // Try to get memory regions from device tree first
+    if let Some(info) = get_memory_regions_from_device_tree() {
+        return info;
+    }
+    
+    // Fallback to hardcoded QEMU regions
     let mut info = SbiMemoryInfo {
         regions: [SbiMemoryRegion { start: 0, size: 0, flags: 0 }; 8],
         count: 0,
@@ -164,6 +183,14 @@ pub fn get_memory_regions() -> SbiMemoryInfo {
     info.count = 4;
     
     info
+}
+
+// Try to get memory regions from device tree
+fn get_memory_regions_from_device_tree() -> Option<SbiMemoryInfo> {
+    // This would parse the device tree to extract memory regions
+    // For now, return None to use fallback
+    // TODO: Implement device tree parsing for memory regions
+    None
 }
 
 // Set timer

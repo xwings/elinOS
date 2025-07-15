@@ -111,9 +111,7 @@ impl SuperblockManager {
     
     /// Read a block from disk
     pub fn read_block_data(&self, block_num: u64) -> FilesystemResult<Vec<u8, 4096>> {
-        let mut disk_device = virtio::VIRTIO_BLK.lock();
-        
-        if !disk_device.is_initialized() {
+        if !virtio::storage_is_available() {
             return Err(FilesystemError::DeviceError);
         }
         
@@ -126,7 +124,7 @@ impl SuperblockManager {
             let sector = start_sector + (i as u64);
             let mut sector_buf = [0u8; SECTOR_SIZE];
             
-            disk_device.read_blocks(sector, &mut sector_buf)
+            virtio::storage_read_blocks(sector as u32, &mut sector_buf)
                 .map_err(|_| FilesystemError::IoError)?;
             
             for byte in sector_buf.iter() {
@@ -134,15 +132,12 @@ impl SuperblockManager {
             }
         }
         
-        drop(disk_device);
         Ok(block_data)
     }
     
     /// Write a block to disk
     pub fn write_block_data(&self, block_num: u32, data: &[u8]) -> FilesystemResult<()> {
-        let mut disk_device = virtio::VIRTIO_BLK.lock();
-        
-        if !disk_device.is_initialized() {
+        if !virtio::storage_is_available() {
             return Err(FilesystemError::DeviceError);
         }
         
@@ -161,11 +156,9 @@ impl SuperblockManager {
                 sector_buf[..copy_len].copy_from_slice(&data[sector_start..sector_end]);
             }
             
-            disk_device.write_blocks(sector, &sector_buf)
+            virtio::storage_write_blocks(sector as u32, &sector_buf)
                 .map_err(|_| FilesystemError::IoError)?;
         }
-        
-        drop(disk_device);
         Ok(())
     }
     
@@ -182,9 +175,7 @@ impl SuperblockManager {
             );
         }
         
-        let mut disk_device = virtio::VIRTIO_BLK.lock();
-        
-        if !disk_device.is_initialized() {
+        if !virtio::storage_is_available() {
             return Err(FilesystemError::DeviceError);
         }
         
@@ -199,11 +190,9 @@ impl SuperblockManager {
             let mut write_buf = [0u8; SECTOR_SIZE];
             write_buf.copy_from_slice(sector_buf);
             
-            disk_device.write_blocks(sector, &write_buf)
+            virtio::storage_write_blocks(sector as u32, &write_buf)
                 .map_err(|_| FilesystemError::IoError)?;
         }
-        
-        drop(disk_device);
         self.superblock = Some(*sb);
         Ok(())
     }
