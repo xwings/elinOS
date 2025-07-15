@@ -115,6 +115,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
         "devices" => cmd_devices(),
         "graphics" => cmd_graphics(),
         // "gfxtest" => cmd_graphics_test(), // Removed - TTY console doesn't need complex graphics tests
+        "sdcard" => cmd_sdcard(),
         "syscall" => cmd_syscall(),
         "fscheck" => cmd_fscheck(),
         "config" => cmd_config(),
@@ -894,6 +895,30 @@ pub fn cmd_graphics() -> Result<(), &'static str> {
             console_println!("    - Memory management API failure");
             console_println!("    - Graphics initialization error");
         }
+    }
+    
+    Ok(())
+}
+
+/// Show SD card information
+pub fn cmd_sdcard() -> Result<(), &'static str> {
+    console_println!("=== SD Card System Information ===");
+    
+    // Check if SD card is available
+    if crate::drivers::sdcard::get_sdcard_capacity() > 0 {
+        console_println!("[o] SD card is available");
+        console_println!("SD Card Information:");
+        console_println!("  Capacity: {} sectors", crate::drivers::sdcard::get_sdcard_capacity());
+        console_println!("  Block size: 512 bytes");
+        console_println!("  Total size: {} MB", (crate::drivers::sdcard::get_sdcard_capacity() as u64 * 512) / (1024 * 1024));
+        console_println!("  Interface: SPI");
+    } else {
+        console_println!("[!] SD card is not available");
+        console_println!("    This may be due to:");
+        console_println!("    - SD card not initialized");
+        console_println!("    - SD card not detected");
+        console_println!("    - SPI interface not available");
+        console_println!("    - Hardware compatibility issue");
     }
     
     Ok(())

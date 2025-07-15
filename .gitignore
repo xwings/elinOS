@@ -14,6 +14,7 @@ qemu.log
 disk.qcow2
 disk.raw
 disk.img
+sdcard.img
 rootfs/
 fs/
 

@@ -67,6 +67,11 @@ DISK_SIZE := 32M
 DISK_IMAGE := disk.img
 DISK_MOUNT := /tmp/elinOS-mount
 
+# SD card image configuration
+SDCARD_SIZE := 64M
+SDCARD_IMAGE := sdcard.img
+SDCARD_MOUNT := /tmp/elinOS-sdcard-mount
+
 # Colors for pretty output
 COLOR_RESET := \033[0m
 COLOR_BOLD := \033[1m
@@ -163,6 +168,7 @@ clean: ## Clean build artifacts
 	@echo -e "$(COLOR_YELLOW)Cleaning build artifacts...$(COLOR_RESET)"
 	@cargo clean
 	@rm -f $(DISK_IMAGE)
+	@rm -f $(SDCARD_IMAGE)
 	@rm -f $(QEMU_LOG)
 	@rm -rf $(C_BUILD_DIR)
 	@rm -rf $(DEBUG_DIR)/$(BOOTLOADER_BIN)
@@ -282,6 +288,21 @@ run-fb-debug: build ## Run the kernel in QEMU with software framebuffer testing
 		-d guest_errors,unimp,exec,in_asm \
 		-D qemu.log
 
+.PHONY: run-sdimg
+run-sdimg: build build-img c-programs populate-sdcard ## Run the kernel in QEMU with SD card
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) in QEMU with SD card...$(COLOR_RESET)"
+	@$(QEMU) \
+		-machine $(QEMU_MACHINE) \
+		-cpu $(QEMU_CPU) \
+		-smp $(QEMU_SMP) \
+		-m $(QEMU_MEMORY) \
+		-nographic \
+		-bios $(OPENSBI) \
+		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
+		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-device virtio-blk-device,drive=sdcard \
+		-drive file=$(SDCARD_IMAGE),format=raw,if=none,id=sdcard
+
 # =============================================================================
 # Development Commands
 # =============================================================================
@@ -297,6 +318,12 @@ test-fb:: clean all ## Run automated kernel tests with VGA graphics using Python
 	@echo -e "$(COLOR_BLUE)Running automated kernel with VGA graphics tests...$(COLOR_RESET)"
 	@python3 test_runner.py --runtype=fb --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
 	@echo -e "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
+
+.PHONY: test-sdimg
+test-sdimg: clean build build-img c-programs populate-sdcard ## Run automated kernel tests with SD card using Python test runner
+	@echo -e "$(COLOR_BLUE)Running automated kernel with SD card tests...$(COLOR_RESET)"
+	@python3 test_runner.py --runtype=sdimg --timeout 60 || (echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)" && exit 1)
+	@echo -e "$(COLOR_GREEN)✓ All SD card tests passed$(COLOR_RESET)"
 
 .PHONY: unittest
 unittest: ## Run unit tests
@@ -406,6 +433,57 @@ clean-disk: ## Remove disk image
 	@echo -e "$(COLOR_YELLOW)Removing disk image...$(COLOR_RESET)"
 	@rm -f $(DISK_IMAGE)
 	@echo -e "$(COLOR_GREEN)✓ Disk image removed$(COLOR_RESET)"
+
+# =============================================================================
+# SD Card Image Commands
+# =============================================================================
+
+.PHONY: build-img
+build-img: ## Create SD card image with ext2 filesystem
+	@echo -e "$(COLOR_BLUE)Creating SD card image ($(SDCARD_SIZE))...$(COLOR_RESET)"
+	@dd if=/dev/zero of=$(SDCARD_IMAGE) bs=1M count=$(shell echo $(SDCARD_SIZE) | sed 's/M//') 2>/dev/null
+	@mkfs.ext2 $(SDCARD_IMAGE) >/dev/null 2>&1
+	@echo -e "$(COLOR_GREEN)✓ SD card image created: $(SDCARD_IMAGE)$(COLOR_RESET)"
+
+.PHONY: populate-sdcard
+populate-sdcard: $(SDCARD_IMAGE) ## Add test files to SD card image
+	@echo -e "$(COLOR_BLUE)Populating SD card image with test files...$(COLOR_RESET)"
+	@mkdir -p $(SDCARD_MOUNT)
+	@sudo mount -o loop $(SDCARD_IMAGE) $(SDCARD_MOUNT) 2>/dev/null || true
+	@echo "Hello from elinOS SD card, LittleMa, LittleBai" | sudo tee $(SDCARD_MOUNT)/hello.txt >/dev/null
+	@echo "This is a test file for the elinOS SD card filesystem." | sudo tee $(SDCARD_MOUNT)/test.txt >/dev/null
+	@echo "README for elinOS SD card test disk" | sudo tee $(SDCARD_MOUNT)/README.md >/dev/null
+	@echo "C Programs compiled for elinOS on SD card" | sudo tee $(SDCARD_MOUNT)/C_PROGRAMS.txt >/dev/null
+	@for binary in $(C_BINARIES); do \
+		if [ -f "$$binary" ]; then \
+			echo -e "$(COLOR_CYAN)  Copying: $$(basename $$binary)$(COLOR_RESET)"; \
+			sudo cp "$$binary" "$(SDCARD_MOUNT)"; \
+		fi; \
+	done	
+	@sudo umount $(SDCARD_MOUNT) 2>/dev/null || true
+	@rmdir $(SDCARD_MOUNT) 2>/dev/null || true
+	@echo -e "$(COLOR_GREEN)✓ SD card populated with test files$(COLOR_RESET)"
+
+.PHONY: mount-sdcard
+mount-sdcard: $(SDCARD_IMAGE) ## Mount SD card image for inspection
+	@echo -e "$(COLOR_BLUE)Mounting SD card image...$(COLOR_RESET)"
+	@mkdir -p $(SDCARD_MOUNT)
+	@sudo mount -o loop $(SDCARD_IMAGE) $(SDCARD_MOUNT)
+	@echo -e "$(COLOR_GREEN)✓ SD card mounted at $(SDCARD_MOUNT)$(COLOR_RESET)"
+	@echo -e "$(COLOR_YELLOW)Run 'make unmount-sdcard' when done$(COLOR_RESET)"
+
+.PHONY: unmount-sdcard
+unmount-sdcard: ## Unmount SD card image
+	@echo -e "$(COLOR_BLUE)Unmounting SD card image...$(COLOR_RESET)"
+	@sudo umount $(SDCARD_MOUNT) 2>/dev/null || true
+	@rmdir $(SDCARD_MOUNT) 2>/dev/null || true
+	@echo -e "$(COLOR_GREEN)✓ SD card unmounted$(COLOR_RESET)"
+
+.PHONY: clean-sdcard
+clean-sdcard: ## Remove SD card image
+	@echo -e "$(COLOR_YELLOW)Removing SD card image...$(COLOR_RESET)"
+	@rm -f $(SDCARD_IMAGE)
+	@echo -e "$(COLOR_GREEN)✓ SD card image removed$(COLOR_RESET)"
 
 # =============================================================================
 # Environment and Setup Commands

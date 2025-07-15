@@ -22,6 +22,8 @@ class ElinOSTestRunner:
             # Start QEMU with the kernel
             if self.runtype == 'fb':
                 self.qemu_process = pexpect.spawn('make run-fb-debug', timeout=self.timeout)
+            elif self.runtype == 'sdimg':
+                self.qemu_process = pexpect.spawn('make run-sdimg', timeout=self.timeout)
             else:
                 self.qemu_process = pexpect.spawn('make run-console-debug', timeout=self.timeout)
             
@@ -87,7 +89,7 @@ class ElinOSTestRunner:
             ("rm ccc", "Removed file"),
 
             # File operations
-            ("cat test.txt", "This is a test file for the elinOS filesystem"),  # Just check it doesn't crash
+            ("cat test.txt", "This is a test file"),  # Just check it doesn't crash
             
             # ELF execution
             ("./hello_world", "Hello World from C on elinOS!"),
@@ -104,6 +106,13 @@ class ElinOSTestRunner:
             tests.extend([
                 ("graphics", "Total pixels:"),
                 # ("gfxtest", "[o] Graphics tests completed successfully"), # Removed - simple TTY console doesn't need graphics tests
+            ])
+        
+        # Add SD card tests if running in SD card mode
+        if self.runtype == 'sdimg':
+            tests.extend([
+                ("sdcard", "SD Card System Information"),  # Test SD card command exists
+                ("cat hello.txt", "Hello from elinOS SD card"),  # Test reading from SD card
             ])
         
         passed = 0
@@ -147,7 +156,7 @@ def main():
     parser.add_argument('--timeout', type=int, default=30,
                         help='Command timeout in seconds (default: 30)')
     parser.add_argument('--runtype', type=str, default=None,
-                       help='Command runtype for vga (default: None)')
+                       help='Command runtype: fb for framebuffer, sdimg for SD card (default: None)')
     
     args = parser.parse_args()
     
