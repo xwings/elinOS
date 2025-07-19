@@ -9,7 +9,7 @@ pub use queue::{VirtqDesc, VirtqAvail, VirtqUsed, VirtqUsedElem, VirtioQueue};
 
 // Re-export from sub-modules
 pub use block::{RustVmmVirtIOBlock, VirtioBlkReq, VIRTIO_BLK};
-pub use block::{init_virtio_blk, init_with_address};
+pub use block::{init_virtio_blk, init_with_address, is_virtio_blk_initialized};
 pub use gpu::{VIRTIO_GPU, init_virtio_gpu, flush_display};
 pub use storage::{StorageType, init_storage, storage_read_blocks, storage_write_blocks, storage_get_capacity, storage_is_available};
 
@@ -47,14 +47,46 @@ impl VirtioMemoryManager {
             return Err(DiskError::NotInitialized);
         }
         
-        // Use the new memory mapping API to allocate DMA buffer
-        match crate::memory::mapping::map_virtual_memory(
-            size,
-            crate::memory::mapping::MemoryPermissions::READ_WRITE,
-            "VirtIO-Queue"
-        ) {
-            Ok(addr) => Ok(addr),
-            Err(_) => Err(DiskError::VirtIOError),
+        // VirtIO memory pool - must be page-aligned for legacy VirtIO
+        const PAGE_SIZE: usize = 4096;
+        
+        // Ensure the pool itself is page-aligned
+        #[repr(align(4096))]
+        struct AlignedPool([u8; 1024 * 1024]);
+        
+        static mut VIRTIO_MEMORY_POOL: AlignedPool = AlignedPool([0; 1024 * 1024]); // 1MB pool
+        static mut VIRTIO_MEMORY_OFFSET: usize = 0;
+        
+        unsafe {
+            // Start from page-aligned pool base
+            let pool_base = VIRTIO_MEMORY_POOL.0.as_mut_ptr() as usize;
+            
+            // Ensure the base is page-aligned (should be due to #[repr(align(4096))])
+            if pool_base % PAGE_SIZE != 0 {
+                return Err(DiskError::VirtIOError);
+            }
+            
+            // Align current offset to page boundary
+            let aligned_offset = (VIRTIO_MEMORY_OFFSET + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
+            
+            if aligned_offset + size > VIRTIO_MEMORY_POOL.0.len() {
+                return Err(DiskError::VirtIOError);
+            }
+            
+            let ptr = VIRTIO_MEMORY_POOL.0.as_mut_ptr().add(aligned_offset);
+            let aligned_addr = ptr as usize;
+            
+            // Verify the returned address is page-aligned
+            if aligned_addr % PAGE_SIZE != 0 {
+                return Err(DiskError::VirtIOError);
+            }
+            
+            VIRTIO_MEMORY_OFFSET = aligned_offset + size;
+            
+            // Zero the memory
+            core::ptr::write_bytes(ptr, 0, size);
+            
+            Ok(aligned_addr)
         }
     }
 }
@@ -76,10 +108,9 @@ pub fn allocate_virtio_memory(size: usize) -> Result<usize, DiskError> {
 
 /// Register a VirtIO device MMIO region
 pub fn register_virtio_device(base_addr: usize, size: usize, device_name: &str) -> Result<(), DiskError> {
-    match crate::memory::mapping::map_device_memory(base_addr, size, device_name) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(DiskError::VirtIOError),
-    }
+    // In the common library, we assume MMIO regions are identity-mapped
+    // The kernel or bootloader should handle the actual memory mapping
+    Ok(())
 }
 
 /// Unregister a VirtIO device MMIO region

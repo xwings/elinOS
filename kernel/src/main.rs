@@ -3,6 +3,7 @@
 
 use core::panic::PanicInfo;
 use core::arch::asm;
+use core::fmt::Write;
 use spin::Mutex;
 use heapless::{String, Vec};
 
@@ -48,10 +49,8 @@ pub fn is_console_bridge_active() -> bool {
 // Module declarations
 pub mod commands;
 pub mod memory;
-pub mod filesystem;  // Now points to filesystem/mod.rs
 pub mod elf;
 pub mod syscall;
-pub mod virtio;
 pub mod trap;  // Add trap module
 pub mod graphics; // Simple framebuffer graphics
 pub mod drivers; // Hardware drivers
@@ -131,13 +130,31 @@ const BOOTLOADER_MAGIC: u64 = 0xEA15_0000_B007_AB1E;
 
 #[link_section = ".text.kernel"]
 #[no_mangle]
+pub extern "C" fn _start() -> ! {
+    unsafe {
+        asm!(
+            "li sp, 0x805F0000",  // Set kernel stack
+            "mv a0, a0",          // Preserve bootloader info parameter
+            "j {kernel_main}",
+            kernel_main = sym kernel_main,
+            options(noreturn)
+        );
+    }
+}
+
+#[no_mangle]
 pub fn kernel_main(bootloader_info_ptr: usize) -> ! {
+    // Debug: Immediate output to see if kernel starts
+    debug_println!("KERNEL START: kernel_main called");
+    
     // Setup initial stack in safe kernel space
     unsafe {
         asm!(
             "li sp, 0x805F0000",  // Set kernel stack near end of kernel region
         );
     }
+    
+    debug_println!("KERNEL: Stack set up");
     
     // Validate bootloader info - handle both bootloader and direct boot scenarios
     if bootloader_info_ptr == 0 || bootloader_info_ptr > 0x90000000 {
@@ -199,18 +216,24 @@ pub extern "C" fn kernel_core_main(bootloader_info: &BootloaderInfo) -> ! {
     }
 
     // Initialize VirtIO block device  
-    if let Err(_) = virtio::init_virtio_memory() {
+    if let Err(_) = elinos_common::virtio::init_virtio_memory() {
         console_println!("[x] Failed to initialize VirtIO memory manager");
     }
     
-    if let Err(e) = virtio::init_virtio_blk() {
-        console_println!("[x] VirtIO disk initialization failed: {}", e);
+    // Skip VirtIO initialization if already done by bootloader
+    // The bootloader may have already initialized the VirtIO device
+    if elinos_common::virtio::is_virtio_blk_initialized() {
+        console_println!("[o] VirtIO disk already initialized by bootloader");
     } else {
-        console_println!("[o] VirtIO disk ready");
+        if let Err(e) = elinos_common::virtio::init_virtio_blk() {
+            console_println!("[x] VirtIO disk initialization failed: {}", e);
+        } else {
+            console_println!("[o] VirtIO disk ready");
+        }
     }
 
     // Initialize storage manager
-    match virtio::init_storage() {
+    match elinos_common::virtio::init_storage() {
         Ok(()) => {
             console_println!("[o] Storage manager initialized");
         }
@@ -220,7 +243,7 @@ pub extern "C" fn kernel_core_main(bootloader_info: &BootloaderInfo) -> ! {
     }
 
     // Initialize filesystem
-    match filesystem::init_filesystem() {
+    match elinos_common::filesystem::init_filesystem() {
         Ok(()) => {
             // console_println!("[o] Filesystem initialization successful!");
         }
@@ -229,11 +252,8 @@ pub extern "C" fn kernel_core_main(bootloader_info: &BootloaderInfo) -> ! {
         }
     }
 
-    // Initialize graphics (optional)
-    match graphics::init_graphics() {
-        Ok(_) => console_println!("[o] Graphics system initialized"),
-        Err(e) => console_println!("[!] Graphics initialization failed: {}", e),
-    }
+    // Initialize graphics (optional) - temporarily disabled for debugging
+    console_println!("[i] Graphics initialization skipped for debugging");
     
     console_println!();
     
@@ -245,7 +265,7 @@ pub extern "C" fn kernel_core_main(bootloader_info: &BootloaderInfo) -> ! {
 
 /// Load command history from filesystem
 fn load_shell_history() {
-    if let Ok(data) = filesystem::read_file(HISTORY_FILE_PATH) {
+    if let Ok(data) = elinos_common::filesystem::read_file(HISTORY_FILE_PATH) {
         if let Ok(content) = core::str::from_utf8(&data) {
             let mut shell_state = SHELL_STATE.lock();
             shell_state.history.clear();
@@ -277,7 +297,7 @@ fn save_shell_history() {
     }
     
     // Write to filesystem (ignore errors)
-    let _ = filesystem::write_file(HISTORY_FILE_PATH, &content);
+    let _ = elinos_common::filesystem::write_file(HISTORY_FILE_PATH, &content);
 }
 
 /// Show welcome message

@@ -4,7 +4,7 @@ use super::structures::*;
 use super::superblock::SuperblockManager;
 use super::inode::InodeManager;
 use super::super::traits::{FileEntry, FilesystemError, FilesystemResult};
-use elinos_common::console_println;
+use crate::console_println;
 use heapless::Vec;
 use core::mem;
 
@@ -13,7 +13,7 @@ pub struct DirectoryManager {
 }
 
 impl DirectoryManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
     

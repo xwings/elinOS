@@ -144,7 +144,7 @@ pub fn init_graphics() -> Result<(), &'static str> {
     
     // Initialize VirtIO GPU with the properly allocated framebuffer
     console_println!("[i] Attempting VirtIO GPU initialization...");
-    match crate::virtio::init_virtio_gpu(fb_phys_addr, fb_size) {
+    match elinos_common::virtio::init_virtio_gpu(fb_phys_addr, fb_size) {
         Ok(()) => {
             console_println!("[o] VirtIO GPU initialized successfully with physical address!");
             console_println!("[i] Graphics output should now be visible in QEMU window!");
@@ -183,7 +183,7 @@ pub fn init_graphics() -> Result<(), &'static str> {
     // Flush to display if VirtIO GPU is available
     if unsafe { VIRTIO_GPU_ENABLED } {
         console_println!("[i] Flushing TTY console to VirtIO GPU display...");
-        match crate::virtio::flush_display() {
+        match elinos_common::virtio::flush_display() {
             Ok(()) => console_println!("[o] TTY console flushed to VirtIO GPU display"),
             Err(e) => console_println!("[!] Failed to flush TTY console to display: {:?}", e),
         }
@@ -201,7 +201,7 @@ pub fn clear_screen(color: u32) -> Result<(), &'static str> {
             
             // Flush to display if VirtIO GPU is available
             if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
+                let _ = elinos_common::virtio::flush_display();
             }
             
             Ok(())
@@ -219,7 +219,7 @@ pub fn set_pixel(x: u32, y: u32, color: u32) -> Result<(), &'static str> {
             
             // Flush to display if VirtIO GPU is available
             if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
+                let _ = elinos_common::virtio::flush_display();
             }
             
             result
@@ -237,7 +237,7 @@ pub fn draw_rect(x: u32, y: u32, width: u32, height: u32, color: u32) -> Result<
             
             // Flush to display if VirtIO GPU is available
             if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
+                let _ = elinos_common::virtio::flush_display();
             }
             
             result
@@ -262,7 +262,7 @@ pub fn get_dimensions() -> Result<(u32, u32), &'static str> {
 pub fn flush_to_display() -> Result<(), &'static str> {
     unsafe {
         if VIRTIO_GPU_ENABLED {
-            match crate::virtio::flush_display() {
+            match elinos_common::virtio::flush_display() {
                 Ok(()) => Ok(()),
                 Err(_) => Err("Failed to flush to display"),
             }
@@ -300,7 +300,7 @@ pub fn print_to_console(text: &str) -> Result<(), &'static str> {
             
             // Flush to display after printing (skip during recursive console calls)
             if VIRTIO_GPU_ENABLED && !crate::is_console_bridge_active() {
-                let _ = crate::virtio::flush_display();
+                let _ = elinos_common::virtio::flush_display();
             }
             
             Ok(())
@@ -318,7 +318,7 @@ pub fn clear_console() -> Result<(), &'static str> {
             
             // Flush to display
             if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
+                let _ = elinos_common::virtio::flush_display();
             }
         }
     }
@@ -585,7 +585,7 @@ impl TextConsole {
                 // Force flush to VirtIO GPU after drawing character
                 // Skip flushing during initialization to prevent infinite loops
                 if VIRTIO_GPU_ENABLED {
-                    let _ = crate::virtio::flush_display();
+                    let _ = elinos_common::virtio::flush_display();
                 }
             }
         }
@@ -707,7 +707,7 @@ pub fn print_shell_prompt() -> Result<(), &'static str> {
             
             // Flush to display if VirtIO GPU is available
             if VIRTIO_GPU_ENABLED {
-                let _ = crate::virtio::flush_display();
+                let _ = elinos_common::virtio::flush_display();
             }
             
             Ok(())

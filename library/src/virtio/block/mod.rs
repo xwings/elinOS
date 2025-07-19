@@ -6,7 +6,7 @@ pub mod device;
 pub use device::{RustVmmVirtIOBlock, VirtioBlkReq, VIRTIO_BLK};
 
 // Re-export initialization functions
-pub use device::{init_virtio_blk, init_with_address};
+pub use device::{init_virtio_blk, init_with_address, is_virtio_blk_initialized};
 
 // Block device specific constants
 pub const VIRTIO_BLK_T_IN: u32 = 0;     // Read

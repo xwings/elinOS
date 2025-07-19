@@ -3,7 +3,7 @@
 use super::structures::*;
 use super::superblock::SuperblockManager;
 use super::super::traits::{FilesystemError, FilesystemResult};
-use elinos_common::console_println;
+use crate::console_println;
 use heapless::Vec;
 
 /// ext2 inode flags
@@ -17,7 +17,7 @@ pub struct BlockManager {
 }
 
 impl BlockManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
     

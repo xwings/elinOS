@@ -28,7 +28,7 @@ PROVIDE(_min_stack_size = 16K);    /* Minimum stack size per hart */
 
 OUTPUT_ARCH(riscv)
 OUTPUT_FORMAT("elf64-littleriscv")
-ENTRY(kernel_main)
+ENTRY(_start)
 
 SECTIONS {
     /* Kernel code and data at 0x80400000 */

@@ -2,14 +2,14 @@
 
 use super::superblock::SuperblockManager;
 use super::super::traits::FilesystemResult;
-use elinos_common::console_println;
+use crate::console_println;
 
 /// Manages ext2 bitmap operations
 pub struct BitmapManager {
 }
 
 impl BitmapManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
     

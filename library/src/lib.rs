@@ -4,12 +4,16 @@
 //! 
 //! Shared components between bootloader and kernel
 
+use core::fmt::Write;
+
 pub mod sbi;
 pub mod uart;
 pub mod console;
 pub mod memory;
 pub mod elf;
 pub mod devicetree;
+pub mod virtio;
+pub mod filesystem;
 
 // Re-export commonly used items
 pub use sbi::*;

@@ -1,12 +1,11 @@
 // File I/O System Calls - Linux Compatible Numbers
 // Following Linux ARM64/RISC-V syscall numbers for compatibility
 
-use crate::filesystem;
 use crate::{console_print, console_println};
 use super::{SysCallResult, SyscallArgs, STDOUT_FD, STDERR_FD};
 use spin::Mutex;
 use heapless::{FnvIndexMap, Vec};
-use crate::filesystem::traits::FileSystem;
+use elinos_common::filesystem::FileSystem;
 
 // Simple file descriptor table
 static FILE_TABLE: Mutex<FnvIndexMap<i32, heapless::String<64>, 16>> = Mutex::new(FnvIndexMap::new());
@@ -154,7 +153,7 @@ fn sys_read(fd: i32, buf: *mut u8, count: usize) -> SysCallResult {
         console_println!("[i] SYSCALL: Reading file '{}'", filename.as_str());
         
         // Read the file content using the filesystem API
-        let fs = filesystem::FILESYSTEM.lock();
+        let fs = elinos_common::filesystem::FILESYSTEM.lock();
         
         // Try to read the file using the filesystem trait
         match fs.read_file(&filename) {
@@ -201,7 +200,7 @@ pub fn sys_openat(args: SyscallArgs) -> SysCallResult {
     
     console_println!("[i] Sys_openat: opening file '{}'", filename);
     
-    let fs = filesystem::FILESYSTEM.lock();
+    let fs = elinos_common::filesystem::FILESYSTEM.lock();
     
     if !fs.is_mounted() {
         console_println!("[x] Filesystem not mounted");
@@ -237,7 +236,7 @@ pub fn sys_unlinkat(args: SyscallArgs) -> SysCallResult {
     // args.arg1 is the path
     let filename = "dummy.txt";  // For demonstration
     
-    let fs = filesystem::FILESYSTEM.lock();
+    let fs = elinos_common::filesystem::FILESYSTEM.lock();
     
     if !fs.file_exists(filename) {
         console_println!("[x] File '{}' doesn't exist", filename);
@@ -254,7 +253,7 @@ pub fn sys_getdents64(args: SyscallArgs) -> SysCallResult {
     
     console_println!("[i] Sys_getdents64: listing directory for fd={}", fd);
     
-    let fs = filesystem::FILESYSTEM.lock();
+    let fs = elinos_common::filesystem::FILESYSTEM.lock();
     
     match fs.list_files() {
         Ok(files) => {
@@ -284,7 +283,7 @@ fn sys_newfstatat(dirfd: i32, pathname: *const u8, statbuf: *mut u8, _flags: i32
         
         let slice = core::slice::from_raw_parts(pathname, len);
         if let Ok(filename) = core::str::from_utf8(slice) {
-            let fs = filesystem::FILESYSTEM.lock();
+            let fs = elinos_common::filesystem::FILESYSTEM.lock();
             match fs.read_file(filename) {
                 Ok(content) => {
                     // Simple stat structure: just file size as usize
@@ -329,7 +328,7 @@ fn sys_fsync(_fd: i32) -> SysCallResult {
 
 // Helper function to read file with path (for testing)
 pub fn read_file_by_path(filename: &str) -> Result<Vec<u8, 4096>, &'static str> {
-    let fs = filesystem::FILESYSTEM.lock();
+    let fs = elinos_common::filesystem::FILESYSTEM.lock();
     
     match fs.read_file(filename) {
         Ok(content) => {

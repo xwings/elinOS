@@ -1,5 +1,5 @@
 use crate::syscall;
-use crate::filesystem::traits::{FileSystem, FilesystemError};
+use elinos_common::filesystem::{FileSystem, FilesystemError};
 use crate::memory::{self, BufferUsage, AllocationMode};
 use heapless::String;
 use core::fmt::Write;
@@ -232,7 +232,7 @@ pub fn process_command(command: &str) -> Result<(), &'static str> {
             let full_path = resolve_path(command);
             
             // Check if file exists and try to execute it
-            match crate::filesystem::read_file(&full_path) {
+            match elinos_common::filesystem::read_file(&full_path) {
                 Ok(file_data) => {
                     
                     // Check if it's an ELF file by looking at magic bytes
@@ -446,10 +446,10 @@ pub fn cmd_ls(path_arg_opt: Option<&str>) -> Result<(), &'static str> {
     console_println!("Listing for target '{}':", list_target_path);
 
     // Use the new path-aware directory listing
-    match crate::filesystem::list_directory(&list_target_path) {
+    match elinos_common::filesystem::list_directory(&list_target_path) {
         Ok(files) => {
             // Get filesystem info for display
-            let fs = crate::filesystem::FILESYSTEM.lock();
+            let fs = elinos_common::filesystem::FILESYSTEM.lock();
             let fs_type = fs.get_filesystem_type();
             let fs_info = fs.get_filesystem_info();
             drop(fs);
@@ -485,10 +485,10 @@ pub fn cmd_cat(filename: &str) -> Result<(), &'static str> {
     }
     
     // Use modular filesystem API
-    match crate::filesystem::read_file(filename) {
+    match elinos_common::filesystem::read_file(filename) {
         Ok(content) => {
             // Get filesystem type for display
-            let fs = crate::filesystem::FILESYSTEM.lock();
+            let fs = elinos_common::filesystem::FILESYSTEM.lock();
             let fs_type = fs.get_filesystem_type();
             drop(fs);
             
@@ -602,7 +602,7 @@ pub fn cmd_echo(message: &str) -> Result<(), &'static str> {
 }
 
 pub fn cmd_fscheck() -> Result<(), &'static str> {
-    match crate::filesystem::check_filesystem() {
+    match elinos_common::filesystem::check_filesystem() {
         Ok(()) => Ok(()),
         Err(_) => {
             console_println!("Failed to check filesystem");
@@ -620,7 +620,7 @@ fn cmd_pwd() -> Result<(), &'static str> {
 }
 
 fn cmd_touch(path: &str) -> Result<(), &'static str> {
-    match crate::filesystem::FILESYSTEM.lock().create_file(path) {
+    match elinos_common::filesystem::FILESYSTEM.lock().create_file(path) {
         Ok(entry) => {
             console_println!("Created file '{}' at path '{}'.", entry.name, path);
             Ok(())
@@ -633,7 +633,7 @@ fn cmd_touch(path: &str) -> Result<(), &'static str> {
 }
 
 fn cmd_mkdir(path: &str) -> Result<(), &'static str> {
-    match crate::filesystem::FILESYSTEM.lock().create_directory(path) {
+    match elinos_common::filesystem::FILESYSTEM.lock().create_directory(path) {
         Ok(entry) => {
             console_println!("Created directory '{}' at path '{}'.", entry.name, path);
             Ok(())
@@ -646,7 +646,7 @@ fn cmd_mkdir(path: &str) -> Result<(), &'static str> {
 }
 
 fn cmd_rm(path: &str) -> Result<(), &'static str> { // For files
-    match crate::filesystem::FILESYSTEM.lock().delete_file(path) {
+    match elinos_common::filesystem::FILESYSTEM.lock().delete_file(path) {
         Ok(()) => {
             console_println!("[o] Removed file '{}'.", path);
             Ok(())
@@ -659,7 +659,7 @@ fn cmd_rm(path: &str) -> Result<(), &'static str> { // For files
 }
 
 fn cmd_rmdir(path: &str) -> Result<(), &'static str> { // For directories
-    match crate::filesystem::FILESYSTEM.lock().delete_directory(path) {
+    match elinos_common::filesystem::FILESYSTEM.lock().delete_directory(path) {
         Ok(()) => {
             console_println!("[o] Removed directory '{}'.", path);
             Ok(())
@@ -694,7 +694,7 @@ fn cmd_elf_load(filename: &str) -> Result<(), &'static str> {
     console_println!("[i] Loading ELF Binary: {}", filename);
     
     // Read file from filesystem
-    match crate::filesystem::read_file(filename) {
+    match elinos_common::filesystem::read_file(filename) {
         Ok(file_data) => {
             // Call ELF load syscall
             let result = syscall::syscall_handler(
@@ -739,7 +739,7 @@ fn cmd_execute_elf(filename: &str, file_data: &[u8]) -> Result<(), &'static str>
         console_println!("[i] Executing: {}", filename);
         
         // Use the new ELF file reader that supports larger files
-        match crate::filesystem::read_elf_file(elf_filename) {
+        match elinos_common::filesystem::read_elf_file(elf_filename) {
             Ok(elf_data) => {
                 console_println!("[i] Read {} bytes from {}", elf_data.len(), elf_filename);
                 
@@ -797,7 +797,7 @@ fn cmd_elf_exec(filename: &str) -> Result<(), &'static str> {
     console_println!("[i] Executing ELF Binary: {}", filename);
     
     // Read file from filesystem
-    match crate::filesystem::read_file(filename) {
+    match elinos_common::filesystem::read_file(filename) {
         Ok(file_data) => {
             // Call ELF exec syscall
             let result = syscall::syscall_handler(

@@ -1,7 +1,7 @@
 //! VirtIO Block Device implementation
 
 use spin::Mutex;
-use elinos_common::console_println;
+use crate::console_println;
 use core::{convert::TryInto, result::Result::{Ok, Err}};
 
 use super::super::{DiskResult, DiskError, VirtqDesc, VirtioQueue};
@@ -95,26 +95,37 @@ impl RustVmmVirtIOBlock {
     }
 
     pub fn init(&mut self) -> DiskResult<()> {
+        console_println!("[i] Initializing VirtIO block device...");
+        
         if !self.discover_device()? {
             return Err(DiskError::DeviceNotFound);
         }
         
+        console_println!("[i] Initializing device registers...");
         self.init_device()?;
+        
+        console_println!("[i] Setting up VirtIO queue...");
         self.setup_queue()?;
+        
+        console_println!("[i] Setting driver OK status...");
         self.set_driver_ok()?;
         
         self.initialized = true;
+        console_println!("[o] VirtIO block device initialized successfully");
         Ok(())
     }
 
     fn discover_device(&mut self) -> DiskResult<bool> {
+        console_println!("[i] Searching for VirtIO block device...");
         let mmio_addresses = [
             0x10001000, 0x10002000, 0x10003000, 0x10004000,
             0x10005000, 0x10006000, 0x10007000, 0x10008000,
         ];
         
         for &addr in &mmio_addresses {
+            console_println!("[i] Probing VirtIO device at 0x{:x}", addr);
             if self.probe_mmio_device(addr)? {
+                console_println!("[o] VirtIO block device found at 0x{:x}", addr);
                 self.mmio_base = addr;
                 
                 // Register the device MMIO region using our memory mapping API
@@ -228,7 +239,6 @@ impl RustVmmVirtIOBlock {
                 let buffer_area_size = 1024; // Space for request + data + status buffers
                 let total_size = align_up(buffer_area_offset + buffer_area_size);
                 
-                
                 // Allocate page-aligned memory using VirtIO memory manager
                 let desc_table_addr = super::super::allocate_virtio_memory(total_size)?;
                 let avail_ring_addr = desc_table_addr + driver_area_offset;
@@ -239,7 +249,6 @@ impl RustVmmVirtIOBlock {
                 if desc_table_addr % PAGE_SIZE != 0 {
                     return Err(DiskError::VirtIOError);
                 }
-                
                 
                 // Zero out the queue memory region before use
                 unsafe {
@@ -260,10 +269,17 @@ impl RustVmmVirtIOBlock {
                 
                 // Step 4: Set queue PFN (Page Frame Number)
                 let pfn = (desc_table_addr / PAGE_SIZE) as u32;
+                console_println!("[i] Setting queue PFN: 0x{:x} (desc_table_addr: 0x{:x})", pfn, desc_table_addr);
                 self.write_reg_u32(VIRTIO_MMIO_QUEUE_PFN, pfn);
                 
                 // Verify the PFN was accepted
                 let read_pfn = self.read_reg_u32(VIRTIO_MMIO_QUEUE_PFN);
+                console_println!("[i] Read back PFN: 0x{:x}", read_pfn);
+                
+                if read_pfn != pfn {
+                    console_println!("[x] PFN verification failed: expected 0x{:x}, got 0x{:x}", pfn, read_pfn);
+                    return Err(DiskError::VirtIOError);
+                }
                 
             } else {
                 // Modern VirtIO: Uses separate registers for each ring
@@ -557,6 +573,12 @@ pub static VIRTIO_BLK: Mutex<RustVmmVirtIOBlock> = Mutex::new(RustVmmVirtIOBlock
 pub fn init_virtio_blk() -> DiskResult<()> {
     let mut device = VIRTIO_BLK.lock();
     device.init()
+}
+
+/// Check if VirtIO block device is already initialized
+pub fn is_virtio_blk_initialized() -> bool {
+    let device = VIRTIO_BLK.lock();
+    device.initialized
 }
 
 /// Initialize VirtIO block device with specific address

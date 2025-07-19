@@ -3,7 +3,7 @@
 use super::structures::*;
 use super::superblock::SuperblockManager;
 use super::super::traits::{FilesystemError, FilesystemResult};
-use elinos_common::console_println;
+use crate::console_println;
 
 /// Manages ext2 inode operations
 pub struct InodeManager {
@@ -12,7 +12,7 @@ pub struct InodeManager {
 }
 
 impl InodeManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             inode_size: 256, // Default ext2 inode size
             inodes_per_group: 0,

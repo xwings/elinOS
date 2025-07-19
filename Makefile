@@ -150,6 +150,7 @@ build-bootloader-release: ## Build the bootloader (release mode)
 .PHONY: build-kernel-release
 build-kernel-release: ## Build the kernel (release mode)
 	@echo -e "$(COLOR_BLUE)Building $(KERNEL_NAME) (release)...$(COLOR_RESET)"
+	@rm -f $(QEMU_LOG)
 	@cd kernel && cargo build $(CARGO_FLAGS) $(RELEASE_FLAGS)
 	@echo -e "$(COLOR_GREEN)✓ Kernel release build completed: $(RELEASE_DIR)/$(KERNEL_NAME)$(COLOR_RESET)"
 
@@ -228,8 +229,7 @@ run-console: build ## Run the kernel in QEMU (console mode)
 		-m $(QEMU_MEMORY) \
 		-nographic \
 		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
-		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0
 
@@ -243,8 +243,7 @@ run-console-debug: build ## Run the elinOS with log output
 		-m $(QEMU_MEMORY) \
 		-nographic \
 		-bios $(OPENSBI) \
-		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
-		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
+		-kernel $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-drive file=${DISK_IMAGE},format=raw,if=none,id=disk0 \
         -device virtio-blk-device,drive=disk0 \
         -d guest_errors,int,unimp,exec,in_asm \
@@ -289,8 +288,8 @@ run-fb-debug: build ## Run the kernel in QEMU with software framebuffer testing
 		-D qemu.log
 
 .PHONY: run-sdimg
-run-sdimg: build build-img c-programs populate-sdcard ## Run the kernel in QEMU with SD card
-	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) in QEMU with SD card...$(COLOR_RESET)"
+run-sdimg: build build-img c-programs populate-sdcard ## Run bootloader from SPI flash with SD card
+	@echo -e "$(COLOR_BLUE)Starting $(PROJECT_NAME) with SPI flash boot and SD card...$(COLOR_RESET)"
 	@$(QEMU) \
 		-machine $(QEMU_MACHINE) \
 		-cpu $(QEMU_CPU) \
@@ -299,7 +298,6 @@ run-sdimg: build build-img c-programs populate-sdcard ## Run the kernel in QEMU 
 		-nographic \
 		-bios $(OPENSBI) \
 		-kernel $(DEBUG_DIR)/$(BOOTLOADER_BIN) \
-		-initrd $(DEBUG_DIR)/$(KERNEL_NAME) \
 		-device virtio-blk-device,drive=sdcard \
 		-drive file=$(SDCARD_IMAGE),format=raw,if=none,id=sdcard
 
@@ -403,6 +401,10 @@ populate-disk: $(DISK_IMAGE) ## Add test files to disk image
 	@echo "This is a test file for the elinOS filesystem." | sudo tee $(DISK_MOUNT)/test.txt >/dev/null
 	@echo "README for elinOS test disk" | sudo tee $(DISK_MOUNT)/README.md >/dev/null
 	@echo "C Programs compiled for elinOS" | sudo tee $(DISK_MOUNT)/C_PROGRAMS.txt >/dev/null
+	@if [ -f "$(DEBUG_DIR)/$(KERNEL_NAME)" ]; then \
+		echo -e "$(COLOR_CYAN)  Copying kernel to disk...$(COLOR_RESET)"; \
+		sudo cp "$(DEBUG_DIR)/$(KERNEL_NAME)" "$(DISK_MOUNT)/kernel"; \
+	fi
 	@for binary in $(C_BINARIES); do \
 		if [ -f "$$binary" ]; then \
 			echo -e "$(COLOR_CYAN)  Copying: $$(basename $$binary)$(COLOR_RESET)"; \
@@ -446,14 +448,18 @@ build-img: ## Create SD card image with ext2 filesystem
 	@echo -e "$(COLOR_GREEN)✓ SD card image created: $(SDCARD_IMAGE)$(COLOR_RESET)"
 
 .PHONY: populate-sdcard
-populate-sdcard: $(SDCARD_IMAGE) ## Add test files to SD card image
-	@echo -e "$(COLOR_BLUE)Populating SD card image with test files...$(COLOR_RESET)"
+populate-sdcard: $(SDCARD_IMAGE) ## Add test files and kernel to SD card image
+	@echo -e "$(COLOR_BLUE)Populating SD card image with test files and kernel...$(COLOR_RESET)"
 	@mkdir -p $(SDCARD_MOUNT)
 	@sudo mount -o loop $(SDCARD_IMAGE) $(SDCARD_MOUNT) 2>/dev/null || true
 	@echo "Hello from elinOS SD card, LittleMa, LittleBai" | sudo tee $(SDCARD_MOUNT)/hello.txt >/dev/null
 	@echo "This is a test file for the elinOS SD card filesystem." | sudo tee $(SDCARD_MOUNT)/test.txt >/dev/null
 	@echo "README for elinOS SD card test disk" | sudo tee $(SDCARD_MOUNT)/README.md >/dev/null
 	@echo "C Programs compiled for elinOS on SD card" | sudo tee $(SDCARD_MOUNT)/C_PROGRAMS.txt >/dev/null
+	@if [ -f "$(DEBUG_DIR)/$(KERNEL_NAME)" ]; then \
+		echo -e "$(COLOR_CYAN)  Copying kernel to SD card...$(COLOR_RESET)"; \
+		sudo cp "$(DEBUG_DIR)/$(KERNEL_NAME)" "$(SDCARD_MOUNT)/kernel"; \
+	fi
 	@for binary in $(C_BINARIES); do \
 		if [ -f "$$binary" ]; then \
 			echo -e "$(COLOR_CYAN)  Copying: $$(basename $$binary)$(COLOR_RESET)"; \
@@ -462,7 +468,7 @@ populate-sdcard: $(SDCARD_IMAGE) ## Add test files to SD card image
 	done	
 	@sudo umount $(SDCARD_MOUNT) 2>/dev/null || true
 	@rmdir $(SDCARD_MOUNT) 2>/dev/null || true
-	@echo -e "$(COLOR_GREEN)✓ SD card populated with test files$(COLOR_RESET)"
+	@echo -e "$(COLOR_GREEN)✓ SD card populated with test files and kernel$(COLOR_RESET)"
 
 .PHONY: mount-sdcard
 mount-sdcard: $(SDCARD_IMAGE) ## Mount SD card image for inspection

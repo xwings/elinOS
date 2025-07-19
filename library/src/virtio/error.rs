@@ -1,6 +1,6 @@
 //! VirtIO error types and result definitions
 
-use elinos_common::console_println;
+use crate::console_println;
 use core::fmt;
 
 /// VirtIO disk operation errors

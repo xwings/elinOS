@@ -13,7 +13,7 @@ pub struct SuperblockManager {
 }
 
 impl SuperblockManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             superblock: None,
             group_desc: None,
@@ -35,6 +35,7 @@ impl SuperblockManager {
         let mut disk_device = virtio::VIRTIO_BLK.lock();
         
         if !disk_device.is_initialized() {
+            console_println!("[x] VirtIO block device not initialized when reading superblock");
             return Err(FilesystemError::DeviceError);
         }
 

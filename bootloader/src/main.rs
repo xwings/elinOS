@@ -3,15 +3,14 @@
 
 use core::panic::PanicInfo;
 use core::arch::asm;
-use heapless::Vec;
 
 // Import shared library components
 use elinos_common as common;
-use common::elf::{ElfUtils, ElfLoader, Elf64Header, Elf64Phdr, PT_LOAD};
+use common::elf::{ElfLoader, Elf64Phdr};
+use common::filesystem::FileSystem;
 
 // Re-export commonly used macros and functions from shared library
 pub use common::{console_print, console_println, debug_print, debug_println};
-use common::memory::search_memory_pattern;
 
 // Import modules from the bootloader library (only what bootloader needs)
 // Note: Most functionality moved to kernel
@@ -175,159 +174,151 @@ fn load_and_start_kernel() -> ! {
                      bootloader_info.available_ram_start + bootloader_info.available_ram_size,
                      bootloader_info.available_ram_size / (1024 * 1024));
     
-    // Load kernel from initrd (QEMU loads it to a known location)
-    let kernel_base = locate_kernel_from_initrd();
+    // Load kernel from SD card
+    let kernel_base = locate_kernel_from_sdcard();
     
     // Use the known kernel entry point (since ELF header reading might be corrupted)
     let kernel_entry_point = 0x80400000_usize;
     
     console_println!("[i] Kernel base: 0x{:x}", kernel_base);
     console_println!("[i] Kernel entry point: 0x{:x}", kernel_entry_point);
+    
+    // Copy bootloader info to a safe memory location that kernel can access
+    // Use memory just before the kernel base as temporary storage
+    let safe_bootloader_info_addr = 0x803FF000_usize; // Just before kernel at 0x80400000
+    unsafe {
+        core::ptr::write(safe_bootloader_info_addr as *mut BootloaderInfo, bootloader_info);
+    }
+    
     console_println!("[i] Jumping to kernel...");
     console_println!();
     
     // Jump to kernel with bootloader info
     unsafe {
-        let kernel_main: extern "C" fn(usize) -> ! = core::mem::transmute(kernel_entry_point);
-        kernel_main(&bootloader_info as *const _ as usize);
-    }
-}
-
-/// Search for ELF magic signature in memory ranges
-/// Returns the address where ELF binary was found, or None if not found
-fn search_kernel_elf(memory_regions: &[(usize, usize)]) -> Option<usize> {
-    // ELF magic: 0x7f, 'E', 'L', 'F'
-    let elf_magic = [0x7f, b'E', b'L', b'F'];
-    
-    console_println!("[i] Searching for ELF magic pattern in memory regions...");
-    
-    for (i, &(start, size)) in memory_regions.iter().enumerate() {
-        let end = start + size;
-        console_println!("[i] Searching region {}: 0x{:x} - 0x{:x} ({} MB)", 
-                         i, start, end, size / (1024 * 1024));
-        
-        // Try different alignments: 1 byte, 4 bytes, 64 bytes, 4KB
-        let alignments = [1, 4, 64, 4096];
-        
-        for &alignment in &alignments {
-            if let Some(addr) = unsafe { search_memory_pattern(start, end, &elf_magic, alignment) } {
-                console_println!("[o] Found ELF magic at 0x{:x} (alignment {})", addr, alignment);
-                
-                // Verify it's a valid 64-bit RISC-V ELF
-                unsafe {
-                    let ei_class = core::ptr::read_volatile((addr + 4) as *const u8);
-                    let ei_data = core::ptr::read_volatile((addr + 5) as *const u8);
-                    let e_machine = core::ptr::read_volatile((addr + 18) as *const u16);
-                    
-                    console_println!("[i] ELF validation: class={}, data={}, machine=0x{:x}", 
-                                     ei_class, ei_data, e_machine);
-                    
-                    // Check for 64-bit (class=2), little-endian (data=1), RISC-V (machine=0xf3)
-                    if ei_class == 2 && ei_data == 1 && e_machine == 0xf3 {
-                        console_println!("[o] Valid 64-bit RISC-V ELF found!");
-                        return Some(addr);
-                    } else {
-                        console_println!("[!] ELF validation failed, continuing search...");
-                    }
-                }
-            }
-        }
-    }
-    
-    console_println!("[x] No valid ELF binary found in any memory region");
-    None
-}
-
-
-/// Load ELF segments using shared library
-fn load_elf_segments(elf_addr: usize) -> bool {
-    unsafe {
-        // Convert address to slice
-        let elf_data = core::slice::from_raw_parts(elf_addr as *const u8, 64 * 1024 * 1024); // Assume max 64MB
-        
-        // Validate ELF header
-        if !ElfUtils::validate_elf_header(elf_data) {
-            console_println!("[x] Invalid ELF header");
-            return false;
-        }
-        
-        // Get ELF header
-        let header = match ElfUtils::get_header(elf_data) {
-            Some(h) => h,
-            None => {
-                console_println!("[x] Failed to get ELF header");
-                return false;
-            }
-        };
-        
-        console_println!("[i] Loading ELF segments: phoff=0x{:x}, phentsize={}, phnum={}", 
-                         header.e_phoff, header.e_phentsize, header.e_phnum);
-        
-        let loader = BootloaderElfLoader;
-        
-        // Process each program header
-        for i in 0..header.e_phnum {
-            if let Some(phdr) = ElfUtils::get_program_header(elf_data, header, i as usize) {
-                // Only process LOAD segments
-                if ElfUtils::is_loadable_segment(&phdr) {
-                    if loader.load_segment(&phdr, elf_data).is_err() {
-                        console_println!("[x] Failed to load segment {}", i);
-                        return false;
-                    }
-                }
-            }
-        }
-        
-        console_println!("[o] All ELF segments loaded successfully");
-        true
+        // Use inline assembly to jump to kernel more directly
+        asm!(
+            "jr {kernel_entry}",
+            kernel_entry = in(reg) kernel_entry_point,
+            in("a0") safe_bootloader_info_addr,
+            options(noreturn)
+        );
     }
 }
 
 
-/// Locate the kernel binary from initrd using comprehensive memory search
-/// QEMU loads the initrd to a specific location in memory
-fn locate_kernel_from_initrd() -> usize {
+
+/// Locate the kernel binary from SD card using VirtIO and ext2
+fn locate_kernel_from_sdcard() -> usize {
     let kernel_dest = 0x80400000_usize;   // Where kernel should be loaded
     
-    console_println!("[i] Starting comprehensive kernel search...");
+    console_println!("[i] Loading kernel from SD card...");
     
-    // Define memory regions to search
-    let memory_region = common::memory::hardware::detect_main_ram()
-        .unwrap_or_else(|| common::memory::hardware::get_fallback_ram());
+    // Initialize VirtIO memory management
+    if let Err(e) = common::virtio::init_virtio_memory() {
+        console_println!("[x] Failed to initialize VirtIO memory: {:?}", e);
+        halt_system();
+    }
     
-    let search_regions = [
-        // High priority: Known QEMU/OpenSBI locations
-        (0x87000000, 8 * 1024 * 1024),   // 8MB around typical initrd location
-        (0x84000000, 4 * 1024 * 1024),   // 4MB around common QEMU location
-        (0x80200000, 2 * 1024 * 1024),   // 2MB after OpenSBI
-        (0x82000000, 4 * 1024 * 1024),   // 4MB mid-memory
-        
-        // Medium priority: Other reasonable locations
-        (0x80800000, 4 * 1024 * 1024),   // 4MB higher in memory
-        (0x81000000, 4 * 1024 * 1024),   // 4MB even higher
-        (0x86000000, 4 * 1024 * 1024),   // 4MB before high region 
-    ];
+    // Initialize VirtIO block device
+    if let Err(e) = common::virtio::init_virtio_blk() {
+        console_println!("[x] Failed to initialize VirtIO block device: {:?}", e);
+        halt_system();
+    }
     
-    // Use the comprehensive search API
-    if let Some(kernel_addr) = search_kernel_elf(&search_regions) {
-        console_println!("[o] Kernel ELF found at 0x{:x}!", kernel_addr);
-        
-        // Load ELF segments properly instead of raw copy
-        if load_elf_segments(kernel_addr) {
-            console_println!("[o] Kernel ELF loaded successfully from comprehensive search");
-            return kernel_dest;
-        } else {
-            console_println!("[x] Failed to load ELF segments");
+    console_println!("[o] VirtIO block device initialized");
+    
+    // Initialize storage manager
+    if let Err(e) = common::virtio::init_storage() {
+        console_println!("[x] Failed to initialize storage manager: {:?}", e);
+        halt_system();
+    }
+    
+    console_println!("[o] Storage manager initialized");
+    
+    // Initialize ext2 filesystem
+    let mut ext2_fs = common::filesystem::Ext2FileSystem::new();
+    if let Err(e) = ext2_fs.init() {
+        console_println!("[x] Failed to initialize ext2 filesystem: {:?}", e);
+        halt_system();
+    }
+    
+    console_println!("[o] ext2 filesystem mounted");
+    
+    // Read kernel file
+    let kernel_content = match ext2_fs.read_file("/kernel") {
+        Ok(content) => content,
+        Err(e) => {
+            console_println!("[x] Failed to read /kernel file: {:?}", e);
+            halt_system();
+        }
+    };
+    
+    console_println!("[o] Kernel file read successfully ({} bytes)", kernel_content.len());
+    
+    // Copy kernel to destination address
+    let kernel_slice = kernel_content.as_slice();
+    if kernel_slice.len() == 0 {
+        console_println!("[x] Kernel file is empty");
+        halt_system();
+    }
+    
+    // Validate ELF header
+    if !common::elf::ElfUtils::validate_elf_header(kernel_slice) {
+        console_println!("[x] Invalid ELF header in kernel file");
+        halt_system();
+    }
+    
+    // Load ELF segments
+    if !load_elf_segments_from_buffer(kernel_slice) {
+        console_println!("[x] Failed to load ELF segments from kernel file");
+        halt_system();
+    }
+    
+    console_println!("[o] Kernel loaded successfully from SD card");
+    kernel_dest
+}
+
+/// Load ELF segments from a buffer
+fn load_elf_segments_from_buffer(elf_data: &[u8]) -> bool {
+    // Validate ELF header
+    if !common::elf::ElfUtils::validate_elf_header(elf_data) {
+        console_println!("[x] Invalid ELF header");
+        return false;
+    }
+    
+    // Get ELF header
+    let header = match common::elf::ElfUtils::get_header(elf_data) {
+        Some(h) => h,
+        None => {
+            console_println!("[x] Failed to get ELF header");
+            return false;
+        }
+    };
+    
+    console_println!("[i] Loading ELF segments: phoff=0x{:x}, phentsize={}, phnum={}", 
+                     header.e_phoff, header.e_phentsize, header.e_phnum);
+    
+    let loader = BootloaderElfLoader;
+    
+    // Process each program header
+    for i in 0..header.e_phnum {
+        if let Some(phdr) = common::elf::ElfUtils::get_program_header(elf_data, header, i as usize) {
+            // Only process LOAD segments
+            if common::elf::ElfUtils::is_loadable_segment(&phdr) {
+                if loader.load_segment(&phdr, elf_data).is_err() {
+                    console_println!("[x] Failed to load segment {}", i);
+                    return false;
+                }
+            }
         }
     }
     
-    // Final failure - halt the system properly
-    console_println!("[x] CRITICAL: Cannot find kernel ELF binary anywhere in memory!");
-    console_println!("[!] Searched entire RAM space comprehensively");
-    console_println!("[!] This indicates QEMU initrd loading is fundamentally broken");
-    console_println!("[!] System will halt to prevent infinite restart loop");
-    
-    // Force halt - do not try to jump to invalid kernel location
+    console_println!("[o] All ELF segments loaded successfully");
+    true
+}
+
+/// Halt the system with proper error handling
+fn halt_system() -> ! {
     console_println!("[!] === BOOTLOADER HALTED ===");
     
     // Disable interrupts and halt

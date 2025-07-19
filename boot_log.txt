@@ -1,0 +1,5 @@
+[34mBuilding bootloader (debug)...[0m
+[32m✓ Bootloader debug build completed: target/riscv64gc-unknown-none-elf/debug/BOOT.bin[0m
+[34mBuilding kernel (debug)...[0m
+[32m✓ Kernel debug build completed: target/riscv64gc-unknown-none-elf/debug/kernel[0m
+[34mStarting elinOS with log output...[0m

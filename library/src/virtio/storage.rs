@@ -3,8 +3,7 @@
 
 use super::error::{DiskError, DiskResult};
 use super::block::VIRTIO_BLK;
-use crate::drivers::sdcard::{read_sdcard_blocks, write_sdcard_blocks, get_sdcard_capacity};
-use elinos_common::console_println;
+use crate::console_println;
 use spin::Mutex;
 
 /// Storage device type
@@ -41,12 +40,12 @@ impl StorageManager {
             }
         }
         
-        // Check SD card
-        let sdcard_capacity = get_sdcard_capacity();
-        if sdcard_capacity > 0 {
-            self.sdcard_available = true;
-            console_println!("[o] SD card detected (capacity: {} sectors)", sdcard_capacity);
-        }
+        // Check SD card (TODO: implement SD card detection)
+        // let sdcard_capacity = get_sdcard_capacity();
+        // if sdcard_capacity > 0 {
+        //     self.sdcard_available = true;
+        //     console_println!("[o] SD card detected (capacity: {} sectors)", sdcard_capacity);
+        // }
         
         // Set priority: VirtIO first (for QEMU), then SD card (for real hardware)
         if self.virtio_available {
@@ -71,8 +70,8 @@ impl StorageManager {
                 virtio_blk.read_blocks(start_block as u64, buffer)
             }
             Some(StorageType::SdCard) => {
-                read_sdcard_blocks(start_block, buffer)
-                    .map_err(|_| DiskError::ReadError)
+                // TODO: implement SD card read
+                Err(DiskError::DeviceNotFound)
             }
             None => Err(DiskError::DeviceNotFound),
         }
@@ -86,8 +85,8 @@ impl StorageManager {
                 virtio_blk.write_blocks(start_block as u64, buffer)
             }
             Some(StorageType::SdCard) => {
-                write_sdcard_blocks(start_block, buffer)
-                    .map_err(|_| DiskError::WriteError)
+                // TODO: implement SD card write
+                Err(DiskError::DeviceNotFound)
             }
             None => Err(DiskError::DeviceNotFound),
         }
@@ -101,7 +100,8 @@ impl StorageManager {
                 virtio_blk.get_capacity()
             }
             Some(StorageType::SdCard) => {
-                get_sdcard_capacity() as u64
+                // TODO: implement SD card capacity
+                0
             }
             None => 0,
         }

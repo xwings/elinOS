@@ -31,7 +31,7 @@ pub struct Ext2FileSystem {
 }
 
 impl Ext2FileSystem {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             superblock_mgr: SuperblockManager::new(),
             inode_mgr: InodeManager::new(),
@@ -125,6 +125,11 @@ impl Ext2FileSystem {
         } else {
             FileEntry::new_file(path, inode_num as u64, self.inode_mgr.get_file_size(&inode))
         }
+    }
+    
+    /// Get filesystem type name
+    pub fn get_filesystem_type(&self) -> &'static str {
+        "ext2"
     }
     
     /// Refresh the in-memory cache by re-reading the root directory
