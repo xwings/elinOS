@@ -10,7 +10,7 @@
 
 > **elinOS** is an experimental operating system kernel designed for research, learning, and exploring advanced memory management techniques. Built entirely in Rust for RISC-V architecture, it features dynamic hardware detection, sophisticated multi-tier memory allocators, real filesystem implementations, and a comprehensive Linux-compatible system call interface.
 
-## 🌟 Key Features
+## Key Features
 
 ### **Memory Management**
 - **Multi-Tier Architecture**: Buddy allocator + Slab allocator + Fallible operations
@@ -118,7 +118,7 @@ make run-qemu
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🔧 Available Commands
+## Available Commands
 
 ### File System Operations
 ```bash
@@ -152,7 +152,7 @@ elinOS> reboot                  # System reboot
 ```
 
 
-## 🔬 Development & Research
+## Development & Research
 
 elinOS is designed for:
 
