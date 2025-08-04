@@ -23,20 +23,24 @@
 2. Run "timeout 60 make run-console-debug" and be able to see elinOS>
 3. Pass all test in "make test" or "make test-fb"
 
-### Boot stage
+### Boot stage - boot.bin
 1. QEMU load OpenSBI
 2. OpenSBI load bootloader (boot.bin)
 3. Bootloader (boot.bin) runs kernel
 4. After kernel boot, it will show interactive shell "elinOS>" 
 6. MUST run "make test", it will test the command make sure everything runs well.
 7. Must support both qemu and real hardware.
+8. What do we need to have in boot.bin, after qemu/hardware load boot.bin
+    - Add storage support - Implement VirtIO block device driver
+    - Add ext2 support - Read ext2 filesystem to find /kernel
+    - Load from /kernel - Read kernel binary from SD card instead of memory
 
-### How to run
-1. make run-fb : interactive shell in both console (uart) and framebuffer tty
-2. make run-fb-debug : interactive shell in both console (uart) and framebuffer tty, with qemu.log
-3. make run-console : interactive shell with console (uart) tty 
-4. make run-console-debug : interactive shell with console (uart) tty, with qemu.log
+### How to run and test in QEMU
+- make run-console : interactive shell with console (uart) tty
+- make run-console-debug : interactive shell with console (uart) tty, with qemu.log
+- make test-console : unittest with interactive shell with console (uart) tty, make sure 100% passing rate
 
-### How unit test
-1. make test-console : test only console, make sure 100% passing rate
-2. make test-fb : test console with frame buffer, make sure 100% passing rate
+### Work in progress
+- make test-fb : test console with frame buffer, make sure 100% passing rate
+- make run-fb : interactive shell in both console (uart) and framebuffer tty
+- make run-fb-debug : interactive shell in both console (uart) and framebuffer tty, with qemu.log
